@@ -585,11 +585,20 @@ class CarPresentation(
             }
 
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
-                YouTubeAdBlocker.shouldIntercept(request)?.let { return it }
-                val url = request?.url?.toString()
-                if (url != null && YouTubePlayerHelper.isAdUrl(url)) {
-                    val origin = request.requestHeaders?.get("Origin") ?: request.requestHeaders?.get("origin")
-                    return YouTubePlayerHelper.createEmptyResponse(origin)
+                if (currentActiveAppId == "iptv") {
+                    IptvRequestProxy.shouldIntercept(request)?.let { return it }
+                }
+                if (currentActiveAppId == "web" &&
+                    prefs.getBoolean(SettingsActivity.KEY_BROWSER_ADBLOCK, true)) {
+                    WebAdBlocker.shouldIntercept(request)?.let { return it }
+                }
+                if (currentActiveAppId == "youtube") {
+                    YouTubeAdBlocker.shouldIntercept(request)?.let { return it }
+                    val url = request?.url?.toString()
+                    if (url != null && YouTubePlayerHelper.isAdUrl(url)) {
+                        val origin = request.requestHeaders?.get("Origin") ?: request.requestHeaders?.get("origin")
+                        return YouTubePlayerHelper.createEmptyResponse(origin)
+                    }
                 }
                 return super.shouldInterceptRequest(view, request)
             }
@@ -601,6 +610,14 @@ class CarPresentation(
                 val isDay = isDayMode()
                 applyUniversalWebTheme(view, isDay)
                 applyWebScaleForUrl(url)
+            }
+
+            override fun onPageCommitVisible(view: WebView, url: String) {
+                super.onPageCommitVisible(view, url)
+                // This callback means Chromium has committed pixels for the NEW
+                // document. Revealing earlier in onPageStarted can briefly expose
+                // the old Browser framebuffer under YouTube chrome.
+                revealWebSurfaceIfReady(view, url)
             }
 
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
@@ -619,6 +636,7 @@ class CarPresentation(
 
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
+                revealWebSurfaceIfReady(view, url)
                 if (currentActiveAppId == "web" && browserNeedsHistoryReset && view.url == url) {
                     view.clearHistory()
                     browserNeedsHistoryReset = false
@@ -632,9 +650,15 @@ class CarPresentation(
                 applyUniversalWebTheme(view, isDay)
                 val isYouTube = currentActiveAppId == "youtube" && (url.contains("youtube.com") || url.contains("youtu.be"))
                 if (isYouTube) {
+                    CarMediaManager.confirmPendingYouTubeSearch(url)
                     YouTubePlayerHelper.inject(view, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
                     YouTubePlayerHelper.applyCarSearchHome(view)
                     updateYouTubeHomeObstacles()
+                } else if (currentActiveAppId == "web") {
+                    WebAdBlocker.applyCosmeticFiltering(
+                        view,
+                        prefs.getBoolean(SettingsActivity.KEY_BROWSER_ADBLOCK, true)
+                    )
                 }
                 // Every embedded app uses the same text-only keyboard bridge.
                 view.evaluateJavascript(pageInputScript + "\nwindow.__thtvPageInput.install();", null)
@@ -776,6 +800,19 @@ class CarPresentation(
             }
 
         }
+
+        val pendingSearchUrl = if (currentActiveAppId == "youtube") {
+            CarMediaManager.pendingYouTubeSearchUrl()
+        } else {
+            null
+        }
+        if (!pendingSearchUrl.isNullOrBlank() && web.url != pendingSearchUrl) {
+            // SearchTemplate temporarily removes the custom Surface. If its submit
+            // races WebView.loadUrl(), the recreated Presentation can still report
+            // the old YouTube home URL here. Re-issue only the pending manual target.
+            web.loadUrl(pendingSearchUrl)
+        }
+
         CarMediaManager.registerCarWebView(web, context)
 
         val dash = CarDashboardView(
@@ -1030,12 +1067,20 @@ class CarPresentation(
     fun applyWebScaleForUrl(url: String?) {
         val effectivePhoneDpi = if (phoneDpi > 0f) phoneDpi else 440f
         val effectiveCarDpi = if (carDpi > 0) carDpi.toFloat() else 160f
-        val scalePercent = if (currentActiveAppId == "web") 0 else ((effectiveCarDpi / effectivePhoneDpi) * 100f).coerceIn(20f, 200f).toInt()
-        if (scalePercent != lastAppliedScale) {
+        val isBrowser = currentActiveAppId == "web"
+        // Browser pages should use the full projected viewport at normal CSS scale.
+        // setInitialScale(0) + loadWithOverviewMode made several sites render into
+        // a narrow left column on wide Android Auto screens.
+        val scalePercent = if (isBrowser) {
+            100
+        } else {
+            ((effectiveCarDpi / effectivePhoneDpi) * 100f).coerceIn(20f, 200f).toInt()
+        }
+        if (scalePercent != lastAppliedScale || isBrowser) {
             lastAppliedScale = scalePercent
             web.setInitialScale(scalePercent)
             web.settings.useWideViewPort = true
-            web.settings.loadWithOverviewMode = true
+            web.settings.loadWithOverviewMode = !isBrowser
             web.settings.textZoom = 100
         }
     }
@@ -1058,6 +1103,12 @@ class CarPresentation(
                     if (currentUrl.contains("www.youtube.com")) currentUrl.replace("www.youtube.com", "m.youtube.com") else "https://m.youtube.com"
                 }
                 web.loadUrl(targetUrl)
+            }
+            if (key == SettingsActivity.KEY_BROWSER_ADBLOCK && currentActiveAppId == "web") {
+                WebAdBlocker.applyCosmeticFiltering(
+                    web,
+                    prefs.getBoolean(SettingsActivity.KEY_BROWSER_ADBLOCK, true)
+                )
             }
             if (key == SettingsActivity.KEY_THEME_MODE || key == "carhud_day_mode") {
                 applyCurrentTheme(isDayMode())
@@ -1541,8 +1592,8 @@ class CarPresentation(
         }
         val row = LinearLayout(context).apply {
             gravity = Gravity.CENTER_VERTICAL
-            // NavigationTemplate draws its own back action in the upper-right corner.
-            setPadding(dp(4), dp(4), dp(76), dp(4))
+            // Fermata-style projection has no host template action in this corner.
+            setPadding(dp(4), dp(4), dp(4), dp(4))
         }
         fun button(label: String, description: String, action: () -> Unit): TextView {
             return TextView(context).apply {
@@ -1591,8 +1642,21 @@ class CarPresentation(
 
     private fun updateBrowserViewport() {
         (web.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+            params.width = ViewGroup.LayoutParams.MATCH_PARENT
+            params.height = ViewGroup.LayoutParams.MATCH_PARENT
+            params.leftMargin = 0
+            params.rightMargin = 0
+            params.bottomMargin = 0
             params.topMargin = if (currentActiveAppId == "web" && !isDashboardShowing) dp(58) else 0
             web.layoutParams = params
+            web.minimumWidth = 0
+            web.minimumHeight = 0
+            if (currentActiveAppId == "web") {
+                web.settings.useWideViewPort = true
+                web.settings.loadWithOverviewMode = false
+                web.setInitialScale(100)
+            }
+            web.requestLayout()
         }
     }
 
@@ -1855,6 +1919,31 @@ class CarPresentation(
         }
     }
 
+    private var pendingWebSurfaceAppId: String? = null
+
+    private fun urlMatchesWebApp(appId: String, url: String): Boolean {
+        if (url.isBlank() || url == "about:blank") return false
+        return when (appId) {
+            "youtube" -> {
+                val host = try { android.net.Uri.parse(url).host.orEmpty().lowercase() } catch (_: Throwable) { "" }
+                host == "youtube.com" || host.endsWith(".youtube.com") || host == "youtu.be"
+            }
+            "iptv" -> url.contains("iptv_player.html", true)
+            "web" -> !url.contains("iptv_player.html", true) &&
+                !url.contains("youtube.com", true) &&
+                !url.contains("youtu.be", true)
+            else -> true
+        }
+    }
+
+    private fun revealWebSurfaceIfReady(view: WebView, url: String) {
+        val target = pendingWebSurfaceAppId ?: return
+        if (target != currentActiveAppId || !urlMatchesWebApp(target, url)) return
+        pendingWebSurfaceAppId = null
+        view.animate().cancel()
+        view.alpha = 1f
+    }
+
     private fun isBrowserApp(): Boolean {
         if (currentActiveAppId != "youtube" && currentActiveAppId != "iptv") return true
 
@@ -1877,15 +1966,31 @@ class CarPresentation(
         if (isChangingApp) {
             CarMediaManager.cancelPendingSteeringNext()
             CarMediaManager.saveWebAppSession(previousAppId, web)
+            if (previousAppId == "youtube" && app.id != "youtube") {
+                CarMediaManager.clearPendingYouTubeSearch()
+            }
         }
         val canRestoreSession = isChangingApp &&
             startUrl == null &&
+            app.id != "tiktok" &&
             CarMediaManager.hasWebAppSession(app.id)
         if (isChangingApp) {
             browserNeedsHistoryReset = app.id == "web" && !canRestoreSession
         }
         val currentUrl = web.url ?: ""
         val isYouTubeApp = (app.id == "youtube" || app.url.contains("youtube.com") || app.url.contains("youtu.be"))
+        val visiblePageMatchesTarget = urlMatchesWebApp(app.id, currentUrl)
+        if (!visiblePageMatchesTarget && app.id in setOf("youtube", "web", "iptv")) {
+            // Do not leave the previous app painted under the new app's toolbar.
+            // The video test showed Google remaining visible while app state already
+            // said YouTube. Keep the WebView black until the target navigation starts.
+            pendingWebSurfaceAppId = app.id
+            web.animate().cancel()
+            web.alpha = 0f
+        } else {
+            pendingWebSurfaceAppId = null
+            web.alpha = 1f
+        }
         val isAlreadyLoaded = if (isYouTubeApp) {
             currentUrl.contains("youtube.com") || currentUrl.contains("youtu.be")
         } else {
@@ -1899,10 +2004,21 @@ class CarPresentation(
 
         val isDesktop = WebAppManager.isAppDesktop(context, app.id)
         if (app.id == "tiktok" || app.url.contains("tiktok.com")) {
-            web.settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            // TikTok is much more stable when WebView identifies as the phone's
+            // mobile Chrome instead of a hard-coded Windows desktop browser.
+            // Keep cookies/storage so a legitimate verification challenge can be
+            // completed normally and remembered by the site.
+            val defaultUa = android.webkit.WebSettings.getDefaultUserAgent(context)
+            web.settings.userAgentString = defaultUa
+                .replace("; wv", "")
+                .replace("Version/4.0 ", "")
+                .replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
             web.settings.domStorageEnabled = true
             web.settings.databaseEnabled = true
             web.settings.mediaPlaybackRequiresUserGesture = false
+            web.settings.useWideViewPort = true
+            web.settings.loadWithOverviewMode = false
+            web.settings.javaScriptCanOpenWindowsAutomatically = false
             try {
                 CookieManager.getInstance().setAcceptCookie(true)
                 CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
@@ -1917,6 +2033,28 @@ class CarPresentation(
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true
         web.settings.setSupportMultipleWindows(false)
+        if (app.id == "iptv") {
+            // iptv_player.html is a trusted local asset whose Hls.js instance must
+            // fetch remote manifests/segments. Newer WebView versions block this
+            // cross-origin path unless universal file access is explicitly enabled.
+            @Suppress("DEPRECATION")
+            try {
+                web.settings.allowFileAccessFromFileURLs = true
+                web.settings.allowUniversalAccessFromFileURLs = true
+            } catch (_: Throwable) {}
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                web.settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            }
+            web.settings.mediaPlaybackRequiresUserGesture = false
+        } else {
+            @Suppress("DEPRECATION")
+            try {
+                web.settings.allowUniversalAccessFromFileURLs = false
+            } catch (_: Throwable) {}
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                web.settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            }
+        }
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
         web.isFocusable = true
@@ -1964,7 +2102,11 @@ class CarPresentation(
         web.evaluateJavascript("window.isDashboardMode = false;", null)
         
         applyWebScaleForUrl(app?.url ?: web.url)
-        YouTubePlayerHelper.applyTheme(web, isDayMode())
+        if (currentActiveAppId == "youtube") {
+            YouTubePlayerHelper.applyTheme(web, isDayMode())
+        } else {
+            applyUniversalWebTheme(web, isDayMode())
+        }
         dashboardView?.detachEmbeddedWeb()
         dashboardView?.visibility = View.GONE
         web.visibility = View.VISIBLE
@@ -2861,7 +3003,11 @@ class CarPresentation(
         CarMediaManager.setPlaybackState(false)
     }
 
-    private fun executeSearch(query: String, broadcast: Boolean = false) {
+    private fun executeSearch(
+        query: String,
+        broadcast: Boolean = false,
+        notifySearchDismiss: Boolean = true
+    ) {
         if (searchOverlayMode == "address") {
             if (isBrowserApp()) navigateBrowser(query)
             return
@@ -2880,7 +3026,7 @@ class CarPresentation(
         }
         YouTubePlayerHelper.search(web, q, autoPlayFirst = false)
         if (broadcast) CarMediaManager.submitSearchQuery(q)
-        hideSearchOverlay()
+        hideSearchOverlay(notifyPhone = notifySearchDismiss)
     }
 
     private fun submitWebKeyboardText(
@@ -3540,12 +3686,21 @@ class CarPresentation(
                         CarMediaManager.editorDraft = null
                         current.searchInput.setText(value)
                         current.searchInput.setSelection(value.length)
-                        current.executeSearch(value, broadcast = false)
+                        current.executeSearch(
+                            value,
+                            broadcast = false,
+                            notifySearchDismiss = false
+                        )
+                        current.activeCarInput = null
                         complete(true)
                     }
                 }
             },
-            onCancel = { value -> searchInput.setText(value); searchInput.setSelection(value.length) }
+            onCancel = { value ->
+                searchInput.setText(value)
+                searchInput.setSelection(value.length)
+                activeCarInput = null
+            }
         )
     }
 
