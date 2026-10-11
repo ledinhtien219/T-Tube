@@ -850,6 +850,93 @@ object YouTubePlayerHelper {
             v.addEventListener('ended', function() {
                 notifyState(false);
                 updateVideoProgress();
+
+                // Auto-next when a YouTube video finishes. Give YouTube's own
+                // autonav a brief chance first; if the page has not changed,
+                // use the native player API, then the Next button, then a
+                // recommended watch link as progressively broader fallbacks.
+                try {
+                    if (window.__carhudUserPaused) return;
+                    if (window.location.pathname.indexOf('/watch') !== 0) return;
+
+                    var endedUrl = window.location.href;
+                    var endedKey = endedUrl.split('&')[0];
+                    var now = Date.now();
+                    if (window.__carhudAutoNextKey === endedKey &&
+                        now - (window.__carhudAutoNextAt || 0) < 6000) {
+                        return;
+                    }
+                    window.__carhudAutoNextKey = endedKey;
+                    window.__carhudAutoNextAt = now;
+
+                    setTimeout(function() {
+                        try {
+                            if (window.__carhudUserPaused) return;
+                            if (window.location.pathname.indexOf('/watch') !== 0) return;
+
+                            // YouTube may already have auto-navigated on its own.
+                            if (window.location.href.split('&')[0] !== endedKey) return;
+
+                            var player = document.getElementById('movie_player') ||
+                                document.querySelector('.html5-video-player');
+                            if (player && typeof player.nextVideo === 'function') {
+                                try {
+                                    player.nextVideo();
+                                    return;
+                                } catch(e) {}
+                            }
+
+                            var nextBtn = document.querySelector(
+                                '.ytp-next-button,' +
+                                'button[aria-label*="Next"],' +
+                                'button[aria-label*="next"],' +
+                                'button[aria-label*="Tiếp theo"],' +
+                                'button[aria-label*="tiếp theo"]'
+                            );
+                            if (nextBtn && !nextBtn.disabled &&
+                                nextBtn.getAttribute('aria-disabled') !== 'true') {
+                                try {
+                                    nextBtn.click();
+                                    return;
+                                } catch(e) {}
+                            }
+
+                            var currentMatch = endedUrl.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+                            var currentId = currentMatch ? currentMatch[1] : '';
+                            var links = document.querySelectorAll(
+                                'ytm-video-with-context-renderer a[href*="/watch?v="],' +
+                                'ytm-compact-video-renderer a[href*="/watch?v="],' +
+                                'a.media-item-thumbnail-container[href*="/watch?v="],' +
+                                'a.compact-media-item-image[href*="/watch?v="],' +
+                                'a[href*="/watch?v="]'
+                            );
+
+                            for (var i = 0; i < links.length; i++) {
+                                var link = links[i];
+                                if (!link || !link.href) continue;
+                                var m = link.href.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+                                if (!m || !m[1] || m[1] === currentId) continue;
+
+                                try {
+                                    if (window.AndroidVoice &&
+                                        window.AndroidVoice.onUserSelectedVideo) {
+                                        window.AndroidVoice.onUserSelectedVideo(
+                                            link.href.split('&')[0]
+                                        );
+                                    }
+                                } catch(e) {}
+
+                                try {
+                                    link.click();
+                                    return;
+                                } catch(e) {
+                                    window.location.assign(link.href);
+                                    return;
+                                }
+                            }
+                        } catch(e) {}
+                    }, 500);
+                } catch(e) {}
             }, true);
 
             v.addEventListener('loadedmetadata', function() {
