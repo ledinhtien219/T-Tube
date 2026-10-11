@@ -194,8 +194,9 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     }
 
     override fun onGetTemplate(): Template {
-        // Keep the original full-surface NavigationTemplate, but do not give the
-        // Android Auto host an ActionStrip to render over the custom Surface.
+        // Fermata-style host chrome behavior: keep the projected Surface template
+        // but do not provide an ActionStrip at all, so Android Auto has no
+        // app-owned action button to render over the v1.0.45 UI.
         return NavigationTemplate.Builder()
             .build()
 
