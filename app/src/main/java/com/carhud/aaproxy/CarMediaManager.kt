@@ -209,12 +209,25 @@ object CarMediaManager {
             web.stopLoading()
 
             val restored = if (appId == "youtube") {
-                // restoreState() is unreliable when the SAME persistent WebView is
-                // currently displaying Browser content: it can return non-null while
-                // leaving the old Google page visible. Navigate to the saved YouTube
-                // URL explicitly; cookies/storage remain in the persistent WebView and
-                // the delayed block below restores scroll/video position.
-                web.loadUrl(session.url)
+                // Fast path: the persistent WebView usually still has the previous
+                // YouTube page in its back/forward list. Jump to that live history
+                // entry first instead of starting another network navigation.
+                val history = web.copyBackForwardList()
+                var youtubeOffset: Int? = null
+                for (i in history.currentIndex - 1 downTo 0) {
+                    val itemUrl = history.getItemAtIndex(i)?.url.orEmpty()
+                    if (sessionUrlMatchesApp("youtube", itemUrl)) {
+                        youtubeOffset = i - history.currentIndex
+                        if (itemUrl == session.url) break
+                    }
+                }
+                if (youtubeOffset != null && youtubeOffset != 0) {
+                    web.goBackOrForward(youtubeOffset)
+                } else {
+                    // History may be gone after process recreation; cookies/cache are
+                    // still warm, so fall back to the saved URL.
+                    web.loadUrl(session.url)
+                }
                 true
             } else {
                 val stateRestored = web.restoreState(android.os.Bundle(session.state)) != null
