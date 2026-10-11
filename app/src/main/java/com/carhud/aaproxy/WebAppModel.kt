@@ -120,6 +120,34 @@ object WebAppManager {
     private const val KEY_DELETED_APPS = "deleted_apps_set"
     private const val KEY_APP_DESKTOP_PREFIX = "app_desktop_override_"
 
+    private val DEFAULT_DASHBOARD_PINNED_IDS = setOf("youtube", "iptv", "web")
+
+    fun getDashboardPinnedIds(context: Context): Set<String> {
+        val prefs = context.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
+        return prefs.getStringSet(
+            MainActivity.PREF_DASHBOARD_PINNED_APPS,
+            DEFAULT_DASHBOARD_PINNED_IDS
+        )?.toSet() ?: DEFAULT_DASHBOARD_PINNED_IDS
+    }
+
+    fun isAppPinnedToDashboard(context: Context, appId: String): Boolean {
+        return getDashboardPinnedIds(context).contains(appId)
+    }
+
+    fun setAppPinnedToDashboard(context: Context, appId: String, pinned: Boolean) {
+        val prefs = context.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
+        val ids = getDashboardPinnedIds(context).toMutableSet()
+        if (pinned) ids.add(appId) else ids.remove(appId)
+        prefs.edit()
+            .putStringSet(MainActivity.PREF_DASHBOARD_PINNED_APPS, ids)
+            .apply()
+    }
+
+    fun getPinnedDashboardApps(context: Context): List<WebAppItem> {
+        val ids = getDashboardPinnedIds(context)
+        return getAllApps(context).filter { ids.contains(it.id) }
+    }
+
     val DEFAULT_APPS = listOf(
         WebAppItem(
             id = "youtube",
