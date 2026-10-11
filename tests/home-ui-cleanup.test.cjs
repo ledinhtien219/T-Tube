@@ -14,13 +14,12 @@ const dashboardXml = fs.readFileSync(
   'utf8'
 );
 
-// Android Auto must receive no ActionStrip at all. The proven list-navigation
-// template keeps the existing app Surface while avoiding host-owned action chrome.
-assert.doesNotMatch(screen, /Action\.BACK/);
+// Android Auto must receive no ActionStrip at all. Keep NavigationTemplate
+// for the existing projected Surface, but do not give the host any app action.
 assert.doesNotMatch(screen, /ActionStrip\.Builder/);
+assert.doesNotMatch(screen, /setActionStrip\(/);
+assert.doesNotMatch(screen, /PlaceListNavigationTemplate/);
 assert.match(screen, /return\s+NavigationTemplate\.Builder\(\)[\s\S]*?\.build\(\)/);
-assert.doesNotMatch(screen, /PlaceListNavigationTemplate\.Builder/);
-assert.doesNotMatch(screen, /setItemList\(ItemList\.Builder/);
 
 // Keep the existing weather-card bounds, but render weather with vector icons.
 assert.match(dashboardXml, /android:id="@\+id\/weatherCard"[\s\S]*?android:layout_width="150dp"[\s\S]*?android:layout_height="76dp"/);
