@@ -5,6 +5,18 @@ const screen = fs.readFileSync(
   'app/src/main/java/com/carhud/aaproxy/CarHudAutoScreen.kt',
   'utf8'
 );
+const projectionHost = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/CarHudProjectionHost.kt',
+  'utf8'
+);
+const manifest = fs.readFileSync(
+  'app/src/main/AndroidManifest.xml',
+  'utf8'
+);
+const automotiveDesc = fs.readFileSync(
+  'app/src/main/res/xml/automotive_app_desc.xml',
+  'utf8'
+);
 const dashboardKt = fs.readFileSync(
   'app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt',
   'utf8'
@@ -14,16 +26,21 @@ const dashboardXml = fs.readFileSync(
   'utf8'
 );
 
-// Android Auto test branch: remove the template-owned action strip entirely.
-// NavigationTemplate forces an ActionStrip, which some hosts render as a blank
-// circular button even when the action has no visible content. MapTemplate keeps
-// the app-provided surface but allows no template ActionStrip.
-assert.doesNotMatch(screen, /Action\.BACK/);
-assert.doesNotMatch(screen, /import androidx\.car\.app\.navigation\.model\.NavigationTemplate/);
-assert.doesNotMatch(screen, /return NavigationTemplate\.Builder\(\)/);
-assert.doesNotMatch(screen, /ActionStrip\.Builder/);
-assert.doesNotMatch(screen, /setActionStrip\(/);
-assert.match(screen, /MapTemplate\.Builder\(\)[\s\S]*?setPane\(Pane\.Builder\(\)\.build\(\)\)[\s\S]*?\.build\(\)/);
+// Android Auto test branch: use Fermata's projection host path instead of
+// AndroidX CarAppService templates. The host Activity hides the Android Auto
+// app header/menu and renders THTV into a full-screen SurfaceView.
+assert.match(projectionHost, /class CarHudProjectionService\s*:\s*CarActivityService\(\)/);
+assert.match(projectionHost, /class CarHudProjectionActivity\s*:\s*CarActivity\(\)/);
+assert.match(projectionHost, /hideAppHeader\(\)/);
+assert.match(projectionHost, /hideMenuButton\(\)/);
+assert.match(projectionHost, /SurfaceView\(this\)/);
+assert.match(projectionHost, /CarPresentation\(this, vd\.display, persistentWeb\)/);
+assert.doesNotMatch(manifest, /android:name="com\.carhud\.aaproxy\.CarHudAutoService"[\s\S]*?androidx\.car\.app\.CarAppService/);
+assert.match(manifest, /android:name="com\.carhud\.aaproxy\.CarHudProjectionService"/);
+assert.match(manifest, /com\.google\.android\.gms\.car\.category\.CATEGORY_PROJECTION/);
+assert.doesNotMatch(automotiveDesc, /<uses name="template"\s*\/>/);
+assert.match(automotiveDesc, /name="projection"/);
+assert.match(automotiveDesc, /name="service"/);
 
 // Keep the existing weather-card bounds, but render weather with vector icons.
 assert.match(dashboardXml, /android:id="@\+id\/weatherCard"[\s\S]*?android:layout_width="150dp"[\s\S]*?android:layout_height="76dp"/);
