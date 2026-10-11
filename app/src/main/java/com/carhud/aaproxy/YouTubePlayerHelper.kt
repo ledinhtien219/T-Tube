@@ -851,10 +851,11 @@ object YouTubePlayerHelper {
                 notifyState(false);
                 updateVideoProgress();
 
-                // Auto-next when a YouTube video finishes. Give YouTube's own
-                // autonav a brief chance first; if the page has not changed,
-                // use the native player API, then the Next button, then a
-                // recommended watch link as progressively broader fallbacks.
+                // Reliable auto-next. YouTube exposes player.nextVideo() even on
+                // pages where it can be a no-op, so never assume the call itself
+                // means navigation succeeded. Verify the URL after each stage and
+                // progressively fall back to the visible Next button, then a
+                // recommended watch link.
                 try {
                     if (window.__carhudUserPaused) return;
                     if (window.location.pathname.indexOf('/watch') !== 0) return;
@@ -863,42 +864,29 @@ object YouTubePlayerHelper {
                     var endedKey = endedUrl.split('&')[0];
                     var now = Date.now();
                     if (window.__carhudAutoNextKey === endedKey &&
-                        now - (window.__carhudAutoNextAt || 0) < 6000) {
+                        now - (window.__carhudAutoNextAt || 0) < 8000) {
                         return;
                     }
                     window.__carhudAutoNextKey = endedKey;
                     window.__carhudAutoNextAt = now;
+                    window.__carhudStartingPlayback = true;
 
-                    setTimeout(function() {
+                    function sameVideo() {
+                        return window.location.pathname.indexOf('/watch') === 0 &&
+                            window.location.href.split('&')[0] === endedKey;
+                    }
+
+                    function finishStartingGuard() {
+                        setTimeout(function() {
+                            window.__carhudStartingPlayback = false;
+                        }, 1800);
+                    }
+
+                    function openRecommended() {
                         try {
-                            if (window.__carhudUserPaused) return;
-                            if (window.location.pathname.indexOf('/watch') !== 0) return;
-
-                            // YouTube may already have auto-navigated on its own.
-                            if (window.location.href.split('&')[0] !== endedKey) return;
-
-                            var player = document.getElementById('movie_player') ||
-                                document.querySelector('.html5-video-player');
-                            if (player && typeof player.nextVideo === 'function') {
-                                try {
-                                    player.nextVideo();
-                                    return;
-                                } catch(e) {}
-                            }
-
-                            var nextBtn = document.querySelector(
-                                '.ytp-next-button,' +
-                                'button[aria-label*="Next"],' +
-                                'button[aria-label*="next"],' +
-                                'button[aria-label*="Tiếp theo"],' +
-                                'button[aria-label*="tiếp theo"]'
-                            );
-                            if (nextBtn && !nextBtn.disabled &&
-                                nextBtn.getAttribute('aria-disabled') !== 'true') {
-                                try {
-                                    nextBtn.click();
-                                    return;
-                                } catch(e) {}
+                            if (!sameVideo() || window.__carhudUserPaused) {
+                                finishStartingGuard();
+                                return;
                             }
 
                             var currentMatch = endedUrl.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
@@ -928,15 +916,66 @@ object YouTubePlayerHelper {
 
                                 try {
                                     link.click();
-                                    return;
                                 } catch(e) {
                                     window.location.assign(link.href);
-                                    return;
                                 }
+                                finishStartingGuard();
+                                return;
                             }
                         } catch(e) {}
-                    }, 500);
-                } catch(e) {}
+                        finishStartingGuard();
+                    }
+
+                    function tryNextButton() {
+                        try {
+                            if (!sameVideo() || window.__carhudUserPaused) {
+                                finishStartingGuard();
+                                return;
+                            }
+
+                            var nextBtn = document.querySelector(
+                                '.ytp-next-button,' +
+                                'button[aria-label*="Next"],' +
+                                'button[aria-label*="next"],' +
+                                'button[aria-label*="Tiếp theo"],' +
+                                'button[aria-label*="tiếp theo"]'
+                            );
+                            if (nextBtn && !nextBtn.disabled &&
+                                nextBtn.getAttribute('aria-disabled') !== 'true') {
+                                try { nextBtn.click(); } catch(e) {}
+                                setTimeout(function() {
+                                    if (sameVideo()) openRecommended();
+                                    else finishStartingGuard();
+                                }, 800);
+                                return;
+                            }
+                        } catch(e) {}
+                        openRecommended();
+                    }
+
+                    setTimeout(function() {
+                        try {
+                            if (!sameVideo() || window.__carhudUserPaused) {
+                                finishStartingGuard();
+                                return;
+                            }
+
+                            var player = document.getElementById('movie_player') ||
+                                document.querySelector('.html5-video-player');
+                            if (player && typeof player.nextVideo === 'function') {
+                                try { player.nextVideo(); } catch(e) {}
+                                setTimeout(function() {
+                                    if (sameVideo()) tryNextButton();
+                                    else finishStartingGuard();
+                                }, 700);
+                                return;
+                            }
+                        } catch(e) {}
+                        tryNextButton();
+                    }, 350);
+                } catch(e) {
+                    window.__carhudStartingPlayback = false;
+                }
             }, true);
 
             v.addEventListener('loadedmetadata', function() {
