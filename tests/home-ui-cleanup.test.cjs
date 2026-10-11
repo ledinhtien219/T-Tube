@@ -18,7 +18,7 @@ const dashboardXml = fs.readFileSync(
 // template keeps the existing app Surface while avoiding host-owned action chrome.
 assert.doesNotMatch(screen, /Action\.BACK/);
 assert.doesNotMatch(screen, /ActionStrip\.Builder/);
-assert.doesNotMatch(screen, /NavigationTemplate\.Builder/);
+assert.doesNotMatch(screen, /return\s+NavigationTemplate\.Builder/);
 assert.match(screen, /PlaceListNavigationTemplate\.Builder\(\)/);
 assert.match(screen, /setItemList\(ItemList\.Builder\(\)\.build\(\)\)/);
 
