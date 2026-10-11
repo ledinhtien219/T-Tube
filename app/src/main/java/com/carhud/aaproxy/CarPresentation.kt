@@ -601,6 +601,9 @@ class CarPresentation(
                 val isDay = isDayMode()
                 applyUniversalWebTheme(view, isDay)
                 applyWebScaleForUrl(url)
+                if (currentActiveAppId == "tiktok" && url.contains("tiktok.com", ignoreCase = true)) {
+                    TikTokPlayerHelper.configure(view)
+                }
             }
 
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
@@ -631,6 +634,16 @@ class CarPresentation(
                 val isDay = isDayMode()
                 applyUniversalWebTheme(view, isDay)
                 val isYouTube = currentActiveAppId == "youtube" && (url.contains("youtube.com") || url.contains("youtu.be"))
+                val isTikTok = currentActiveAppId == "tiktok" && url.contains("tiktok.com", ignoreCase = true)
+                if (isTikTok) {
+                    TikTokPlayerHelper.configure(view)
+                    TikTokPlayerHelper.install(view)
+                    view.postDelayed({
+                        if (currentActiveAppId == "tiktok" && view.url?.contains("tiktok.com", ignoreCase = true) == true) {
+                            TikTokPlayerHelper.install(view)
+                        }
+                    }, 900L)
+                }
                 if (isYouTube) {
                     YouTubePlayerHelper.inject(view, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
                     YouTubePlayerHelper.applyCarSearchHome(view)
@@ -1028,16 +1041,22 @@ class CarPresentation(
 
     private var lastAppliedScale = -1
     fun applyWebScaleForUrl(url: String?) {
+        val isTikTok = currentActiveAppId == "tiktok" || url?.contains("tiktok.com", ignoreCase = true) == true
         val effectivePhoneDpi = if (phoneDpi > 0f) phoneDpi else 440f
         val effectiveCarDpi = if (carDpi > 0) carDpi.toFloat() else 160f
-        val scalePercent = if (currentActiveAppId == "web") 0 else ((effectiveCarDpi / effectivePhoneDpi) * 100f).coerceIn(20f, 200f).toInt()
+        val scalePercent = when {
+            isTikTok -> 100
+            currentActiveAppId == "web" -> 0
+            else -> ((effectiveCarDpi / effectivePhoneDpi) * 100f).coerceIn(20f, 200f).toInt()
+        }
         if (scalePercent != lastAppliedScale) {
             lastAppliedScale = scalePercent
             web.setInitialScale(scalePercent)
             web.settings.useWideViewPort = true
-            web.settings.loadWithOverviewMode = true
+            web.settings.loadWithOverviewMode = !isTikTok
             web.settings.textZoom = 100
         }
+        if (isTikTok) TikTokPlayerHelper.configure(web)
     }
 
     fun isDayMode(): Boolean = SettingsActivity.resolveIsDay(context)
@@ -1505,7 +1524,8 @@ class CarPresentation(
     fun resetAutoHideTimer() {
         autoHideHandler.removeCallbacks(hideBarsRunnable)
         if (currentActiveAppId == "web") return
-        autoHideHandler.postDelayed(hideBarsRunnable, 10000L) // 10s auto-hide
+        val delayMs = if (currentActiveAppId == "tiktok") 2500L else 10000L
+        autoHideHandler.postDelayed(hideBarsRunnable, delayMs)
     }
 
     fun onUserInteraction() {
@@ -1899,14 +1919,7 @@ class CarPresentation(
 
         val isDesktop = WebAppManager.isAppDesktop(context, app.id)
         if (app.id == "tiktok" || app.url.contains("tiktok.com")) {
-            web.settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-            web.settings.domStorageEnabled = true
-            web.settings.databaseEnabled = true
-            web.settings.mediaPlaybackRequiresUserGesture = false
-            try {
-                CookieManager.getInstance().setAcceptCookie(true)
-                CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
-            } catch (e: Exception) {}
+            TikTokPlayerHelper.configure(web)
         } else if (isDesktop) {
             web.settings.userAgentString = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
         } else {
@@ -1964,7 +1977,15 @@ class CarPresentation(
         web.evaluateJavascript("window.isDashboardMode = false;", null)
         
         applyWebScaleForUrl(app?.url ?: web.url)
-        YouTubePlayerHelper.applyTheme(web, isDayMode())
+        if (currentActiveAppId == "youtube") {
+            YouTubePlayerHelper.applyTheme(web, isDayMode())
+        } else {
+            YouTubePlayerHelper.applyUniversalWebTheme(web, isDayMode())
+        }
+        if (currentActiveAppId == "tiktok") {
+            TikTokPlayerHelper.configure(web)
+            TikTokPlayerHelper.install(web)
+        }
         dashboardView?.detachEmbeddedWeb()
         dashboardView?.visibility = View.GONE
         web.visibility = View.VISIBLE
@@ -2005,6 +2026,11 @@ class CarPresentation(
                     )
                     when (expectedAppId) {
                         "youtube" -> scheduleSafeResume(web, 450L)
+                        "tiktok" -> {
+                            TikTokPlayerHelper.configure(web)
+                            TikTokPlayerHelper.install(web)
+                            mainHandler.postDelayed({ if (currentActiveAppId == "tiktok") hideBars() }, 700L)
+                        }
                         "iptv" -> if (CarMediaManager.userWantsPlayback) {
                             web.evaluateJavascript(
                                 "if (!window.__iptvUserPaused && window.setIptvPlaying) window.setIptvPlaying(true);",
@@ -3867,13 +3893,18 @@ class CarPresentation(
     fun dispatchScroll(dx: Float, dy: Float) {
         if (videoQualityOverlay != null) { videoQualityOverlay?.findViewById<ScrollView>(android.R.id.content)?.scrollBy(0, dy.toInt()); return }
         if (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) return
-        onUserInteraction()
         val hud = hudOverlay
         if (hud != null && hud.visibility == View.VISIBLE && !hud.isHudLocked()) {
+            onUserInteraction()
             hud.moveBy(-dx, -dy, root.width, root.height)
             return
         }
         val activeWeb = CarMediaManager.getActiveWebView() ?: web
+        if (currentActiveAppId == "tiktok") {
+            TikTokPlayerHelper.scrollBy(activeWeb, dy)
+            return
+        }
+        onUserInteraction()
         val scrollDelta = (dy * 2.0f).roundToInt()
         if (scrollDelta != 0) {
             val js = """
@@ -3893,13 +3924,18 @@ class CarPresentation(
     fun dispatchFling(vx: Float, vy: Float) {
         if (videoQualityOverlay != null) return
         if (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) return
-        onUserInteraction()
         val hud = hudOverlay
         if (hud != null && hud.visibility == View.VISIBLE && !hud.isHudLocked()) {
+            onUserInteraction()
             hud.moveBy(-vx * 0.1f, -vy * 0.1f, root.width, root.height)
             return
         }
         val activeWeb = CarMediaManager.getActiveWebView() ?: web
+        if (currentActiveAppId == "tiktok") {
+            TikTokPlayerHelper.fling(activeWeb, vy)
+            return
+        }
+        onUserInteraction()
         val flingAmount = (-vy * 0.45f).roundToInt()
         if (flingAmount != 0) {
             val js = """
