@@ -357,10 +357,14 @@ class CarDashboardView(
     fun applyComponentVisibility() {
         val showHeroClock = prefs.getBoolean(MainActivity.PREF_SHOW_HERO_CLOCK, true)
         val showSearchBar = prefs.getBoolean(MainActivity.PREF_SHOW_SEARCH_BAR, true)
-        val showCardYt = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_YOUTUBE, true)
-        val showCardIptv = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_IPTV, true)
-        val showCardM3u = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_M3U, true)
-        val showCardBrowser = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_BROWSER, true)
+        val showCardYt = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_YOUTUBE, true) &&
+            WebAppManager.isAppEnabled(context, "youtube")
+        val showCardIptv = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_IPTV, true) &&
+            WebAppManager.isAppEnabled(context, "iptv")
+        val showCardM3u = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_M3U, true) &&
+            WebAppManager.isAppEnabled(context, "iptv")
+        val showCardBrowser = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_BROWSER, true) &&
+            WebAppManager.isAppEnabled(context, "web")
         val showMiniPlayer = prefs.getBoolean(MainActivity.PREF_SHOW_MINI_PLAYER, true)
         val showFavChannels = prefs.getBoolean(MainActivity.PREF_SHOW_FAV_CHANNELS, true)
 
