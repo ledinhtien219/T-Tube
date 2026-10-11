@@ -1067,12 +1067,20 @@ class CarPresentation(
     fun applyWebScaleForUrl(url: String?) {
         val effectivePhoneDpi = if (phoneDpi > 0f) phoneDpi else 440f
         val effectiveCarDpi = if (carDpi > 0) carDpi.toFloat() else 160f
-        val scalePercent = if (currentActiveAppId == "web") 0 else ((effectiveCarDpi / effectivePhoneDpi) * 100f).coerceIn(20f, 200f).toInt()
-        if (scalePercent != lastAppliedScale) {
+        val isBrowser = currentActiveAppId == "web"
+        // Browser pages should use the full projected viewport at normal CSS scale.
+        // setInitialScale(0) + loadWithOverviewMode made several sites render into
+        // a narrow left column on wide Android Auto screens.
+        val scalePercent = if (isBrowser) {
+            100
+        } else {
+            ((effectiveCarDpi / effectivePhoneDpi) * 100f).coerceIn(20f, 200f).toInt()
+        }
+        if (scalePercent != lastAppliedScale || isBrowser) {
             lastAppliedScale = scalePercent
             web.setInitialScale(scalePercent)
             web.settings.useWideViewPort = true
-            web.settings.loadWithOverviewMode = true
+            web.settings.loadWithOverviewMode = !isBrowser
             web.settings.textZoom = 100
         }
     }
@@ -1584,8 +1592,8 @@ class CarPresentation(
         }
         val row = LinearLayout(context).apply {
             gravity = Gravity.CENTER_VERTICAL
-            // NavigationTemplate draws its own back action in the upper-right corner.
-            setPadding(dp(4), dp(4), dp(76), dp(4))
+            // Fermata-style projection has no host template action in this corner.
+            setPadding(dp(4), dp(4), dp(4), dp(4))
         }
         fun button(label: String, description: String, action: () -> Unit): TextView {
             return TextView(context).apply {
@@ -1634,8 +1642,21 @@ class CarPresentation(
 
     private fun updateBrowserViewport() {
         (web.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+            params.width = ViewGroup.LayoutParams.MATCH_PARENT
+            params.height = ViewGroup.LayoutParams.MATCH_PARENT
+            params.leftMargin = 0
+            params.rightMargin = 0
+            params.bottomMargin = 0
             params.topMargin = if (currentActiveAppId == "web" && !isDashboardShowing) dp(58) else 0
             web.layoutParams = params
+            web.minimumWidth = 0
+            web.minimumHeight = 0
+            if (currentActiveAppId == "web") {
+                web.settings.useWideViewPort = true
+                web.settings.loadWithOverviewMode = false
+                web.setInitialScale(100)
+            }
+            web.requestLayout()
         }
     }
 
@@ -1951,6 +1972,7 @@ class CarPresentation(
         }
         val canRestoreSession = isChangingApp &&
             startUrl == null &&
+            app.id != "tiktok" &&
             CarMediaManager.hasWebAppSession(app.id)
         if (isChangingApp) {
             browserNeedsHistoryReset = app.id == "web" && !canRestoreSession
@@ -1982,10 +2004,21 @@ class CarPresentation(
 
         val isDesktop = WebAppManager.isAppDesktop(context, app.id)
         if (app.id == "tiktok" || app.url.contains("tiktok.com")) {
-            web.settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            // TikTok is much more stable when WebView identifies as the phone's
+            // mobile Chrome instead of a hard-coded Windows desktop browser.
+            // Keep cookies/storage so a legitimate verification challenge can be
+            // completed normally and remembered by the site.
+            val defaultUa = android.webkit.WebSettings.getDefaultUserAgent(context)
+            web.settings.userAgentString = defaultUa
+                .replace("; wv", "")
+                .replace("Version/4.0 ", "")
+                .replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
             web.settings.domStorageEnabled = true
             web.settings.databaseEnabled = true
             web.settings.mediaPlaybackRequiresUserGesture = false
+            web.settings.useWideViewPort = true
+            web.settings.loadWithOverviewMode = false
+            web.settings.javaScriptCanOpenWindowsAutomatically = false
             try {
                 CookieManager.getInstance().setAcceptCookie(true)
                 CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
