@@ -145,6 +145,8 @@ class MainActivity : AppCompatActivity() {
         const val PREF_SHOW_CARD_IPTV = "pref_show_card_iptv"
         const val PREF_SHOW_CARD_M3U = "pref_show_card_m3u"
         const val PREF_SHOW_CARD_BROWSER = "pref_show_card_browser"
+        const val PREF_SHOW_CARD_BOOKMARK = "pref_show_card_bookmark"
+        const val PREF_DASHBOARD_PINNED_APPS = "pref_dashboard_pinned_apps"
         const val PREF_SHOW_FAV_CHANNELS = "pref_show_fav_channels"
         const val PREF_SHOW_MINI_PLAYER = "pref_show_mini_player"
         const val PREF_SHOW_BOTTOM_NAV = "pref_show_bottom_nav"
@@ -963,6 +965,7 @@ class MainActivity : AppCompatActivity() {
                 .putBoolean(PREF_SHOW_CARD_IPTV, true)
                 .putBoolean(PREF_SHOW_CARD_M3U, true)
                 .putBoolean(PREF_SHOW_CARD_BROWSER, true)
+                .putBoolean(PREF_SHOW_CARD_BOOKMARK, true)
                 .putBoolean(PREF_SHOW_FAV_CHANNELS, true)
                 .putBoolean(PREF_SHOW_MINI_PLAYER, true)
                 .putBoolean(PREF_SHOW_BOTTOM_NAV, true)
