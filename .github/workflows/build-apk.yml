@@ -2,7 +2,7 @@ name: Build Internal Test APK
 
 on:
   push:
-    branches: [ "main", "master", "test/v1.0.45-fermata-projection" ]
+    branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
