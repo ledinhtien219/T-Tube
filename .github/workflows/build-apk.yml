@@ -67,6 +67,8 @@ jobs:
           node tests/youtube-search-routing.test.cjs
           node tests/youtube-auto-next.test.cjs
           node tests/tiktok-fullscreen.test.cjs
+          node tests/app-visibility.test.cjs
+          node tests/browser-projection-ui.test.cjs
           node tests/home-ui-cleanup.test.cjs
           node tests/web-session-retention.test.cjs
           node tests/app-switching.test.cjs
