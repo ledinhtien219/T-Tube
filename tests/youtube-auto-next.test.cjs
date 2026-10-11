@@ -10,7 +10,9 @@ assert.match(helper, /addEventListener\('ended',[\s\S]*?__carhudAutoNextKey/);
 assert.match(helper, /typeof player\.nextVideo === 'function'/);
 assert.match(helper, /\.ytp-next-button/);
 assert.match(helper, /ytm-video-with-context-renderer a\[href\*="\/watch\?v="\]/);
-assert.match(helper, /setTimeout\(function\(\)[\s\S]*?500\)/);
+assert.match(helper, /function sameVideo\(\)/);
+assert.match(helper, /player\.nextVideo\(\)[\s\S]*?setTimeout\(function\(\)[\s\S]*?tryNextButton\(\)/);
+assert.match(helper, /nextBtn\.click\(\)[\s\S]*?openRecommended\(\)/);
 assert.match(helper, /window\.__carhudUserPaused/);
 
 console.log('PASS YouTube auto-next: ended -> player.nextVideo -> Next button -> recommendation fallback');
