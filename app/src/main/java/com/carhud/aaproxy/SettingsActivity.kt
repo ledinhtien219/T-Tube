@@ -49,6 +49,7 @@ class SettingsActivity : AppCompatActivity() {
         const val KEY_DEFAULT_TO_DASHBOARD = "default_to_dashboard"
         const val KEY_LAST_PLAYED_URL = "last_played_url"
         const val KEY_DESKTOP_MODE = "desktop_mode_enabled"
+        const val KEY_BROWSER_ADBLOCK = "browser_adblock_enabled"
 
         // Toolbar Configuration
         const val KEY_TOOLBAR_POSITION = "toolbar_position" // "auto", "left", "right", "bottom"
@@ -894,6 +895,88 @@ class SettingsActivity : AppCompatActivity() {
                     }
                 ))
                 content.addView(createSwitchRow("Nút Tìm kiếm giọng nói (🎙️)", "Kích hoạt micro nói tên bài hát / kênh", KEY_SHOW_VOICE_SEARCH, true))
+            }
+        )
+
+        // ==========================================
+        // CARD: TRÌNH DUYỆT WEB
+        // ==========================================
+        root.addView(
+            createExpandableCard(
+                iconEmoji = "🌐",
+                iconBgColor = if (isDarkTheme) Color.parseColor("#064E3B") else Color.parseColor("#D1FAE5"),
+                title = "TRÌNH DUYỆT WEB",
+                subtitle = "Quảng cáo, quyền riêng tư và tương thích website",
+                initiallyExpanded = false
+            ) { content ->
+                content.addView(createSeparator())
+                content.addView(
+                    createSwitchRow(
+                        title = "Chặn quảng cáo khi duyệt Web",
+                        subtitle = "Chặn domain quảng cáo phổ biến và ẩn khung banner. Tắt nếu một website hiển thị lỗi.",
+                        key = KEY_BROWSER_ADBLOCK,
+                        default = true
+                    )
+                )
+                content.addView(TextView(this).apply {
+                    text = "Chỉ áp dụng cho Trình duyệt Web. YouTube và IPTV dùng bộ lọc riêng để tránh ảnh hưởng phát video."
+                    textSize = 12f
+                    setTextColor(colorTextSecondary)
+                    setPadding(dp(12), dp(4), dp(12), dp(10))
+                })
+            }
+        )
+
+        // ==========================================
+        // CARD: ỨNG DỤNG TRÊN MÀN HÌNH CHÍNH
+        // ==========================================
+        root.addView(
+            createExpandableCard(
+                iconEmoji = "▦",
+                iconBgColor = if (isDarkTheme) Color.parseColor("#1E293B") else Color.parseColor("#E0F2FE"),
+                title = "ỨNG DỤNG TRÊN MÀN HÌNH CHÍNH",
+                subtitle = "Chọn nhanh các thẻ ứng dụng được hiển thị trên Dashboard Android Auto",
+                initiallyExpanded = false
+            ) { content ->
+                content.addView(createSeparator())
+                content.addView(TextView(this).apply {
+                    text = "GHIM ỨNG DỤNG RA DASHBOARD"
+                    textSize = 13.5f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(colorTextPrimary)
+                    setPadding(dp(2), dp(4), dp(2), dp(2))
+                })
+                content.addView(TextView(this).apply {
+                    text = "Danh sách lấy trực tiếp từ “Tất cả ứng dụng”. Bật app nào thì app đó xuất hiện ngoài màn hình chính; tắt là bỏ ghim khỏi Dashboard. App vẫn còn trong danh sách ứng dụng."
+                    textSize = 11.5f
+                    setTextColor(colorTextSecondary)
+                    setPadding(dp(2), 0, dp(2), dp(8))
+                })
+
+                WebAppManager.getAllApps(this@SettingsActivity).forEach { app ->
+                    content.addView(createWebAppPinRow(app))
+                }
+
+                content.addView(createSeparator())
+                content.addView(TextView(this).apply {
+                    text = "THÀNH PHẦN CỐ ĐỊNH"
+                    textSize = 13.5f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(colorTextPrimary)
+                    setPadding(dp(2), dp(10), dp(2), dp(2))
+                })
+                content.addView(createSwitchRow(
+                    "M3U",
+                    "Hiện thẻ danh sách phát M3U riêng trên màn hình chính",
+                    MainActivity.PREF_SHOW_CARD_M3U,
+                    true
+                ))
+                content.addView(createSwitchRow(
+                    "Nút Tất cả ứng dụng",
+                    "Hiện nút mở Trung tâm ứng dụng trên Dashboard",
+                    MainActivity.PREF_SHOW_CARD_BOOKMARK,
+                    true
+                ))
             }
         )
 
@@ -2672,6 +2755,53 @@ class SettingsActivity : AppCompatActivity() {
                 Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
             }
             .setNegativeButton("Hủy", null).show()
+    }
+
+    private fun createWebAppPinRow(app: WebAppItem): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(2), dp(9), dp(2), dp(9))
+            isClickable = true
+            isFocusable = true
+
+            val textLayout = LinearLayout(this@SettingsActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(TextView(this@SettingsActivity).apply {
+                    text = app.name
+                    textSize = 13.5f
+                    setTextColor(colorTextPrimary)
+                    typeface = Typeface.DEFAULT_BOLD
+                })
+                addView(TextView(this@SettingsActivity).apply {
+                    val source = if (app.isBuiltIn) "Có sẵn" else "Tự thêm"
+                    text = source + " • " + WebAppManager.getCategoryName(app.id)
+                    textSize = 11.5f
+                    setTextColor(colorTextSecondary)
+                    setPadding(0, dp(2), 0, 0)
+                })
+            }
+            addView(
+                textLayout,
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f)
+            )
+
+            val sw = Switch(this@SettingsActivity).apply {
+                isChecked = WebAppManager.isAppPinnedToDashboard(this@SettingsActivity, app.id)
+                setOnCheckedChangeListener { _, pinned ->
+                    WebAppManager.setAppPinnedToDashboard(this@SettingsActivity, app.id, pinned)
+                    Toast.makeText(
+                        this@SettingsActivity,
+                        if (pinned) "Đã ghim ${app.name} ra màn hình chính"
+                        else "Đã bỏ ghim ${app.name} khỏi màn hình chính",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            addView(sw)
+
+            setOnClickListener { sw.toggle() }
+        }
     }
 
     private fun createSwitchRow(title: String, subtitle: String, key: String, default: Boolean): LinearLayout {
