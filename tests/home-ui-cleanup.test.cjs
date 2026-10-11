@@ -14,17 +14,13 @@ const dashboardXml = fs.readFileSync(
   'utf8'
 );
 
-// The host-rendered BACK action and list-template overlay must both be gone.
-// Keep NavigationTemplate for the full app surface, but make the required
-// placeholder action fully transparent.
+// Android Auto must receive no ActionStrip at all. The proven list-navigation
+// template keeps the existing app Surface while avoiding host-owned action chrome.
 assert.doesNotMatch(screen, /Action\.BACK/);
-assert.doesNotMatch(screen, /PlaceListNavigationTemplate/);
-assert.doesNotMatch(screen, /ItemList\.Builder/);
-assert.doesNotMatch(screen, /CarColor\.createCustom\(0x00000000, 0x00000000\)/);
-assert.doesNotMatch(screen, /setFlags\(Action\.FLAG_PRIMARY\)/);
-assert.doesNotMatch(screen, /setBackgroundColor\(transparent\)/);
-assert.match(screen, /ActionStrip\.Builder\(\)[\s\S]*?setTitle\("\\u200B"\)[\s\S]*?\.build\(\)/);
-assert.match(screen, /NavigationTemplate\.Builder\(\)[\s\S]*?setActionStrip\(hiddenActionStrip\)/);
+assert.doesNotMatch(screen, /ActionStrip\.Builder/);
+assert.doesNotMatch(screen, /NavigationTemplate\.Builder/);
+assert.match(screen, /PlaceListNavigationTemplate\.Builder\(\)/);
+assert.match(screen, /setItemList\(ItemList\.Builder\(\)\.build\(\)\)/);
 
 // Keep the existing weather-card bounds, but render weather with vector icons.
 assert.match(dashboardXml, /android:id="@\+id\/weatherCard"[\s\S]*?android:layout_width="150dp"[\s\S]*?android:layout_height="76dp"/);
