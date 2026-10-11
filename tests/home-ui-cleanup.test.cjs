@@ -14,17 +14,15 @@ const dashboardXml = fs.readFileSync(
   'utf8'
 );
 
-// The host-rendered BACK action and list-template overlay must both be gone.
-// Keep NavigationTemplate for the full app surface, but the required placeholder
-// must not be PRIMARY and must not request host-rendered background chrome.
+// Android Auto test branch: remove the template-owned action strip entirely.
+// NavigationTemplate forces an ActionStrip, which some hosts render as a blank
+// circular button even when the action has no visible content. MapTemplate keeps
+// the app-provided surface but allows no template ActionStrip.
 assert.doesNotMatch(screen, /Action\.BACK/);
-assert.doesNotMatch(screen, /PlaceListNavigationTemplate/);
-assert.doesNotMatch(screen, /ItemList\.Builder/);
-assert.doesNotMatch(screen, /CarColor\.createCustom\(0x00000000, 0x00000000\)/);
-assert.doesNotMatch(screen, /setFlags\(Action\.FLAG_PRIMARY\)/);
-assert.doesNotMatch(screen, /setBackgroundColor\(transparent\)/);
-assert.match(screen, /ActionStrip\.Builder\(\)[\s\S]*?setTitle\("\\u200B"\)[\s\S]*?\.build\(\)/);
-assert.match(screen, /NavigationTemplate\.Builder\(\)[\s\S]*?setActionStrip\(hiddenActionStrip\)/);
+assert.doesNotMatch(screen, /NavigationTemplate/);
+assert.doesNotMatch(screen, /ActionStrip\.Builder/);
+assert.doesNotMatch(screen, /setActionStrip\(/);
+assert.match(screen, /MapTemplate\.Builder\(\)[\s\S]*?setPane\(Pane\.Builder\(\)\.build\(\)\)[\s\S]*?\.build\(\)/);
 
 // Keep the existing weather-card bounds, but render weather with vector icons.
 assert.match(dashboardXml, /android:id="@\+id\/weatherCard"[\s\S]*?android:layout_width="150dp"[\s\S]*?android:layout_height="76dp"/);
