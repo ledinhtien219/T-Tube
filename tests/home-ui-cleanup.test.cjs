@@ -18,9 +18,9 @@ const dashboardXml = fs.readFileSync(
 // template keeps the existing app Surface while avoiding host-owned action chrome.
 assert.doesNotMatch(screen, /Action\.BACK/);
 assert.doesNotMatch(screen, /ActionStrip\.Builder/);
-assert.doesNotMatch(screen, /return\s+NavigationTemplate\.Builder/);
-assert.match(screen, /PlaceListNavigationTemplate\.Builder\(\)/);
-assert.match(screen, /setItemList\(ItemList\.Builder\(\)\.build\(\)\)/);
+assert.match(screen, /return\s+NavigationTemplate\.Builder\(\)[\s\S]*?\.build\(\)/);
+assert.doesNotMatch(screen, /PlaceListNavigationTemplate\.Builder/);
+assert.doesNotMatch(screen, /setItemList\(ItemList\.Builder/);
 
 // Keep the existing weather-card bounds, but render weather with vector icons.
 assert.match(dashboardXml, /android:id="@\+id\/weatherCard"[\s\S]*?android:layout_width="150dp"[\s\S]*?android:layout_height="76dp"/);
