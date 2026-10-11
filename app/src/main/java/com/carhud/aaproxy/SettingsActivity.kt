@@ -2082,8 +2082,8 @@ class SettingsActivity : AppCompatActivity() {
             createExpandableCard(
                 iconEmoji = "📱",
                 iconBgColor = if (isDarkTheme) Color.parseColor("#164E63") else Color.parseColor("#CFFAFE"),
-                title = "QUẢN LÝ ỨNG DỤNG XE & THANH DOCK",
-                subtitle = "Chọn app hiển thị trên thanh dock, thêm hoặc xóa app",
+                title = "QUẢN LÝ ỨNG DỤNG MÀN HÌNH CHÍNH",
+                subtitle = "Bật/tắt từng app trên Dashboard, launcher và thanh dock",
                 initiallyExpanded = false
             ) { content ->
                 content.addView(createSeparator())
@@ -2092,15 +2092,15 @@ class SettingsActivity : AppCompatActivity() {
                 val enabledDockCount = allDockApps.count { WebAppManager.isAppEnabled(this, it.id) }
                 content.addView(
                     settingCard(
-                        title = "ỨNG DỤNG TRÊN THANH DOCK",
-                        subtitle = "Bật/tắt các biểu tượng app trên thanh dock ô tô",
+                        title = "BẬT/TẮT NHANH TẤT CẢ ỨNG DỤNG",
+                        subtitle = "Chọn app được phép xuất hiện trên màn hình chính, launcher và thanh dock",
                         badgeText = "$enabledDockCount / ${allDockApps.size} app",
                         onClick = {
                             val apps = WebAppManager.getAllApps(this)
                             val names = apps.map { it.name }.toTypedArray()
                             val checked = apps.map { WebAppManager.isAppEnabled(this, it.id) }.toBooleanArray()
                             androidx.appcompat.app.AlertDialog.Builder(this)
-                                .setTitle("Bật/tắt ứng dụng trên thanh dock")
+                                .setTitle("Bật/tắt ứng dụng trên màn hình chính")
                                 .setMultiChoiceItems(names, checked) { _, which, isChecked ->
                                     checked[which] = isChecked
                                 }
@@ -2168,6 +2168,23 @@ class SettingsActivity : AppCompatActivity() {
                             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                         }
                         addView(appName)
+
+                        val appSwitch = Switch(this@SettingsActivity).apply {
+                            isChecked = isEnabled
+                            text = if (isEnabled) "Bật" else "Tắt"
+                            textSize = 11.5f
+                            setTextColor(if (isEnabled) colorAccent else colorTextMuted)
+                            setPadding(dp(6), 0, dp(8), 0)
+                            setOnCheckedChangeListener { _, checked ->
+                                WebAppManager.setAppEnabled(this@SettingsActivity, app.id, checked)
+                                text = if (checked) "Bật" else "Tắt"
+                                setTextColor(if (checked) colorAccent else colorTextMuted)
+                                appName.text = (if (app.isBuiltIn) "📱 " else "🌐 ") +
+                                    app.name + if (!checked) " (Đã tắt)" else ""
+                                appName.setTextColor(if (checked) colorTextPrimary else colorTextMuted)
+                            }
+                        }
+                        addView(appSwitch)
 
                         val delBtn = TextView(this@SettingsActivity).apply {
                             text = "🗑️ Xóa"
