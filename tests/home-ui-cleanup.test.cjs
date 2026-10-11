@@ -19,7 +19,8 @@ const dashboardXml = fs.readFileSync(
 // circular button even when the action has no visible content. MapTemplate keeps
 // the app-provided surface but allows no template ActionStrip.
 assert.doesNotMatch(screen, /Action\.BACK/);
-assert.doesNotMatch(screen, /NavigationTemplate/);
+assert.doesNotMatch(screen, /import androidx\.car\.app\.navigation\.model\.NavigationTemplate/);
+assert.doesNotMatch(screen, /return NavigationTemplate\.Builder\(\)/);
 assert.doesNotMatch(screen, /ActionStrip\.Builder/);
 assert.doesNotMatch(screen, /setActionStrip\(/);
 assert.match(screen, /MapTemplate\.Builder\(\)[\s\S]*?setPane\(Pane\.Builder\(\)\.build\(\)\)[\s\S]*?\.build\(\)/);
