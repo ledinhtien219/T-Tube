@@ -119,6 +119,7 @@ object WebAppManager {
     private const val KEY_DISABLED_APPS = "disabled_apps_set"
     private const val KEY_DELETED_APPS = "deleted_apps_set"
     private const val KEY_APP_DESKTOP_PREFIX = "app_desktop_override_"
+    const val ACTION_APP_VISIBILITY_CHANGED = "com.carhud.APP_VISIBILITY_CHANGED"
 
     val DEFAULT_APPS = listOf(
         WebAppItem(
@@ -269,6 +270,14 @@ object WebAppManager {
             disabled.add(appId)
         }
         prefs.edit().putStringSet(KEY_DISABLED_APPS, disabled).apply()
+        try {
+            context.sendBroadcast(
+                android.content.Intent(ACTION_APP_VISIBILITY_CHANGED)
+                    .setPackage(context.packageName)
+                    .putExtra("app_id", appId)
+                    .putExtra("enabled", enabled)
+            )
+        } catch (_: Exception) {}
     }
 
     fun getEnabledApps(context: Context): List<WebAppItem> {
