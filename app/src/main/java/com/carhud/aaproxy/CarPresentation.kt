@@ -599,7 +599,9 @@ class CarPresentation(
                 browserLoading = true
                 updateBrowserToolbar(url)
                 val isDay = isDayMode()
-                applyUniversalWebTheme(view, isDay)
+                if (currentActiveAppId != "web") {
+                    applyUniversalWebTheme(view, isDay)
+                }
                 applyWebScaleForUrl(url)
                 if (currentActiveAppId == "tiktok" && url.contains("tiktok.com", ignoreCase = true)) {
                     TikTokPlayerHelper.configure(view)
@@ -632,7 +634,9 @@ class CarPresentation(
                 YouTubeAdBlocker.onPageFinished(view, url)
                 applyWebScaleForUrl(url)
                 val isDay = isDayMode()
-                applyUniversalWebTheme(view, isDay)
+                if (currentActiveAppId != "web") {
+                    applyUniversalWebTheme(view, isDay)
+                }
                 val isYouTube = currentActiveAppId == "youtube" && (url.contains("youtube.com") || url.contains("youtu.be"))
                 val isTikTok = currentActiveAppId == "tiktok" && url.contains("tiktok.com", ignoreCase = true)
                 if (isTikTok) {
@@ -949,6 +953,37 @@ class CarPresentation(
                 ContextCompat.RECEIVER_EXPORTED
             )
         } catch (e: Exception) {}
+
+        val appVisibilityReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                if (intent?.action != WebAppManager.ACTION_APP_VISIBILITY_CHANGED) return
+                mainHandler.post {
+                    dashboardView?.applyComponentVisibility()
+                    rebuildAppGrid()
+                    rebuildSidebar()
+                    rebuildTopToolbar()
+
+                    val changedId = intent.getStringExtra("app_id").orEmpty()
+                    val enabled = intent.getBooleanExtra("enabled", true)
+                    if (!enabled && changedId.isNotBlank() && changedId == currentActiveAppId) {
+                        val next = WebAppManager.getEnabledApps(context)
+                            .firstOrNull { it.id != changedId }
+                            ?: WebAppManager.DEFAULT_APPS.first()
+                        switchWebApp(next, embedded = false)
+                        showDashboard()
+                    }
+                }
+            }
+        }
+        try {
+            ContextCompat.registerReceiver(
+                context,
+                appVisibilityReceiver,
+                android.content.IntentFilter(WebAppManager.ACTION_APP_VISIBILITY_CHANGED),
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+        } catch (_: Exception) {}
+
         SystemVoiceModule.attach(systemVoiceReceiver)
     }
 
@@ -1561,8 +1596,9 @@ class CarPresentation(
         }
         val row = LinearLayout(context).apply {
             gravity = Gravity.CENTER_VERTICAL
-            // NavigationTemplate draws its own back action in the upper-right corner.
-            setPadding(dp(4), dp(4), dp(76), dp(4))
+            // Full-width toolbar for Fermata-style projection. There is no
+            // NavigationTemplate host action occupying the upper-right corner.
+            setPadding(dp(6), dp(4), dp(6), dp(4))
         }
         fun button(label: String, description: String, action: () -> Unit): TextView {
             return TextView(context).apply {
@@ -1979,8 +2015,12 @@ class CarPresentation(
         applyWebScaleForUrl(app?.url ?: web.url)
         if (currentActiveAppId == "youtube") {
             YouTubePlayerHelper.applyTheme(web, isDayMode())
-        } else {
+        } else if (currentActiveAppId != "web") {
             YouTubePlayerHelper.applyUniversalWebTheme(web, isDayMode())
+        } else {
+            // Keep normal websites untouched. Injecting global color-scheme/theme
+            // CSS can break site layouts and colors in the built-in browser.
+            web.setBackgroundColor(if (isDayMode()) Color.WHITE else Color.BLACK)
         }
         if (currentActiveAppId == "tiktok") {
             TikTokPlayerHelper.configure(web)
