@@ -2398,13 +2398,13 @@ class CarPresentation(
         panel.removeAllViews()
 
         val apps = WebAppManager.getAllApps(context)
+            .filter { WebAppManager.isAppEnabled(context, it.id) }
         val itemsPerRow = if (isPortrait) 3 else 5
 
         var currentRow: LinearLayout? = null
 
         for (i in apps.indices) {
             val app = apps[i]
-            val isEnabled = WebAppManager.isAppEnabled(context, app.id)
             val isDesktop = WebAppManager.isAppDesktop(context, app.id)
 
             if (i % itemsPerRow == 0) {
@@ -2426,7 +2426,6 @@ class CarPresentation(
                     leftMargin = dp(6)
                     rightMargin = dp(6)
                 }
-                alpha = if (isEnabled) 1.0f else 0.5f
                 background = rounded(Color.parseColor("#131D2A"), 14f, Color.parseColor("#223348"), 1)
 
                 val iconBox = FrameLayout(context).apply {
@@ -2473,7 +2472,7 @@ class CarPresentation(
                     text = app.name
                     textSize = 12f
                     typeface = Typeface.DEFAULT_BOLD
-                    setTextColor(if (isEnabled) Color.WHITE else Color.parseColor("#90A4AE"))
+                    setTextColor(Color.WHITE)
                     gravity = Gravity.CENTER
                     maxLines = 1
                     ellipsize = android.text.TextUtils.TruncateAt.END
@@ -2496,9 +2495,6 @@ class CarPresentation(
                 enableTouchBounce()
                 setOnClickListener {
                     onUserInteraction()
-                    if (!isEnabled) {
-                        WebAppManager.setAppEnabled(context, app.id, true)
-                    }
                     hideAppGridOverlay()
                     switchWebApp(app, embedded = false)
                 }
