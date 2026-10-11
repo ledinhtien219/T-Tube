@@ -12,10 +12,9 @@ import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.SurfaceCallback
 import androidx.car.app.SurfaceContainer
-import androidx.car.app.model.Action
-import androidx.car.app.model.ActionStrip
-import androidx.car.app.navigation.model.NavigationTemplate
+import androidx.car.app.model.Pane
 import androidx.car.app.model.Template
+import androidx.car.app.navigation.model.MapTemplate
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 
@@ -195,23 +194,25 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
         } catch (e: Exception) {}
     }
 
+    @Suppress("DEPRECATION")
     override fun onGetTemplate(): Template {
-        // Keep the required NavigationTemplate action strip for the projected
-        // Surface, but do not mark the placeholder as PRIMARY and do not set a
-        // background color. Some Android Auto hosts render PRIMARY actions as a
-        // circular floating control even when the action itself is transparent.
-        // This is closer to Fermata's projection behavior: no visible host-owned
-        // primary action chrome over the app surface.
-        val hiddenActionStrip = ActionStrip.Builder()
-            .addAction(
-                Action.Builder()
-                    .setTitle("\u200B")
-                    .build()
+        // NavigationTemplate always requires an ActionStrip. Even a zero-width
+        // placeholder action is still rendered by some Android Auto hosts as a
+        // circular floating button. Use MapTemplate instead: it still owns the
+        // navigation surface used by SurfaceCallback but its template ActionStrip
+        // is optional, matching Fermata's no-host-action presentation more closely.
+        //
+        // MapTemplate requires Car API 5. This test branch intentionally targets
+        // modern Android Auto hosts; older hosts fall back to the previous
+        // NavigationTemplate path in the stable branch.
+        if (carContext.carAppApiLevel < 5) {
+            throw IllegalStateException(
+                "Android Auto host Car API ${carContext.carAppApiLevel} is too old for action-free map template"
             )
-            .build()
+        }
 
-        return NavigationTemplate.Builder()
-            .setActionStrip(hiddenActionStrip)
+        return MapTemplate.Builder()
+            .setPane(Pane.Builder().build())
             .build()
     }
 }
