@@ -343,6 +343,27 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
+            <!-- User-selected apps pinned from "Tất cả ứng dụng". -->
+            <HorizontalScrollView
+                android:id="@+id/pinnedAppsScroll"
+                android:layout_width="360dp"
+                android:layout_height="82dp"
+                android:layout_marginEnd="10dp"
+                android:fillViewport="false"
+                android:overScrollMode="never"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/pinnedAppsRow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal" />
+            </HorizontalScrollView>
+
+            <!-- Legacy fixed cards stay in the layout for compatibility but are
+                 hidden at runtime; pinnedAppsRow now owns WebApp launch cards. -->
+
             <!-- App 1: IPTV (Modern IPTV live icon, no longer VTVgo) -->
             <LinearLayout
                 android:id="@+id/cardVtv"
