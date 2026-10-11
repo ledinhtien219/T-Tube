@@ -12,8 +12,7 @@ import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.SurfaceCallback
 import androidx.car.app.SurfaceContainer
-import androidx.car.app.model.ItemList
-import androidx.car.app.navigation.model.PlaceListNavigationTemplate
+import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.car.app.model.Template
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -195,10 +194,9 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     }
 
     override fun onGetTemplate(): Template {
-        // Use the proven no-ActionStrip template: expose the existing Surface
-        // without giving Android Auto any host-owned action to render.
-        return PlaceListNavigationTemplate.Builder()
-            .setItemList(ItemList.Builder().build())
+        // Keep the original full-surface NavigationTemplate, but do not give the
+        // Android Auto host an ActionStrip to render over the custom Surface.
+        return NavigationTemplate.Builder()
             .build()
 
     }
