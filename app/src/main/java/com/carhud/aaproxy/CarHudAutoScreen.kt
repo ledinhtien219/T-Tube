@@ -12,9 +12,8 @@ import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.SurfaceCallback
 import androidx.car.app.SurfaceContainer
-import androidx.car.app.model.Action
-import androidx.car.app.model.ActionStrip
-import androidx.car.app.navigation.model.NavigationTemplate
+import androidx.car.app.model.ItemList
+import androidx.car.app.navigation.model.PlaceListNavigationTemplate
 import androidx.car.app.model.Template
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -196,19 +195,11 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     }
 
     override fun onGetTemplate(): Template {
-        // Preserve the original v1.0.45 Surface/Presentation architecture.
-        // Keep only the required zero-width NavigationTemplate placeholder,
-        // without PRIMARY/background host chrome (same fix proven this morning).
-        val hiddenActionStrip = ActionStrip.Builder()
-            .addAction(
-                Action.Builder()
-                    .setTitle("\u200B")
-                    .build()
-            )
+        // Use the proven no-ActionStrip template: expose the existing Surface
+        // without giving Android Auto any host-owned action to render.
+        return PlaceListNavigationTemplate.Builder()
+            .setItemList(ItemList.Builder().build())
             .build()
 
-        return NavigationTemplate.Builder()
-            .setActionStrip(hiddenActionStrip)
-            .build()
     }
 }
