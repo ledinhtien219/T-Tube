@@ -72,6 +72,7 @@ jobs:
           node tests/app-switching.test.cjs
           node tests/youtube-voice-toolbar.test.cjs
           node tests/waze-stability.test.cjs
+          node tests/browser-tiktok-home-toggle.test.cjs
 
       - name: Build Debug APK
         run: ./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest --stacktrace
