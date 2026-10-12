@@ -355,7 +355,7 @@
       flex: 1;
       min-width: 0;
     }
-    .channel-name, .channel-group { display: none; }
+    #currentTitle, .channel-name, .channel-group { display: none; }
     .channel-name {
       font-size: 14px;
       font-weight: 700;
@@ -1484,6 +1484,7 @@
       filtered.forEach(ch => {
         const item = document.createElement('div');
         item.className = 'channel-item';
+        item.setAttribute('aria-label', ch.name);
         const isSport = (ch.groupTitle && (ch.groupTitle.toLowerCase().includes('thể thao') || ch.groupTitle.toLowerCase().includes('sport'))) || ch.name.toLowerCase().includes('sport') || ch.name.toLowerCase().includes('vs');
         const icon = isSport ? '⚽' : '📺';
         const logoHtml = ch.logoUrl ? `<img src="${ch.logoUrl}" onerror="this.outerHTML='<span>${icon}</span>'">` : `<span>${icon}</span>`;
@@ -1670,7 +1671,6 @@
       titleEl.textContent = channel.name;
       liveBadge.style.display = 'inline-flex';
 
-      showToast('📺 Đang phát: ' + channel.name);
 
       if (!window.isDashboardMode) {
         showControlsOnly();
