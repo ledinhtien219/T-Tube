@@ -70,6 +70,7 @@ jobs:
           node tests/app-switching.test.cjs
           node tests/youtube-voice-toolbar.test.cjs
           node tests/waze-stability.test.cjs
+          node tests/v146-mobile-web-pins.test.cjs
 
       - name: Build Debug APK
         run: ./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest --stacktrace
