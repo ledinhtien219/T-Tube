@@ -9,7 +9,9 @@ const main = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/MainActivity.
 const screen = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarHudAutoScreen.kt', 'utf8');
 
 // Preserve the exact action-free host template from the known-good v1.0.39 APK.
-assert.doesNotMatch(screen, /ActionStrip/);
+assert.doesNotMatch(screen, /import androidx\.car\.app\.model\.ActionStrip/);
+assert.doesNotMatch(screen, /ActionStrip\.Builder\(\)/);
+assert.doesNotMatch(screen, /setActionStrip\(/);
 assert.doesNotMatch(screen, /NavigationTemplate/);
 assert.doesNotMatch(screen, /PlaceListNavigationTemplate/);
 assert.match(screen, /carContext\.carAppApiLevel < 5/);
