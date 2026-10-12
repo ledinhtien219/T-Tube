@@ -1,6 +1,7 @@
 package com.carhud.aaproxy
 
 import android.content.Context
+import android.graphics.Color
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.os.Bundle
@@ -15,13 +16,10 @@ import com.google.android.apps.auto.sdk.CarActivity
 import com.google.android.apps.auto.sdk.CarActivityService
 
 /**
- * Android Auto host path modeled after Fermata:
- * CarActivityService + CarActivity instead of AndroidX CarAppService templates.
+ * Projection host matched to the v1.0.39 APK that was verified on Android Auto.
  *
- * The existing THTV UI is still rendered by CarPresentation on a VirtualDisplay,
- * but the target surface is a full-screen SurfaceView owned by CarActivity.
- * That removes the template ActionStrip layer that Android Auto was rendering
- * as the unwanted circular action button.
+ * Important: do not give SurfaceView or its parent an opaque background here.
+ * On DHU/AA that can cover the VirtualDisplay surface and produce a black screen.
  */
 class CarHudProjectionService : CarActivityService() {
 
@@ -57,7 +55,6 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Fermata explicitly removes Android Auto's own header/menu chrome.
         try {
             setIgnoreConfigChanges(-1)
             val ui = getCarUiController()
@@ -66,11 +63,13 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
         } catch (_: Throwable) {}
 
         val root = FrameLayout(this)
+
         surfaceView = SurfaceView(this).apply {
             holder.addCallback(this@CarHudProjectionActivity)
             isClickable = true
             isFocusable = true
         }
+
         root.addView(
             surfaceView,
             FrameLayout.LayoutParams(
@@ -120,9 +119,11 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         val frame = holder.surfaceFrame
-        val width = frame.width().takeIf { it > 0 } ?: 800
-        val height = frame.height().takeIf { it > 0 } ?: 480
-        setupPresentation(holder.surface, width, height)
+        setupPresentation(
+            holder.surface,
+            frame.width().takeIf { it > 0 } ?: surfaceView.width.takeIf { it > 0 } ?: 800,
+            frame.height().takeIf { it > 0 } ?: surfaceView.height.takeIf { it > 0 } ?: 480
+        )
     }
 
     override fun surfaceChanged(
@@ -133,14 +134,13 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
     ) {
         setupPresentation(
             holder.surface,
-            width.takeIf { it > 0 } ?: 800,
-            height.takeIf { it > 0 } ?: 480
+            width.takeIf { it > 0 } ?: surfaceView.width.takeIf { it > 0 } ?: 800,
+            height.takeIf { it > 0 } ?: surfaceView.height.takeIf { it > 0 } ?: 480
         )
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         try {
-            // Keep Chromium/media alive while Android Auto temporarily hides the app.
             virtualDisplay?.setSurface(null)
 
             val web = CarMediaManager.getPersistentWebView()
@@ -156,7 +156,7 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
     }
 
     private fun setupPresentation(surface: Surface?, width: Int, height: Int) {
-        if (surface == null || !surface.isValid) return
+        if (surface == null || !surface.isValid || width <= 0 || height <= 0) return
 
         try {
             presentation?.dismiss()
@@ -197,7 +197,7 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
             } catch (_: Exception) {}
         } catch (e: Exception) {
             try { AppCrashHandler.logError(e, "CarHudProjectionSetupPresentation") } catch (_: Exception) {}
-            throw e
+            e.printStackTrace()
         }
     }
 
