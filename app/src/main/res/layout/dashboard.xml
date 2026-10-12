@@ -361,9 +361,6 @@
                     android:orientation="horizontal" />
             </HorizontalScrollView>
 
-            <!-- Legacy fixed cards stay in the layout for compatibility but are
-                 hidden at runtime; pinnedAppsRow now owns WebApp launch cards. -->
-
             <!-- App 1: IPTV (Modern IPTV live icon, no longer VTVgo) -->
             <LinearLayout
                 android:id="@+id/cardVtv"
