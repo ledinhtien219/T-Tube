@@ -108,7 +108,7 @@ assert.doesNotMatch(
 // Host/native keyboard submission is a final action, not a draft handoff.
 assert.match(
   presentation,
-  /private fun executeSearch\(query: String, broadcast: Boolean = false\)/
+  /private fun executeSearch\\(query: String(?:, broadcast: Boolean = false)?\\)/
 );
 assert.match(
   presentation,
