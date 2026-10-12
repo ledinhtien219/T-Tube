@@ -565,6 +565,7 @@ class CarPresentation(
                     target.contains("play.google.com/store")) {
                     return true // Block app redirect, stay in webview
                 }
+                if (request.isForMainFrame && view != null) TikTokWebPolicy.configure(view, target)
                 return false
             }
 
@@ -581,6 +582,7 @@ class CarPresentation(
                     target.contains("play.google.com/store")) {
                     return true
                 }
+                if (view != null) TikTokWebPolicy.configure(view, target)
                 return false
             }
 
@@ -596,7 +598,6 @@ class CarPresentation(
 
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
-                TikTokWebPolicy.configure(view, url)
                 browserLoading = true
                 updateBrowserToolbar(url)
                 val isDay = isDayMode()
@@ -1031,9 +1032,11 @@ class CarPresentation(
     private var lastAppliedScale = -1
     fun applyWebScaleForUrl(url: String?) {
         if (TikTokWebPolicy.isSearch(url)) {
-            lastAppliedScale = -1
+            if (lastAppliedScale == -2) return
+            lastAppliedScale = -2
             web.settings.useWideViewPort = true
             web.settings.loadWithOverviewMode = true
+            web.settings.textZoom = 100
             web.setInitialScale(0)
             return
         }
@@ -1045,7 +1048,7 @@ class CarPresentation(
         } else {
             ((effectiveCarDpi / effectivePhoneDpi) * 100f).coerceIn(20f, 200f).toInt()
         }
-        if (scalePercent != lastAppliedScale || isBrowser) {
+        if (scalePercent != lastAppliedScale || currentActiveAppId == "web") {
             lastAppliedScale = scalePercent
             web.setInitialScale(scalePercent)
             web.settings.useWideViewPort = true
@@ -1104,7 +1107,7 @@ class CarPresentation(
 
     fun updateVideoProgress(currentSec: Int, totalSec: Int, formattedTime: String) {
         val showTime = prefs.getBoolean(SettingsActivity.KEY_SHOW_TIME_PILL, true)
-        if (showTime && totalSec > 0 && formattedTime.isNotEmpty() && !isDashboardShowing) {
+        if (showTime && currentActiveAppId != "tiktok" && totalSec > 0 && formattedTime.isNotEmpty() && !isDashboardShowing) {
             videoTimePill?.apply {
                 text = "⏱ $formattedTime"
                 if (visibility != View.VISIBLE) {
@@ -1142,6 +1145,24 @@ class CarPresentation(
         // setting from the phone Settings screen.
         if (currentActiveAppId == "youtube" && !isDashboardShowing) {
             buildYouTubeMediaToolbar(scale)
+            resetAutoHideTimer()
+            return
+        }
+
+        if (currentActiveAppId == "tiktok") {
+            // Keep the website's bottom navigation and right-side video actions accessible.
+            val controls = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                background = rounded(Color.parseColor("#CC101C28"), 18f, Color.parseColor("#4038BDF8"), 1)
+                addView(createBarIcon(R.drawable.ic_bar_back, 44) { goBack() })
+                addView(createBarIcon(R.drawable.ic_bar_home, 44) { showDashboard() })
+                elevation = dp(12).toFloat()
+            }
+            sidebarView = controls
+            sidebarContainer = controls
+            videoTimePill = null
+            root.addView(controls, FrameLayout.LayoutParams(dp(48), ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(6) })
             resetAutoHideTimer()
             return
         }
@@ -1519,7 +1540,7 @@ class CarPresentation(
     fun resetAutoHideTimer() {
         autoHideHandler.removeCallbacks(hideBarsRunnable)
         if (currentActiveAppId == "web") return
-        autoHideHandler.postDelayed(hideBarsRunnable, 10000L) // 10s auto-hide
+        autoHideHandler.postDelayed(hideBarsRunnable, if (currentActiveAppId == "tiktok") 2500L else 10000L)
     }
 
     fun onUserInteraction() {
@@ -1530,7 +1551,7 @@ class CarPresentation(
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        onUserInteraction()
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) onUserInteraction()
         return super.dispatchTouchEvent(ev)
     }
 
@@ -1974,6 +1995,7 @@ class CarPresentation(
         }
 
         if (!restoredSession && (!isAlreadyLoaded || startUrl != null)) {
+            TikTokWebPolicy.configure(web, homeUrl)
             web.loadUrl(homeUrl)
         }
 
@@ -2000,8 +2022,8 @@ class CarPresentation(
         // Disable dashboard mode so YouTube script knows it's fullscreen
         web.evaluateJavascript("window.isDashboardMode = false;", null)
         
-        applyWebScaleForUrl(app?.url ?: web.url)
-        YouTubePlayerHelper.applyTheme(web, isDayMode())
+        applyWebScaleForUrl(web.url ?: app?.url)
+        applyUniversalWebTheme(web, isDayMode())
         dashboardView?.detachEmbeddedWeb()
         dashboardView?.visibility = View.GONE
         web.visibility = View.VISIBLE
@@ -2469,13 +2491,13 @@ class CarPresentation(
                 val iconBox = FrameLayout(context).apply {
                     val boxColor = try { Color.parseColor(app.colorHex) } catch(e: Exception) { Color.parseColor("#1E88E5") }
                     background = rounded(boxColor, 13f, Color.parseColor("#33FFFFFF"), 1)
-                    layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply {
+                    layoutParams = LinearLayout.LayoutParams(dp(60), dp(60)).apply {
                         gravity = Gravity.CENTER_HORIZONTAL
                         bottomMargin = dp(5)
                     }
 
                     val icon = ImageView(context).apply {
-                        scaleType = ImageView.ScaleType.CENTER_INSIDE
+                        scaleType = ImageView.ScaleType.FIT_CENTER
                         if (!app.iconPath.isNullOrBlank() && java.io.File(app.iconPath).exists()) {
                             val bmp = android.graphics.BitmapFactory.decodeFile(app.iconPath)
                             if (bmp != null) {
@@ -2508,7 +2530,6 @@ class CarPresentation(
 
                 contentDescription = app.name
                 val label = TextView(context).apply {
-                    visibility = View.GONE
                     text = app.name
                     textSize = 12f
                     typeface = Typeface.DEFAULT_BOLD
@@ -4026,6 +4047,8 @@ class CarPresentation(
             web
         }
         if (targetWeb.canGoBack()) {
+            val history = targetWeb.copyBackForwardList()
+            TikTokWebPolicy.configure(targetWeb, history.getItemAtIndex(history.currentIndex - 1)?.url)
             targetWeb.goBack()
         }
     }

@@ -379,7 +379,7 @@
                     android:layout_height="34dp"
                     android:src="@drawable/ic_app_iptv" />
 
-                <TextView android:visibility="gone"
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
@@ -417,7 +417,7 @@
                     android:layout_height="34dp"
                     android:src="@drawable/ic_app_iptv" />
 
-                <TextView android:visibility="gone"
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
@@ -455,7 +455,7 @@
                     android:layout_height="34dp"
                     android:src="@drawable/ic_app_youtube" />
 
-                <TextView android:visibility="gone"
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
@@ -495,7 +495,7 @@
                     android:padding="6dp"
                     android:src="@drawable/ic_app_web" />
 
-                <TextView android:visibility="gone"
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
@@ -531,11 +531,11 @@
                 android:padding="6dp">
 
                 <ImageView
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
                     android:src="@drawable/ic_app_grid" />
 
-                <TextView android:visibility="gone"
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"

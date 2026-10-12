@@ -332,6 +332,10 @@ class CarDashboardView(
             lp.marginEnd = dp(cardGap)
             card.layoutParams = lp
             card.setPadding(dp(if (compactWidth) 4 else 6), dp(4), dp(if (compactWidth) 4 else 6), dp(4))
+            (card.getChildAt(0) as? ImageView)?.let { icon ->
+                val iconSize = dp(if (cardHeight < 74) 40 else 48)
+                icon.layoutParams = icon.layoutParams.apply { width = iconSize; height = iconSize }
+            }
         }
 
         pinnedAppsScroll?.layoutParams = pinnedAppsScroll?.layoutParams?.apply {
@@ -404,7 +408,7 @@ class CarDashboardView(
                 }
 
                 val icon = ImageView(context).apply {
-                    scaleType = ImageView.ScaleType.CENTER_INSIDE
+                    scaleType = ImageView.ScaleType.FIT_CENTER
                     if (!app.iconPath.isNullOrBlank() && File(app.iconPath).exists()) {
                         val bmp = BitmapFactory.decodeFile(app.iconPath)
                         if (bmp != null) setImageBitmap(bmp) else setImageResource(app.iconRes)
@@ -412,13 +416,13 @@ class CarDashboardView(
                         setImageResource(app.iconRes)
                     }
                 }
-                addView(icon, LinearLayout.LayoutParams(dp(34), dp(34)))
+                addView(icon, LinearLayout.LayoutParams(dp(48), dp(48)))
 
                 contentDescription = app.name
                 addView(TextView(context).apply {
-                    visibility = View.GONE
-                    text = app.name
-                    textSize = 11f
+                    text = when (app.id) { "youtube" -> "YouTube"; "iptv" -> "Tivi"; else -> app.name }
+                    textSize = 12f
+                    includeFontPadding = false
                     typeface = Typeface.DEFAULT_BOLD
                     setTextColor(Color.WHITE)
                     gravity = Gravity.CENTER
@@ -427,7 +431,7 @@ class CarDashboardView(
                     layoutParams = LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
-                    ).apply { topMargin = dp(4) }
+                    ).apply { topMargin = dp(2) }
                 })
 
                 addView(TextView(context).apply {

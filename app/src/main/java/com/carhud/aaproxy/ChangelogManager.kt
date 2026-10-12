@@ -34,7 +34,8 @@ object ChangelogManager {
                 "⌨️ Bàn phím nhận đầy đủ chuỗi chạm, hỗ trợ gõ nhanh và giữ phím.",
                 "▶️ Giảm thời gian chờ xử lý khi chọn video YouTube.",
                 "📱 TikTok nhận thao tác vuốt trực tiếp; tìm kiếm đi tới trang kết quả web.",
-                "🧹 Ẩn tên dưới biểu tượng ứng dụng và tên kênh IPTV; bỏ nút Tìm thừa ở trang chủ YouTube.",
+                "🏠 Hiện tên ứng dụng, phóng lớn icon YouTube, Tivi và TikTok trên màn hình chính.",
+                "📱 TikTok giảm cập nhật giao diện khi vuốt, tránh đổi nhận diện giữa lúc tải trang; thanh điều khiển gọn bên trái.",
                 "🧪 Bản thử nghiệm dựa trên projection v1.0.46. Chưa tích hợp Gboard trên màn hình xe."
             )
         )
