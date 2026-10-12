@@ -8,9 +8,13 @@ const dashboard = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarDashb
 const main = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/MainActivity.kt', 'utf8');
 const screen = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarHudAutoScreen.kt', 'utf8');
 
-// Preserve the known-good v1.0.39 Android Auto host template.
-assert.match(screen, /ActionStrip\.Builder\(\)[\s\S]*?setTitle\("\\u200B"\)[\s\S]*?setActionStrip\(hiddenActionStrip\)/);
+// Preserve the exact action-free host template from the known-good v1.0.39 APK.
+assert.doesNotMatch(screen, /ActionStrip/);
+assert.doesNotMatch(screen, /NavigationTemplate/);
 assert.doesNotMatch(screen, /PlaceListNavigationTemplate/);
+assert.match(screen, /carContext\.carAppApiLevel < 5/);
+assert.match(screen, /MapTemplate\.Builder\(\)[\s\S]*?setPane\(Pane\.Builder\(\)\.build\(\)\)[\s\S]*?\.build\(\)/);
+assert.match(presentation, /setPadding\(dp\(4\), dp\(4\), dp\(4\), dp\(4\)\)/);
 
 // Browser uses the full projected viewport at normal CSS scale.
 assert.match(presentation, /val isBrowser = currentActiveAppId == "web"/);
