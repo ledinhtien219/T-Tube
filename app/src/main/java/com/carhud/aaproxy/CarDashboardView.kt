@@ -325,8 +325,8 @@ class CarDashboardView(
         val cardHeight = if (compactHeight) 68 else if (compactWidth) 74 else 82
         val cardGap = if (compactWidth) 6 else 10
 
-        listOfNotNull(cardM3u, cardBookmark).plus(dynamicPinnedCards).forEachIndexed { index, card ->
-            val lp = card.layoutParams as? LinearLayout.LayoutParams ?: return@forEachIndexed
+        listOfNotNull(cardM3u, cardBookmark).plus(dynamicPinnedCards).forEach { card ->
+            val lp = card.layoutParams as? LinearLayout.LayoutParams ?: return@forEach
             lp.width = dp(cardWidth)
             lp.height = dp(cardHeight)
             lp.marginEnd = dp(cardGap)
@@ -451,7 +451,6 @@ class CarDashboardView(
         val showHeroClock = prefs.getBoolean(MainActivity.PREF_SHOW_HERO_CLOCK, true)
         val showSearchBar = prefs.getBoolean(MainActivity.PREF_SHOW_SEARCH_BAR, true)
         val showCardM3u = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_M3U, true)
-        val showCardBookmark = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_BOOKMARK, true)
         val showMiniPlayer = prefs.getBoolean(MainActivity.PREF_SHOW_MINI_PLAYER, true)
         val showFavChannels = prefs.getBoolean(MainActivity.PREF_SHOW_FAV_CHANNELS, true)
 
@@ -461,7 +460,7 @@ class CarDashboardView(
         if (::searchBarPill.isInitialized) {
             searchBarPill.visibility = if (showSearchBar) View.VISIBLE else View.GONE
         }
-        // Web apps are now rendered dynamically in pinnedAppsRow.
+        // YouTube/IPTV/Browser are represented by the user-selected pinned row.
         if (::cardYoutube.isInitialized) cardYoutube.visibility = View.GONE
         if (::cardVtv.isInitialized) cardVtv.visibility = View.GONE
         if (::cardBrowser.isInitialized) cardBrowser.visibility = View.GONE
@@ -469,9 +468,6 @@ class CarDashboardView(
             if ((pinnedAppsRow?.childCount ?: 0) > 0) View.VISIBLE else View.GONE
 
         cardM3u?.visibility = if (showCardM3u) View.VISIBLE else View.GONE
-        if (::cardBookmark.isInitialized) {
-            cardBookmark.visibility = if (showCardBookmark) View.VISIBLE else View.GONE
-        }
         if (::miniPlayerCard.isInitialized) {
             miniPlayerCard.visibility = if (showMiniPlayer) View.VISIBLE else View.GONE
         }
