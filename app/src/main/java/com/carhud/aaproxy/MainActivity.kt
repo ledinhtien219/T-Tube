@@ -112,7 +112,6 @@ class MainActivity : AppCompatActivity() {
     // WebViews
     private var youtubeWeb: BackgroundAudioWebView? = null
     private var iptvWeb: BackgroundAudioWebView? = null
-    private var phoneWebMode: String = "youtube"
 
     // Wallpaper Badges
     private var wpBadgeBugatti: ImageView? = null
@@ -145,7 +144,6 @@ class MainActivity : AppCompatActivity() {
         const val PREF_SHOW_CARD_IPTV = "pref_show_card_iptv"
         const val PREF_SHOW_CARD_M3U = "pref_show_card_m3u"
         const val PREF_SHOW_CARD_BROWSER = "pref_show_card_browser"
-        const val PREF_SHOW_CARD_BOOKMARK = "pref_show_card_bookmark"
         const val PREF_DASHBOARD_PINNED_APPS = "pref_dashboard_pinned_apps"
         const val PREF_SHOW_FAV_CHANNELS = "pref_show_fav_channels"
         const val PREF_SHOW_MINI_PLAYER = "pref_show_mini_player"
@@ -644,18 +642,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 2x2 Services Grid
-        phoneCardYoutube.setOnClickListener {
-            phoneWebMode = "youtube"
-            switchTab(TAB_YOUTUBE)
-            youtubeWeb?.loadUrl("https://m.youtube.com")
-        }
+        phoneCardYoutube.setOnClickListener { switchTab(TAB_YOUTUBE) }
         phoneCardIptv.setOnClickListener { switchTab(TAB_IPTV) }
         phoneCardM3u.setOnClickListener {
             switchTab(TAB_SETTINGS)
             pickM3uFileLauncher.launch("*/*")
         }
         phoneCardBrowser.setOnClickListener {
-            phoneWebMode = "web"
             switchTab(TAB_YOUTUBE)
             youtubeWeb?.loadUrl("https://google.com")
         }
@@ -965,7 +958,6 @@ class MainActivity : AppCompatActivity() {
                 .putBoolean(PREF_SHOW_CARD_IPTV, true)
                 .putBoolean(PREF_SHOW_CARD_M3U, true)
                 .putBoolean(PREF_SHOW_CARD_BROWSER, true)
-                .putBoolean(PREF_SHOW_CARD_BOOKMARK, true)
                 .putBoolean(PREF_SHOW_FAV_CHANNELS, true)
                 .putBoolean(PREF_SHOW_MINI_PLAYER, true)
                 .putBoolean(PREF_SHOW_BOTTOM_NAV, true)
@@ -1199,30 +1191,18 @@ class MainActivity : AppCompatActivity() {
                 if (url != null && (url.contains("accounts.google.com") || url.contains("ssl.gstatic.com/accounts") || url.contains("myaccount.google.com"))) {
                     return super.shouldInterceptRequest(view, request)
                 }
-                if (phoneWebMode == "web" &&
-                    prefs.getBoolean(SettingsActivity.KEY_BROWSER_ADBLOCK, true)) {
-                    WebAdBlocker.shouldIntercept(request)?.let { return it }
-                } else {
-                    YouTubeAdBlocker.shouldIntercept(request)?.let { return it }
-                    if (url != null && YouTubePlayerHelper.isAdUrl(url)) {
-                        val origin = request.requestHeaders?.get("Origin") ?: request.requestHeaders?.get("origin")
-                        return YouTubePlayerHelper.createEmptyResponse(origin)
-                    }
+                YouTubeAdBlocker.shouldIntercept(request)?.let { return it }
+                if (url != null && YouTubePlayerHelper.isAdUrl(url)) {
+                    val origin = request.requestHeaders?.get("Origin") ?: request.requestHeaders?.get("origin")
+                    return YouTubePlayerHelper.createEmptyResponse(origin)
                 }
                 return super.shouldInterceptRequest(view, request)
             }
 
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
-                if (phoneWebMode == "web") {
-                    WebAdBlocker.applyCosmeticFiltering(
-                        view,
-                        prefs.getBoolean(SettingsActivity.KEY_BROWSER_ADBLOCK, true)
-                    )
-                } else {
-                    YouTubeAdBlocker.onPageFinished(view, url)
-                    YouTubePlayerHelper.trackVideoHistory(view)
-                }
+                YouTubeAdBlocker.onPageFinished(view, url)
+                YouTubePlayerHelper.trackVideoHistory(view)
                 android.webkit.CookieManager.getInstance().flush()
             }
         }
@@ -1624,7 +1604,6 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Tìm YouTube") { _, _ ->
                 val query = input.text.toString().trim()
                 if (query.isNotBlank()) {
-                    phoneWebMode = "youtube"
                     switchTab(TAB_YOUTUBE)
                     initYoutubeWebView()
                     val searchUrl = "https://m.youtube.com/results?search_query=" + Uri.encode(query)
