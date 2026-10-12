@@ -12,9 +12,10 @@ import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.SurfaceCallback
 import androidx.car.app.SurfaceContainer
-import androidx.car.app.model.Pane
+import androidx.car.app.model.Action
+import androidx.car.app.model.ActionStrip
+import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.car.app.model.Template
-import androidx.car.app.navigation.model.MapTemplate
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 
@@ -195,18 +196,22 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     }
 
     override fun onGetTemplate(): Template {
-        // Exact action-free host template used by the known-good v1.0.39 APK.
-        // Car API 5+ supports MapTemplate with an empty Pane and does not force
-        // Android Auto to render an app-owned ActionStrip over our Surface.
-        if (carContext.carAppApiLevel < 5) {
-            throw IllegalStateException(
-                "Android Auto host Car API ${carContext.carAppApiLevel} is too old for action-free map template"
+        // Keep the required NavigationTemplate action strip for the projected
+        // Surface, but do not mark the placeholder as PRIMARY and do not set a
+        // background color. Some Android Auto hosts render PRIMARY actions as a
+        // circular floating control even when the action itself is transparent.
+        // This is closer to Fermata's projection behavior: no visible host-owned
+        // primary action chrome over the app surface.
+        val hiddenActionStrip = ActionStrip.Builder()
+            .addAction(
+                Action.Builder()
+                    .setTitle("\u200B")
+                    .build()
             )
-        }
-
-        return MapTemplate.Builder()
-            .setPane(Pane.Builder().build())
             .build()
 
+        return NavigationTemplate.Builder()
+            .setActionStrip(hiddenActionStrip)
+            .build()
     }
 }
