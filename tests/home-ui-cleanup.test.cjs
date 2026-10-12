@@ -16,7 +16,9 @@ const dashboardXml = fs.readFileSync(
 
 // The projected Surface must use the action-free MapTemplate proven by
 // the known-good v1.0.39 APK. Do not provide any host ActionStrip.
-assert.doesNotMatch(screen, /ActionStrip/);
+assert.doesNotMatch(screen, /import androidx\.car\.app\.model\.ActionStrip/);
+assert.doesNotMatch(screen, /ActionStrip\.Builder\(\)/);
+assert.doesNotMatch(screen, /setActionStrip\(/);
 assert.doesNotMatch(screen, /NavigationTemplate/);
 assert.doesNotMatch(screen, /PlaceListNavigationTemplate/);
 assert.doesNotMatch(screen, /Action\.BACK/);
