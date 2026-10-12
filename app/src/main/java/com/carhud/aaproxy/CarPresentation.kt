@@ -1546,8 +1546,8 @@ class CarPresentation(
         }
         val row = LinearLayout(context).apply {
             gravity = Gravity.CENTER_VERTICAL
-            // NavigationTemplate draws its own back action in the upper-right corner.
-            setPadding(dp(4), dp(4), dp(76), dp(4))
+            // Action-free MapTemplate: no host action chrome occupies this corner.
+            setPadding(dp(4), dp(4), dp(4), dp(4))
         }
         fun button(label: String, description: String, action: () -> Unit): TextView {
             return TextView(context).apply {
