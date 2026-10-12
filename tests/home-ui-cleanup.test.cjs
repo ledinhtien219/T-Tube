@@ -14,16 +14,26 @@ const dashboardXml = fs.readFileSync(
   'utf8'
 );
 
-// The projected Surface must use the action-free MapTemplate proven by
-// the known-good v1.0.39 APK. Do not provide any host ActionStrip.
-assert.doesNotMatch(screen, /import androidx\.car\.app\.model\.ActionStrip/);
-assert.doesNotMatch(screen, /ActionStrip\.Builder\(\)/);
-assert.doesNotMatch(screen, /setActionStrip\(/);
-assert.doesNotMatch(screen, /NavigationTemplate/);
-assert.doesNotMatch(screen, /PlaceListNavigationTemplate/);
-assert.doesNotMatch(screen, /Action\.BACK/);
-assert.match(screen, /carContext\.carAppApiLevel < 5/);
-assert.match(screen, /MapTemplate\.Builder\(\)[\s\S]*?setPane\(Pane\.Builder\(\)\.build\(\)\)[\s\S]*?\.build\(\)/);
+// Android Auto must enter through the Fermata-style projection service.
+// The legacy AndroidX screen may remain in source but is not the AA entry path.
+const manifest = fs.readFileSync('app/src/main/AndroidManifest.xml', 'utf8');
+const projectionHost = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/CarHudProjectionHost.kt',
+  'utf8'
+);
+const descriptor = fs.readFileSync('app/src/main/res/xml/automotive_app_desc.xml', 'utf8');
+
+assert.match(manifest, /android:name="com\.carhud\.aaproxy\.CarHudProjectionService"/);
+assert.match(manifest, /CATEGORY_PROJECTION/);
+assert.doesNotMatch(manifest, /android:name="com\.carhud\.aaproxy\.CarHudAutoService"/);
+assert.match(descriptor, /<uses\s+name="service"/);
+assert.match(descriptor, /<uses\s+name="projection"/);
+assert.match(projectionHost, /class CarHudProjectionService : CarActivityService\(\)/);
+assert.match(projectionHost, /class CarHudProjectionActivity : CarActivity\(\), SurfaceHolder\.Callback/);
+assert.match(projectionHost, /SurfaceView\(this\)/);
+assert.match(projectionHost, /CarPresentation\(this, vd\.display, persistentWeb\)/);
+assert.match(projectionHost, /hideAppHeader\(\)/);
+assert.match(projectionHost, /hideMenuButton\(\)/);
 
 // Keep the existing weather-card bounds, but render weather with vector icons.
 assert.match(dashboardXml, /android:id="@\+id\/weatherCard"[\s\S]*?android:layout_width="150dp"[\s\S]*?android:layout_height="76dp"/);
