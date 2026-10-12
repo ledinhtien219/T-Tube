@@ -608,6 +608,12 @@ class CarPresentation(
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                 super.doUpdateVisitedHistory(view, url, isReload)
                 updateBrowserToolbar(url)
+                if (view != null) TikTokWebPolicy.fitLayout(view, url)
+            }
+
+            override fun onPageCommitVisible(view: WebView, url: String) {
+                super.onPageCommitVisible(view, url)
+                TikTokWebPolicy.fitLayout(view, url)
             }
 
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
@@ -632,7 +638,7 @@ class CarPresentation(
                 applyWebScaleForUrl(url)
                 val isDay = isDayMode()
                 applyUniversalWebTheme(view, isDay)
-                TikTokWebPolicy.fitSearchResults(view, url)
+                TikTokWebPolicy.fitLayout(view, url)
                 val isYouTube = currentActiveAppId == "youtube" && (url.contains("youtube.com") || url.contains("youtu.be"))
                 if (isYouTube) {
                     YouTubePlayerHelper.inject(view, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
@@ -1031,7 +1037,7 @@ class CarPresentation(
 
     private var lastAppliedScale = -1
     fun applyWebScaleForUrl(url: String?) {
-        if (TikTokWebPolicy.isSearch(url)) {
+        if (TikTokWebPolicy.isTikTok(url)) {
             if (lastAppliedScale == -2) return
             lastAppliedScale = -2
             web.settings.useWideViewPort = true
@@ -1150,9 +1156,9 @@ class CarPresentation(
         }
 
         if (currentActiveAppId == "tiktok") {
-            // Keep the website's bottom navigation and right-side video actions accessible.
+            // Leave the desktop site's 72px navigation rail and video actions clear.
             val controls = LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
+                orientation = LinearLayout.HORIZONTAL
                 background = rounded(Color.parseColor("#CC101C28"), 18f, Color.parseColor("#4038BDF8"), 1)
                 addView(createBarIcon(R.drawable.ic_bar_back, 44) { goBack() })
                 addView(createBarIcon(R.drawable.ic_bar_home, 44) { showDashboard() })
@@ -1161,8 +1167,8 @@ class CarPresentation(
             sidebarView = controls
             sidebarContainer = controls
             videoTimePill = null
-            root.addView(controls, FrameLayout.LayoutParams(dp(48), ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(6) })
+            root.addView(controls, FrameLayout.LayoutParams(dp(96), ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.START or Gravity.BOTTOM).apply { leftMargin = dp(84); bottomMargin = dp(8) })
             resetAutoHideTimer()
             return
         }
@@ -1948,18 +1954,12 @@ class CarPresentation(
 
         val isDesktop = WebAppManager.isAppDesktop(context, app.id)
         if (app.id == "tiktok" || app.url.contains("tiktok.com")) {
-            // Use the phone's mobile Chrome-like identity instead of a Windows
-            // desktop UA. This avoids forcing TikTok into desktop WebView flow.
-            val defaultUa = android.webkit.WebSettings.getDefaultUserAgent(context)
-            web.settings.userAgentString = defaultUa
-                .replace("; wv", "")
-                .replace("Version/4.0 ", "")
-                .replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
+            TikTokWebPolicy.configure(web, startUrl ?: app.url)
             web.settings.domStorageEnabled = true
             web.settings.databaseEnabled = true
             web.settings.mediaPlaybackRequiresUserGesture = false
             web.settings.useWideViewPort = true
-            web.settings.loadWithOverviewMode = false
+            web.settings.loadWithOverviewMode = true
             web.settings.javaScriptCanOpenWindowsAutomatically = false
             try {
                 CookieManager.getInstance().setAcceptCookie(true)
@@ -2139,14 +2139,14 @@ class CarPresentation(
     }
 
     fun applyUniversalWebTheme(view: WebView?, isDay: Boolean) {
-        YouTubePlayerHelper.applyUniversalWebTheme(view, isDay)
+        YouTubePlayerHelper.applyUniversalWebTheme(view, if (TikTokWebPolicy.isTikTok(view?.url)) true else isDay)
     }
 
     fun applyCurrentTheme(isDay: Boolean = isDayMode()) {
         dashboardView?.applyDayNightMode(isDay)
         rebuildSidebar()
         rebuildTopToolbar()
-        YouTubePlayerHelper.applyUniversalWebTheme(web, isDay)
+        applyUniversalWebTheme(web, isDay)
         if (currentActiveAppId == "iptv") {
             try {
                 web.evaluateJavascript("if (typeof window.setIptvTheme === 'function') window.setIptvTheme(${if (isDay) "true" else "false"});", null)

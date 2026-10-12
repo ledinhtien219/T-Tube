@@ -4,7 +4,7 @@ import android.net.Uri
 import android.webkit.WebSettings
 import android.webkit.WebView
 
-/** The mobile TikTok search shell sends searches to the app; desktop serves web results. */
+/** Use one desktop identity for feed, search and history, including guest browsing. */
 internal object TikTokWebPolicy {
     fun isTikTok(url: String?): Boolean {
         val host = Uri.parse(url.orEmpty()).host.orEmpty().lowercase()
@@ -14,26 +14,31 @@ internal object TikTokWebPolicy {
     fun isSearch(url: String?): Boolean = isTikTok(url) &&
         Uri.parse(url.orEmpty()).path.orEmpty().let { it == "/search" || it.startsWith("/search/") }
 
-    fun userAgent(defaultUa: String, desktop: Boolean): String {
+    fun userAgent(defaultUa: String): String {
         val mobile = defaultUa.replace("; wv", "").replace(Regex("Version/[\\d.]+\\s?"), "")
-        return if (desktop) mobile.replace(Regex("\\([^)]*\\)"), "(X11; Linux x86_64)")
-            .replace("Mobile ", "") else mobile
+        return mobile.replace(Regex("\\([^)]*\\)"), "(X11; Linux x86_64)")
+            .replace("Mobile ", "")
     }
 
     fun configure(view: WebView, url: String?) {
         if (!isTikTok(url)) return
-        val ua = userAgent(WebSettings.getDefaultUserAgent(view.context), isSearch(url))
+        val ua = userAgent(WebSettings.getDefaultUserAgent(view.context))
         if (view.settings.userAgentString != ua) view.settings.userAgentString = ua
     }
 
-    fun fitSearchResults(view: WebView, url: String?) {
-        if (!isSearch(url)) return
+    fun fitLayout(view: WebView, url: String?) {
+        if (!isTikTok(url)) return
         view.evaluateJavascript("""
             (function() {
-                if (!/^\/search(?:\/|$)/.test(location.pathname)) return;
+                if (!(location.hostname === 'tiktok.com' || location.hostname.endsWith('.tiktok.com'))) return;
                 var meta = document.querySelector('meta[name="viewport"]');
                 if (!meta) { meta = document.createElement('meta'); meta.name = 'viewport'; document.head.appendChild(meta); }
-                meta.content = 'width=980';
+                meta.content = 'width=device-width, initial-scale=1';
+                var style = document.getElementById('thtv-tiktok-layout');
+                if (!style) { style = document.createElement('style'); style.id = 'thtv-tiktok-layout'; document.head.appendChild(style); }
+                // The site's minimum 348px video width otherwise clips portrait
+                // videos on a landscape display shorter than 650px.
+                style.textContent = '[data-e2e="feed-video"] { min-width: 0 !important; min-height: 0 !important; }';
             })();
         """.trimIndent(), null)
     }

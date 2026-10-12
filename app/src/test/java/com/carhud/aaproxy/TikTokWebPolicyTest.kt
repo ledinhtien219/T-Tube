@@ -13,7 +13,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [29], manifest = Config.NONE, application = Application::class)
 class TikTokWebPolicyTest {
-    @Test fun searchVideoAndBackRestoreTheirIdentityWithoutAffectingOtherSites() {
+    @Test fun searchVideoAndBackKeepDesktopIdentityWithoutAffectingOtherSites() {
         ShadowWebSettings.setDefaultUserAgent("Mozilla/5.0 (Linux; Android 16; Pixel; wv) AppleWebKit/537.36 Version/4.0 Chrome/153.0.8010.36 Mobile Safari/537.36")
         val web = WebView(RuntimeEnvironment.getApplication())
         try {
@@ -21,7 +21,8 @@ class TikTokWebPolicyTest {
             val searchUa = web.settings.userAgentString
             TikTokWebPolicy.configure(web, "https://www.tiktok.com/@user/video/123")
             val videoUa = web.settings.userAgentString
-            assertNotEquals(searchUa, videoUa)
+            assertEquals(searchUa, videoUa)
+            assertFalse(videoUa.contains("Mobile"))
             TikTokWebPolicy.configure(web, "https://www.tiktok.com/search?q=nhac")
             assertEquals(searchUa, web.settings.userAgentString)
             TikTokWebPolicy.configure(web, "https://www.tiktok.com/search?q=khac")
@@ -34,7 +35,7 @@ class TikTokWebPolicyTest {
         }
     }
 
-    @Test fun onlyTikTokSearchUsesDesktop() {
+    @Test fun searchClassificationRejectsForeignDomains() {
         assertTrue(TikTokWebPolicy.isSearch("https://www.tiktok.com/search?q=nhac"))
         assertTrue(TikTokWebPolicy.isSearch("https://www.tiktok.com/search/video?q=nhac"))
         assertFalse(TikTokWebPolicy.isSearch("https://www.tiktok.com/@user/video/123"))
@@ -42,16 +43,13 @@ class TikTokWebPolicyTest {
         assertFalse(TikTokWebPolicy.isSearch("https://example.org/?url=tiktok.com/search"))
     }
 
-    @Test fun preserveInstalledChromiumVersionAndRestoreMobileForFeed() {
+    @Test fun desktopIdentityPreservesInstalledChromiumVersion() {
         val ua = "Mozilla/5.0 (Linux; Android 16; Pixel; wv) AppleWebKit/537.36 Version/4.0 Chrome/153.0.8010.36 Mobile Safari/537.36"
-        val desktop = TikTokWebPolicy.userAgent(ua, true)
+        val desktop = TikTokWebPolicy.userAgent(ua)
         assertTrue(desktop.contains("Chrome/153.0.8010.36"))
         assertFalse(desktop.contains("Android"))
         assertFalse(desktop.contains("Mobile"))
         assertFalse(desktop.contains("Version/4.0"))
-        val mobile = TikTokWebPolicy.userAgent(ua, false)
-        assertTrue(mobile.contains("Android 16"))
-        assertTrue(mobile.contains("Mobile"))
-        assertFalse(mobile.contains("; wv"))
+        assertFalse(desktop.contains("; wv"))
     }
 }

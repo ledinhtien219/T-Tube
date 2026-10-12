@@ -37,11 +37,11 @@ assert.match(presentation, /params\.width = ViewGroup\.LayoutParams\.MATCH_PAREN
 assert.match(presentation, /params\.rightMargin = 0/);
 assert.match(presentation, /web\.setInitialScale\(100\)/);
 
-// TikTok uses the phone's mobile Chrome-like UA and is freshly loaded.
+// TikTok uses a consistent desktop identity and is freshly loaded.
 assert.match(presentation, /app\.id != "tiktok"/);
 assert.match(presentation, /getDefaultUserAgent\(context\)/);
 assert.match(presentation, /replace\("; wv", ""\)/);
-assert.match(presentation, /replace\("Version\/4\.0 ", ""\)/);
+assert.match(presentation, /TikTokWebPolicy\.configure\(web, startUrl \?: app\.url\)/);
 const tikTokBlock = presentation.match(/if \(app\.id == "tiktok"[\s\S]*?\} else if \(isDesktop\)/)?.[0] || '';
 assert.notEqual(tikTokBlock, '');
 assert.doesNotMatch(tikTokBlock, /Windows NT 10\.0/);

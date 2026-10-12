@@ -35,7 +35,7 @@ object ChangelogManager {
                 "▶️ Giảm thời gian chờ xử lý khi chọn video YouTube.",
                 "📱 TikTok nhận thao tác vuốt trực tiếp; tìm kiếm đi tới trang kết quả web.",
                 "🏠 Hiện tên ứng dụng, phóng lớn icon YouTube, Tivi và TikTok trên màn hình chính.",
-                "📱 TikTok giảm cập nhật giao diện khi vuốt, tránh đổi nhận diện giữa lúc tải trang; thanh điều khiển gọn bên trái.",
+                "📱 TikTok dùng giao diện máy tính: menu trái, video dọc vừa chiều cao; xem video công khai không cần đăng nhập khi TikTok cho phép.",
                 "🧪 Bản thử nghiệm dựa trên projection v1.0.46. Chưa tích hợp Gboard trên màn hình xe."
             )
         )
