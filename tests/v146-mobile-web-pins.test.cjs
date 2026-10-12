@@ -8,15 +8,26 @@ const dashboard = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarDashb
 const main = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/MainActivity.kt', 'utf8');
 const screen = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarHudAutoScreen.kt', 'utf8');
 
-// Preserve the exact action-free host template from the known-good v1.0.39 APK.
-assert.doesNotMatch(screen, /import androidx\.car\.app\.model\.ActionStrip/);
-assert.doesNotMatch(screen, /ActionStrip\.Builder\(\)/);
-assert.doesNotMatch(screen, /setActionStrip\(/);
-assert.doesNotMatch(screen, /NavigationTemplate/);
-assert.doesNotMatch(screen, /PlaceListNavigationTemplate/);
-assert.match(screen, /carContext\.carAppApiLevel < 5/);
-assert.match(screen, /MapTemplate\.Builder\(\)[\s\S]*?setPane\(Pane\.Builder\(\)\.build\(\)\)[\s\S]*?\.build\(\)/);
-assert.match(presentation, /setPadding\(dp\(4\), dp\(4\), dp\(4\), dp\(4\)\)/);
+// Android Auto uses the working Fermata-style CarActivity projection path,
+// not AndroidX NavigationTemplate/MapTemplate as the runtime entry.
+const manifest = fs.readFileSync('app/src/main/AndroidManifest.xml', 'utf8');
+const projectionHost = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/CarHudProjectionHost.kt',
+  'utf8'
+);
+const descriptor = fs.readFileSync('app/src/main/res/xml/automotive_app_desc.xml', 'utf8');
+
+assert.match(manifest, /CarHudProjectionService/);
+assert.match(manifest, /CATEGORY_PROJECTION/);
+assert.doesNotMatch(manifest, /CarHudAutoService/);
+assert.match(descriptor, /name="service"/);
+assert.match(descriptor, /name="projection"/);
+assert.match(projectionHost, /CarActivityService/);
+assert.match(projectionHost, /CarActivity\(\)/);
+assert.match(projectionHost, /SurfaceView\(this\)/);
+assert.match(projectionHost, /CarPresentation\(this, vd\.display, persistentWeb\)/);
+assert.match(projectionHost, /hideAppHeader\(\)/);
+assert.match(projectionHost, /hideMenuButton\(\)/);
 
 // Browser uses the full projected viewport at normal CSS scale.
 assert.match(presentation, /val isBrowser = currentActiveAppId == "web"/);
