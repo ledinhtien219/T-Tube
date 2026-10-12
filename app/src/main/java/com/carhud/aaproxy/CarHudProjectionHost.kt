@@ -119,11 +119,9 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         val frame = holder.surfaceFrame
-        setupPresentation(
-            holder.surface,
-            frame.width().takeIf { it > 0 } ?: 800,
-            frame.height().takeIf { it > 0 } ?: 480
-        )
+        val width = frame.width().takeIf { it > 0 } ?: 800
+        val height = frame.height().takeIf { it > 0 } ?: 480
+        setupPresentation(holder.surface, width, height)
     }
 
     override fun surfaceChanged(
@@ -197,7 +195,6 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
             } catch (_: Exception) {}
         } catch (e: Exception) {
             try { AppCrashHandler.logError(e, "CarHudProjectionSetupPresentation") } catch (_: Exception) {}
-            e.printStackTrace()
         }
     }
 
