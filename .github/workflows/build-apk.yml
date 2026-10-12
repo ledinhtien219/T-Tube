@@ -2,7 +2,7 @@ name: Build Internal Test APK
 
 on:
   push:
-    branches: [ "main", "master", "test/v1.0.46-mobile-web-pins" ]
+    branches: [ "main", "master", "test/v1.0.46-mobile-web-pins", "fix/input-video-tiktok" ]
   pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
@@ -64,6 +64,7 @@ jobs:
         run: |
           node tests/page-input.test.cjs
           node tests/youtube-quality.test.cjs
+          node tests/youtube-theme.test.cjs
           node tests/youtube-search-routing.test.cjs
           node tests/home-ui-cleanup.test.cjs
           node tests/web-session-retention.test.cjs

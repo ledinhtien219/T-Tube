@@ -596,6 +596,7 @@ class CarPresentation(
 
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                TikTokWebPolicy.configure(view, url)
                 browserLoading = true
                 updateBrowserToolbar(url)
                 val isDay = isDayMode()
@@ -630,6 +631,7 @@ class CarPresentation(
                 applyWebScaleForUrl(url)
                 val isDay = isDayMode()
                 applyUniversalWebTheme(view, isDay)
+                TikTokWebPolicy.fitSearchResults(view, url)
                 val isYouTube = currentActiveAppId == "youtube" && (url.contains("youtube.com") || url.contains("youtu.be"))
                 if (isYouTube) {
                     YouTubePlayerHelper.inject(view, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
@@ -656,7 +658,7 @@ class CarPresentation(
                     if (CarMediaManager.userWantsPlayback) {
                         CarMediaManager.ensureAudioFocus()
                         CarMediaManager.acquireWakeLock(context)
-                        scheduleSafeResume(view, 700L)
+                        scheduleSafeResume(view, 150L)
                     }
                 }
             }
@@ -807,7 +809,7 @@ class CarPresentation(
         }
         web.setOnTouchListener { _, event ->
             if (event.actionMasked == MotionEvent.ACTION_DOWN && systemVoiceSearchPending) cancelSystemVoiceRequest()
-            onUserInteraction()
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) onUserInteraction()
             if (event.actionMasked == MotionEvent.ACTION_UP) {
                 openFocusedWebInput(event.x, event.y)
             }
@@ -1028,9 +1030,16 @@ class CarPresentation(
 
     private var lastAppliedScale = -1
     fun applyWebScaleForUrl(url: String?) {
+        if (TikTokWebPolicy.isSearch(url)) {
+            lastAppliedScale = -1
+            web.settings.useWideViewPort = true
+            web.settings.loadWithOverviewMode = true
+            web.setInitialScale(0)
+            return
+        }
         val effectivePhoneDpi = if (phoneDpi > 0f) phoneDpi else 440f
         val effectiveCarDpi = if (carDpi > 0) carDpi.toFloat() else 160f
-        val isBrowser = currentActiveAppId == "web"
+        val isBrowser = currentActiveAppId == "web" || currentActiveAppId == "tiktok"
         val scalePercent = if (isBrowser) {
             100
         } else {
@@ -2497,7 +2506,9 @@ class CarPresentation(
                 }
                 addView(iconBox)
 
+                contentDescription = app.name
                 val label = TextView(context).apply {
+                    visibility = View.GONE
                     text = app.name
                     textSize = 12f
                     typeface = Typeface.DEFAULT_BOLD
@@ -2509,6 +2520,7 @@ class CarPresentation(
                 addView(label)
 
                 val catTag = TextView(context).apply {
+                    visibility = View.GONE
                     text = WebAppManager.getCategoryName(app.id)
                     textSize = 9.5f
                     setTextColor(Color.parseColor("#38BDF8"))
@@ -2947,6 +2959,20 @@ class CarPresentation(
                 onComplete?.invoke(true)
                 return
             }
+        }
+
+        // TikTok mobile search is a client-side widget; native form submission can
+        // navigate to an empty shell. Use its web results route explicitly.
+        val host = android.net.Uri.parse(currentUrl).host.orEmpty().lowercase()
+        if (performAction && (host == "tiktok.com" || host.endsWith(".tiktok.com")) && cleanValue.isNotBlank()) {
+            webKeyboardTargetPending = false
+            web.evaluateJavascript("if(window.__thtvPageInput) window.__thtvPageInput.clear();", null)
+            hideSearchOverlay()
+            val targetUrl = "https://www.tiktok.com/search?q=" + android.net.Uri.encode(cleanValue)
+            TikTokWebPolicy.configure(web, targetUrl)
+            web.loadUrl(targetUrl)
+            onComplete?.invoke(true)
+            return
         }
 
         webInputSubmissionPending = true
@@ -3818,6 +3844,32 @@ class CarPresentation(
     private fun hideVideoQualityMenu() {
         videoQualityOverlay?.let { root.removeView(it) }
         videoQualityOverlay = null
+    }
+
+    private var projectedTouchActive = false
+
+    /** Keep the receiver chosen on DOWN until UP/CANCEL, even when a key closes the overlay. */
+    fun dispatchProjectedTouch(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            val editing = ::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE
+            val tikTok = currentActiveAppId == "tiktok" && !isDashboardShowing &&
+                videoQualityOverlay == null && addAppOverlay?.visibility != View.VISIBLE &&
+                appGridOverlay?.visibility != View.VISIBLE &&
+                hudOverlay?.let { it.visibility == View.VISIBLE &&
+                    (!it.isHudLocked() || it.isTouchOnOverlay(event.x, event.y)) } != true
+            projectedTouchActive = editing || tikTok
+        }
+        if (!projectedTouchActive) return false
+        val copy = MotionEvent.obtain(event)
+        try {
+            (window?.decorView ?: root).dispatchTouchEvent(copy)
+        } finally {
+            copy.recycle()
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                projectedTouchActive = false
+            }
+        }
+        return true
     }
 
     fun dispatchTouch(x: Float, y: Float) {

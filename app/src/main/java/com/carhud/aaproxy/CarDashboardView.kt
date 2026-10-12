@@ -414,7 +414,9 @@ class CarDashboardView(
                 }
                 addView(icon, LinearLayout.LayoutParams(dp(34), dp(34)))
 
+                contentDescription = app.name
                 addView(TextView(context).apply {
+                    visibility = View.GONE
                     text = app.name
                     textSize = 11f
                     typeface = Typeface.DEFAULT_BOLD
@@ -429,6 +431,7 @@ class CarDashboardView(
                 })
 
                 addView(TextView(context).apply {
+                    visibility = View.GONE
                     text = WebAppManager.getCategoryName(app.id)
                     textSize = 9f
                     setTextColor(Color.parseColor("#38BDF8"))
@@ -555,7 +558,9 @@ class CarDashboardView(
                 }
                 addView(icon)
 
+                contentDescription = name
                 val txt = TextView(context).apply {
+                    visibility = View.GONE
                     text = name
                     textSize = 13f
                     setSingleLine(true)

@@ -112,7 +112,10 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
         )
 
         surfaceView.setOnTouchListener { _, event ->
-            gestureDetector.onTouchEvent(event)
+            // Keep complete pointer streams for fast typing and WebView gestures.
+            if (presentation?.dispatchProjectedTouch(event) != true) {
+                gestureDetector.onTouchEvent(event)
+            }
             true
         }
     }

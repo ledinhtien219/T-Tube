@@ -69,14 +69,7 @@ object YouTubePlayerHelper {
             var keyboard = add(row, 'input', 'flex:1;min-width:0;height:48px;border:0;border-radius:28px;padding:0 18px;background:var(--carhud-home-chip,#272727);color:var(--carhud-home-muted,#aaa);font:inherit;font-size:17px;text-align:left', 'Tìm trên YouTube');
             keyboard.id = 'carhud-home-keyboard'; keyboard.type = 'search';
             keyboard.placeholder = 'Tìm trên YouTube';
-            var searchGo = add(row, 'button', 'height:48px;padding:0 14px;border:0;border-radius:12px;background:#0284c7;color:white', 'Tìm');
-            searchGo.type = 'button';
-            searchGo.addEventListener('click', function() {
-                var query = keyboard.value.trim();
-                if (!query) return;
-                sessionStorage.removeItem('carhud_auto_play');
-                location.assign('/results?search_query=' + encodeURIComponent(query));
-            });
+            // Submission is owned by the keyboard; keep the home row uncluttered.
             var voice = add(row, 'button', 'width:48px;height:48px;flex-shrink:0;border:0;border-radius:50%;background:var(--carhud-home-chip,#272727);color:inherit');
             voice.id = 'carhud-home-voice'; voice.type = 'button'; voice.setAttribute('aria-label', 'Micro');
             svg(voice, 24, 24, '0 0 24 24', [{tag:'path',attrs:{d:'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3ZM5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8',fill:'none',stroke:'currentColor','stroke-width':2,'stroke-linecap':'round'}}]);
@@ -759,7 +752,7 @@ object YouTubePlayerHelper {
                         video.play().catch(function() {});
                     } catch(e) {}
                 }
-            }, 350);
+            }, 80);
         }
 
         // Hook SPA Navigation (pushState, replaceState, popstate)
@@ -1246,7 +1239,7 @@ object YouTubePlayerHelper {
                 killYouTubeAds();
                 ensureAudio();
                 extractMetadata();
-            }, 750);
+            }, 120);
         }
 
         scanVideos();
@@ -1472,6 +1465,7 @@ object YouTubePlayerHelper {
                                 themeStyle = document.createElement('style');
                                 themeStyle.id = 'carhud-theme';
                                 (document.head || document.documentElement).appendChild(themeStyle);
+                            }
                             var isAutoScreen = document.documentElement.classList.contains('carhud-auto-screen');
                             if (isDay && !isAutoScreen) {
                                 document.documentElement.classList.remove('dark');
