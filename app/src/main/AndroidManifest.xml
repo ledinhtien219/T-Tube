@@ -62,7 +62,7 @@
 
         <meta-data
             android:name="androidx.car.app.minCarApiLevel"
-            android:value="1"/>
+            android:value="5"/>
 
         <!-- Main Phone Activity: CarStream Dashboard & Multimedia Hub -->
         <activity
@@ -113,20 +113,18 @@
             android:windowSoftInputMode="stateAlwaysVisible|adjustResize"
             android:excludeFromRecents="true"/>
 
-        <!-- Android Auto CarAppService -->
+        <!-- Android Auto projection service (Fermata-style).
+             This path avoids AndroidX template ActionStrip chrome entirely. -->
         <service
-            android:name="com.carhud.aaproxy.CarHudAutoService"
+            android:name="com.carhud.aaproxy.CarHudProjectionService"
             android:exported="true"
             android:label="THTV"
-            android:icon="@drawable/ic_carhud_logo">
+            android:icon="@drawable/ic_carhud_logo"
+            tools:ignore="ExportedService">
             <intent-filter>
-                <action android:name="androidx.car.app.CarAppService"/>
-                <category android:name="androidx.car.app.category.NAVIGATION"/>
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <data android:scheme="carhud"/>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="com.google.android.gms.car.category.CATEGORY_PROJECTION"/>
+                <category android:name="com.google.android.gms.car.category.CATEGORY_PROJECTION_OEM"/>
             </intent-filter>
         </service>
 
