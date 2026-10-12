@@ -121,8 +121,8 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
         val frame = holder.surfaceFrame
         setupPresentation(
             holder.surface,
-            frame.width().takeIf { it > 0 } ?: surfaceView.width.takeIf { it > 0 } ?: 800,
-            frame.height().takeIf { it > 0 } ?: surfaceView.height.takeIf { it > 0 } ?: 480
+            frame.width().takeIf { it > 0 } ?: 800,
+            frame.height().takeIf { it > 0 } ?: 480
         )
     }
 
@@ -134,8 +134,8 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
     ) {
         setupPresentation(
             holder.surface,
-            width.takeIf { it > 0 } ?: surfaceView.width.takeIf { it > 0 } ?: 800,
-            height.takeIf { it > 0 } ?: surfaceView.height.takeIf { it > 0 } ?: 480
+            width.takeIf { it > 0 } ?: 800,
+            height.takeIf { it > 0 } ?: 480
         )
     }
 
@@ -156,7 +156,7 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
     }
 
     private fun setupPresentation(surface: Surface?, width: Int, height: Int) {
-        if (surface == null || !surface.isValid || width <= 0 || height <= 0) return
+        if (surface == null || !surface.isValid) return
 
         try {
             presentation?.dismiss()
