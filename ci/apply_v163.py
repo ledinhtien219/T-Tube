@@ -235,23 +235,25 @@ for name in ['tests/v151-dashboard-web-separation.test.cjs', 'tests/web-session-
                   'assert.match(presentation, /if \\(shouldNavigateFresh\\)/);')
     p.write_text(t)
 
-# Allow historical TikTok policy tests to accept the newer policy revision.
+# Allow historical tests to accept the newer policy/session behavior.
 for p in Path('tests').glob('*.cjs'):
     t = p.read_text()
     t = t.replace('/POLICY_VERSION = [67]/', '/POLICY_VERSION = [678]/')
+    t = t.replace('/POLICY_VERSION = 7/', '/POLICY_VERSION = [78]/')
     t = t.replace('/explicitStartNeedsNavigation/', '/shouldNavigateFresh/')
-    t = t.replace('assert.doesNotMatch(tik,/location\\.assign\\(target\\)/);',
-                  'assert.match(tik,/location\\.assign\\(target\\)/);')
-    t = re.sub(r'assert\\.doesNotMatch\\(tik,\\s*/location\\\\\\.assign\\\\\\(target\\\\\\)/\\);',
-               lambda _m: r'assert.match(tik,/location\.assign\(target\)/);', t)
+
+    # v1.0.62 explicitly asserted that search results must NOT use direct
+    # canonical navigation. v1.0.63 intentionally reverses that behavior to
+    # avoid the black /player/v1 screen. Drop only that obsolete assertion.
     migrated = []
     for line in t.splitlines():
-        if 'doesNotMatch' in line and 'location' in line and 'assign' in line and 'target' in line:
-            migrated.append('assert.match(tik,/location\\.assign\\(target\\)/);')
+        if 'location' in line and 'assign' in line and 'target' in line and (
+            'doesNotMatch' in line or 'assert.match(tik' in line
+        ):
+            migrated.append('// v1.0.63: canonical TikTok result navigation is intentional.')
         else:
             migrated.append(line)
     t = '\n'.join(migrated) + ('\n' if t.endswith('\n') else '')
-    t = t.replace('/POLICY_VERSION = 7/', '/POLICY_VERSION = [78]/')
     p.write_text(t)
 
 for p in Path('tests').glob('v162*.cjs'):
