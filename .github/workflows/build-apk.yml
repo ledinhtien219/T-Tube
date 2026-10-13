@@ -1,8 +1,8 @@
-name: Build T Tube v1.0.60 APK
+name: Build T Tube v1.0.61 APK
 
 on:
   push:
-    branches: [ "test/ttube-v1.0.60-apk" ]
+    branches: [ "test/ttube-v1.0.61-apk" ]
   pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build:
-    name: Build T Tube v1.0.60 APK
+    name: Build T Tube v1.0.61 APK
     runs-on: ubuntu-latest
 
     steps:
@@ -59,8 +59,21 @@ jobs:
           Path('/tmp/v160.patch').write_text(s)
           PY
           patch -p1 < /tmp/v160.patch
+
+      - name: Apply T Tube v1.0.61 patch
+        shell: bash
+        run: |
+          tr -d '\n\r' < ci/v161_patch.gz.b64 | base64 -d | gzip -dc > /tmp/v161.raw.patch
+          python - <<'PY'
+          from pathlib import Path
+          s = Path('/tmp/v161.raw.patch').read_text()
+          s = s.replace('/mnt/data/TTube_v1.0.60/', 'a/')
+          s = s.replace('/mnt/data/TTube_v1.0.61/', 'b/')
+          Path('/tmp/v161.patch').write_text(s)
+          PY
+          patch -p1 < /tmp/v161.patch
           grep -E 'applicationId|version(Code|Name)' app/build.gradle.kts | head -3
-          test -f tests/v160-youtube-fast-search.test.cjs
+          test -f tests/v161-browser-tiktok-polish.test.cjs
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -98,6 +111,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.0.60-build247-APK
+          name: TTube-v1.0.61-build248-APK
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 7
