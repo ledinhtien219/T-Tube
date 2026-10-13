@@ -1,6 +1,8 @@
 name: Build T Tube v1.0.57 APK
 
 on:
+  push:
+    branches: [ "test/ttube-v1.0.57-apk" ]
   pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
@@ -20,8 +22,8 @@ jobs:
       - name: Apply T Tube v1.0.57 source overlay
         shell: bash
         run: |
-          cat ci/v157/part* | tr -d '\n\r' | base64 -d > /tmp/TTube_v1.0.57_overlay.tar.xz
-          tar -xJf /tmp/TTube_v1.0.57_overlay.tar.xz -C .
+          cat ci/v157/part* | tr -d '\n\r' | base64 -d > /tmp/TTube_v1.0.57_overlay.zip
+          unzip -oq /tmp/TTube_v1.0.57_overlay.zip -d .
           chmod +x gradlew
           grep -E 'version(Code|Name)' app/build.gradle.kts | head -2
 
@@ -46,6 +48,14 @@ jobs:
             echo "Stable signing key missing; refusing to generate a different certificate."
             exit 1
           }
+
+      - name: Run T Tube regression tests
+        run: |
+          set -e
+          for f in tests/*.cjs; do
+            echo "RUN $f"
+            node "$f"
+          done
 
       - name: Build T Tube debug APK
         run: ./gradlew assembleDebug --stacktrace
