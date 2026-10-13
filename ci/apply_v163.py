@@ -235,6 +235,13 @@ for name in ['tests/v151-dashboard-web-separation.test.cjs', 'tests/web-session-
                   'assert.match(presentation, /if \\(shouldNavigateFresh\\)/);')
     p.write_text(t)
 
+# Allow historical TikTok policy tests to accept the newer policy revision.
+for p in Path('tests').glob('*.cjs'):
+    t = p.read_text()
+    t = t.replace('/POLICY_VERSION = [67]/', '/POLICY_VERSION = [678]/')
+    t = t.replace('/POLICY_VERSION = 7/', '/POLICY_VERSION = [78]/')
+    p.write_text(t)
+
 for p in Path('tests').glob('v162*.cjs'):
     t = p.read_text()
     t = re.sub(r'assert\.match\(gradle,/versionCode = 249/\);\s*assert\.match\(gradle,/versionName = "1\\\.0\\\.62"/\);',
