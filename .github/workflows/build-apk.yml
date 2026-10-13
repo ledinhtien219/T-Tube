@@ -69,7 +69,16 @@ jobs:
           s = Path('/tmp/v161.raw.patch').read_text()
           s = s.replace('/mnt/data/TTube_v1.0.60/', 'a/')
           s = s.replace('/mnt/data/TTube_v1.0.61/', 'b/')
-          Path('/tmp/v161.patch').write_text(s)
+          chunks = s.split('diff -ruN ')
+          out = []
+          for chunk in chunks:
+              if not chunk.strip():
+                  continue
+              first = chunk.splitlines()[0]
+              if 'a/.github/workflows/' in first:
+                  continue
+              out.append('diff -ruN ' + chunk)
+          Path('/tmp/v161.patch').write_text(''.join(out))
           PY
           patch -p1 < /tmp/v161.patch
           grep -E 'applicationId|version(Code|Name)' app/build.gradle.kts | head -3
