@@ -102,6 +102,13 @@ jobs:
           Path('/tmp/v162.patch').write_text(''.join(out))
           PY
           patch -p1 < /tmp/v162.patch
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/com/carhud/aaproxy/TikTokWebPolicy.kt')
+          s = p.read_text()
+          s = s.replace('Regex("Version/[\\d.]+\\s?")', 'Regex("""Version/[\\d.]+\\s?""")')
+          p.write_text(s)
+          PY
           grep -E 'applicationId|version(Code|Name)' app/build.gradle.kts | head -3
           test -f tests/v162-session-device-tiktok-layout.test.cjs
 
