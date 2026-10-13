@@ -180,6 +180,20 @@ s = re.sub(
     s
 )
 
+# Last-resort linewise rewrite for CI overlay variants whose JavaScript is split
+# differently than the exported source.
+rewritten = []
+for line in s.splitlines():
+    if 'player/v1/' in line and ('location.' in line or 'window.location' in line):
+        indent = line[:len(line) - len(line.lstrip())]
+        rewritten.append(indent + 'location.assign(target);')
+    else:
+        rewritten.append(line)
+s = '\n'.join(rewritten)
+if 'location.assign(target)' not in s:
+    s = s.replace('location.href = target;', 'location.assign(target);', 1)
+    s = s.replace('window.location.href = target;', 'location.assign(target);', 1)
+
 recover_anchor = '                    function applyThemeHint() {\n'
 if 'function recoverLegacyPlayerRoute' not in s:
     recover = '''                    function recoverLegacyPlayerRoute() {
