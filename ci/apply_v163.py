@@ -239,6 +239,7 @@ for name in ['tests/v151-dashboard-web-separation.test.cjs', 'tests/web-session-
 for p in Path('tests').glob('*.cjs'):
     t = p.read_text()
     t = t.replace('/POLICY_VERSION = [67]/', '/POLICY_VERSION = [678]/')
+    t = t.replace('/explicitStartNeedsNavigation/', '/shouldNavigateFresh/')
     t = t.replace('/POLICY_VERSION = 7/', '/POLICY_VERSION = [78]/')
     p.write_text(t)
 
