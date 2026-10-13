@@ -49,7 +49,15 @@ jobs:
       - name: Apply T Tube v1.0.60 patch
         shell: bash
         run: |
-          tr -d '\n\r' < ci/v160_patch.gz.b64 | base64 -d | gzip -dc > /tmp/v160.patch
+          tr -d '\n\r' < ci/v160_patch.gz.b64 | base64 -d | gzip -dc > /tmp/v160.raw.patch
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('/tmp/v160.raw.patch')
+          s = p.read_text()
+          s = s.replace('/mnt/data/TTube_v1.0.59/', 'a/')
+          s = s.replace('/mnt/data/TTube_v1.0.60/', 'b/')
+          Path('/tmp/v160.patch').write_text(s)
+          PY
           patch -p1 < /tmp/v160.patch
           grep -E 'applicationId|version(Code|Name)' app/build.gradle.kts | head -3
           test -f tests/v160-youtube-fast-search.test.cjs
