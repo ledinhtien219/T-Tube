@@ -44,23 +44,6 @@ jobs:
               t = t.replace("/versionCode = 244/", "/versionCode = 245/")
               t = t.replace('/versionName = "1\\.0\\.57"/', '/versionName = "1\\.0\\.58"/')
               test.write_text(t)
-
-          Path("tests/v158-version-install.test.cjs").write_text(
-              """const fs = require('node:fs');
-"""
-              """const assert = require('node:assert/strict');
-"""
-              """const gradle = fs.readFileSync('app/build.gradle.kts', 'utf8');
-"""
-              """assert.match(gradle, /applicationId = "com\\.tcar\\.auto"/);
-"""
-              """assert.match(gradle, /versionCode = 245/);
-"""
-              """assert.match(gradle, /versionName = "1\\.0\\.58"/);
-"""
-              """console.log('PASS v1.0.58: in-place upgrade metadata');
-"""
-          )
           PY
           grep -E 'applicationId|version(Code|Name)' app/build.gradle.kts | head -3
 
