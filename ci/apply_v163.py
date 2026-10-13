@@ -217,7 +217,7 @@ for name in ['tests/v151-dashboard-web-separation.test.cjs', 'tests/web-session-
 for p in Path('tests').glob('v162*.cjs'):
     t = p.read_text()
     t = re.sub(r'assert\.match\(gradle,/versionCode = 249/\);\s*assert\.match\(gradle,/versionName = "1\\\.0\\\.62"/\);',
-               "const versionCode = Number(gradle.match(/versionCode = (\\d+)/)?.[1] || 0); assert.ok(versionCode >= 249);", t)
+               lambda _m: r"const versionCode = Number(gradle.match(/versionCode = (\d+)/)?.[1] || 0); assert.ok(versionCode >= 249);", t)
     t = t.replace('assert.match(tik,/POLICY_VERSION = 7/); assert.match(tik,/player\\/v1/); assert.match(tik,/real Android\\/mobile fingerprint/);',
                   'assert.match(tik,/POLICY_VERSION = [89]/); assert.match(tik,/real Android\\/mobile fingerprint/);')
     p.write_text(t)
