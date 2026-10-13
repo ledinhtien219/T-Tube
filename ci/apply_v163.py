@@ -242,6 +242,8 @@ for p in Path('tests').glob('*.cjs'):
     t = t.replace('/explicitStartNeedsNavigation/', '/shouldNavigateFresh/')
     t = t.replace('assert.doesNotMatch(tik,/location\\.assign\\(target\\)/);',
                   'assert.match(tik,/location\\.assign\\(target\\)/);')
+    t = re.sub(r'assert\\.doesNotMatch\\(tik,\\s*/location\\\\\\.assign\\\\\\(target\\\\\\)/\\);',
+               lambda _m: r'assert.match(tik,/location\.assign\(target\)/);', t)
     t = t.replace('/POLICY_VERSION = 7/', '/POLICY_VERSION = [78]/')
     p.write_text(t)
 
