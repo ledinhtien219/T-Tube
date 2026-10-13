@@ -172,6 +172,13 @@ s = s.replace(
 # Direct canonical navigation removes the black /player/v1 result screen.
 s = s.replace("location.href = m ? ('https://www.tiktok.com/player/v1/' + m[1] + '?autoplay=1&loop=0') : target;", "location.assign(target);")
 s = s.replace("location.assign('https://www.tiktok.com/player/v1/' + m[1] + '?autoplay=1&loop=0');", "location.assign(target);")
+# Runtime overlay variants have differed slightly in whitespace and href/assign form.
+# Collapse any remaining one-line /player/v1 navigation to the canonical post target.
+s = re.sub(
+    r'''(?:window\.)?location\.(?:href\s*=|assign\()\s*[^;\n]*player/v1[^;\n]*(?:\);|;)''',
+    'location.assign(target);',
+    s
+)
 
 recover_anchor = '                    function applyThemeHint() {\n'
 if 'function recoverLegacyPlayerRoute' not in s:
