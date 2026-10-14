@@ -193,21 +193,17 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
         try {
             virtualDisplay?.setSurface(null)
 
+            // Surface loss can be a resize/recreation while projection is still
+            // connected, so do not treat this callback alone as a cable detach.
+            // The service-level USB/power receiver owns full shutdown.
             val web = CarMediaManager.getPersistentWebView()
-            if (isFinishing) {
-                // Cable/host shutdown path: do not resurrect background playback.
-                web?.onPause()
-                web?.pauseTimers()
-                CarMediaManager.releaseWakeLock()
-            } else {
-                // A transient surface recreation (resize/config) may keep playback alive.
-                web?.onResume()
-                web?.resumeTimers()
-                if (CarMediaManager.isPlaying || CarMediaManager.userWantsPlayback) {
-                    CarMediaManager.registerService(this)
-                    CarMediaManager.acquireWakeLock(this)
-                    CarMediaManager.ensureAudioFocus()
-                }
+            web?.onResume()
+            web?.resumeTimers()
+
+            if (CarMediaManager.isPlaying || CarMediaManager.userWantsPlayback) {
+                CarMediaManager.registerService(this)
+                CarMediaManager.acquireWakeLock(this)
+                CarMediaManager.ensureAudioFocus()
             }
         } catch (_: Exception) {}
     }
