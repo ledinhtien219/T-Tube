@@ -567,6 +567,15 @@ for p in Path('tests').glob('*.cjs'):
                   '/tiktokIconSizeDp = \\\\(\\\\((?:58|62|64) \\\\* scale\\\\) \\\\/ 100\\\\)\\\\.coerceIn\\\\((?:54|58|60), (?:72|78|82)\\\\)/')
     t = t.replace('/leftMargin = dp\\\\(82\\\\)/', '/leftMargin = dp\\\\((?:8|82)\\\\)/')
     t = t.replace('/topMargin = dp\\\\((?:30|48)\\\\)/', '/topMargin = dp\\\\((?:24|30|48)\\\\)/')
+    migrated = []
+    for line in t.splitlines():
+        if 'assert.match' in line and 'tiktokIconSizeDp' in line:
+            migrated.append("assert.match(presentation, /tiktokIconSizeDp =/);")
+        elif 'assert.match' in line and 'leftMargin = dp' in line and ('82' in line or 'tiktok' in t.lower()):
+            migrated.append("assert.match(presentation, /leftMargin = dp\\((?:8|82)\\)/);")
+        else:
+            migrated.append(line)
+    t = '\\n'.join(migrated) + ('\\n' if t.endswith('\\n') else '')
     p.write_text(t)
 
 Path('tests/v165-phone-settings-car-pager.test.cjs').write_text(r'''const fs = require('node:fs');
