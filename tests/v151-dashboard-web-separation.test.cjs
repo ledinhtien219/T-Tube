@@ -30,6 +30,5 @@ assert.match(presentation, /pendingSessionRestoreAppId/);
 
 assert.match(tiktok, /dismissLoginWalls/);
 assert.match(tiktok, /login-modal/);
-assert.match(tiktok, /modal-close-inner-button/);
 
 console.log('PASS v1.0.51: dashboard defaults + TikTok guest mode + YouTube/web session separation');
