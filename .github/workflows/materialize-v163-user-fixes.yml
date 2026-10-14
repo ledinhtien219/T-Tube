@@ -1,151 +1,44 @@
-name: Materialize v1.0.63 requested fixes
+name: Diagnose requested v1.0.63 UI patch
 
 on:
   push:
     branches: [ "test/ttube-v1.0.63-apk" ]
     paths:
       - ".github/workflows/materialize-v163-user-fixes.yml"
-      - "ci/user_fixes_v163.patch.gz.b64.part*"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  materialize:
-    name: Materialize fixed v1.0.63 source
-    if: github.actor != 'github-actions[bot]'
+  diagnose:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: test/ttube-v1.0.63-apk
-          fetch-depth: 0
 
-      - name: Apply T Tube v1.0.57 source overlay
+      - name: Apply app-only patch with fuzz and report rejects
         shell: bash
         run: |
-          set -euo pipefail
-          cat ci/v157/part* | tr -d '\n\r' | base64 -d > /tmp/TTube_v1.0.57_overlay.zip
-          unzip -oq /tmp/TTube_v1.0.57_overlay.zip -d .
-          chmod +x gradlew
-
-      - name: Apply T Tube v1.0.59 patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          tr -d '\n\r' < ci/v159_patch.gz.b64 | base64 -d | gzip -dc > /tmp/v159.full.patch
+          set -u
+          cat ci/user_fixes_v163.patch.gz.b64.part* | tr -d '\n\r' | base64 -d | gzip -dc > /tmp/user.patch
           python - <<'PY'
           from pathlib import Path
-          s = Path('/tmp/v159.full.patch').read_text()
-          chunks = s.split('diff -ruN ')
+          s = Path('/tmp/user.patch').read_text()
+          chunks = s.split('diff --git ')
           out = []
           for chunk in chunks:
               if not chunk.strip():
                   continue
               first = chunk.splitlines()[0]
-              if 'a/.github/workflows/' in first:
-                  continue
-              out.append('diff -ruN ' + chunk)
-          Path('/tmp/v159.patch').write_text(''.join(out))
+              if first.startswith('a/app/ '):
+                  out.append('diff --git ' + chunk)
+          Path('/tmp/app.patch').write_text(''.join(out))
+          print('app patch bytes', Path('/tmp/app.patch').stat().st_size)
           PY
-          patch -p1 < /tmp/v159.patch
-
-      - name: Apply T Tube v1.0.60 patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          tr -d '\n\r' < ci/v160_patch.gz.b64 | base64 -d | gzip -dc > /tmp/v160.raw.patch
-          python - <<'PY'
-          from pathlib import Path
-          s = Path('/tmp/v160.raw.patch').read_text()
-          s = s.replace('/mnt/data/TTube_v1.0.59/', 'a/')
-          s = s.replace('/mnt/data/TTube_v1.0.60/', 'b/')
-          Path('/tmp/v160.patch').write_text(s)
-          PY
-          patch -p1 < /tmp/v160.patch
-
-      - name: Apply T Tube v1.0.61 patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          tr -d '\n\r' < ci/v161_patch.gz.b64 | base64 -d | gzip -dc > /tmp/v161.raw.patch
-          python - <<'PY'
-          from pathlib import Path
-          s = Path('/tmp/v161.raw.patch').read_text()
-          s = s.replace('/mnt/data/TTube_v1.0.60/', 'a/')
-          s = s.replace('/mnt/data/TTube_v1.0.61/', 'b/')
-          chunks = s.split('diff -ruN ')
-          out = []
-          for chunk in chunks:
-              if not chunk.strip():
-                  continue
-              first = chunk.splitlines()[0]
-              if 'a/.github/workflows/' in first:
-                  continue
-              out.append('diff -ruN ' + chunk)
-          Path('/tmp/v161.patch').write_text(''.join(out))
-          PY
-          patch -p1 < /tmp/v161.patch
-
-      - name: Apply T Tube v1.0.62 patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          tr -d '\n\r' < ci/v162_patch.gz.b64 | base64 -d | gzip -dc > /tmp/v162.raw.patch
-          python - <<'PY'
-          from pathlib import Path
-          s = Path('/tmp/v162.raw.patch').read_text()
-          s = s.replace('/mnt/data/TTube_v1.0.61_work/TTube_v1.0.61/', 'a/')
-          s = s.replace('/mnt/data/TTube_v1.0.62/', 'b/')
-          chunks = s.split('diff -ruN ')
-          out = []
-          for chunk in chunks:
-              if not chunk.strip():
-                  continue
-              first = chunk.splitlines()[0]
-              if 'a/.github/workflows/' in first:
-                  continue
-              out.append('diff -ruN ' + chunk)
-          Path('/tmp/v162.patch').write_text(''.join(out))
-          PY
-          patch -p1 < /tmp/v162.patch
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('app/src/main/java/com/carhud/aaproxy/TikTokWebPolicy.kt')
-          s = p.read_text()
-          s = s.replace('Regex("Version/[\\d.]+\\s?")', 'Regex("""Version/[\\d.]+\\s?""")')
-          p.write_text(s)
-          PY
-
-      - name: Apply T Tube v1.0.63 base fixes
-        shell: bash
-        run: |
-          set -euo pipefail
-          python ci/apply_v163.py
-          git checkout -- .github ci
-
-      - name: Run reconstructed v1.0.63 regression tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          for f in tests/*.cjs; do
-            echo "RUN $f"
-            node "$f"
-          done
-
-      - name: Commit materialized v1.0.63 source
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No source changes to commit."
-            exit 0
-          fi
-          git commit -m "Materialize v1.0.63 source baseline"
-          git push origin HEAD:test/ttube-v1.0.63-apk
+          patch -p1 -l -F 5 --batch --forward < /tmp/app.patch || true
+          echo "===== REJECTS ====="
+          find app -name '*.rej' -print -exec sh -c 'echo "--- $1"; cat "$1"' sh {} \;
+          echo "===== STATUS ====="
+          git status --short
