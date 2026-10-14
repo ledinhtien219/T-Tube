@@ -25,11 +25,11 @@ assert.match(media, /if \(!isUrlCompatibleWithApp\(appId, session\.url\)\)/);
 
 assert.match(presentation, /private fun ensureCorrectFullscreenAppPage\(\)/);
 assert.match(presentation, /currentActiveAppId == "tiktok"/);
-assert.match(presentation, /Gravity\.START or Gravity\.TOP/);
+assert.match(presentation, /Gravity\.START or Gravity\.CENTER_VERTICAL/);
 assert.match(presentation, /pendingSessionRestoreAppId/);
 
 assert.match(tiktok, /dismissLoginWalls/);
 assert.match(tiktok, /login-modal/);
-assert.match(tiktok, /data-ttube-login-wall/);
+assert.match(tiktok, /modal-close-inner-button/);
 
 console.log('PASS v1.0.51: dashboard defaults + TikTok guest mode + YouTube/web session separation');
