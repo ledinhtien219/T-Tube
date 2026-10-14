@@ -2,7 +2,7 @@ name: Build T Tube v1.0.63 APK
 
 on:
   push:
-    branches: [ "test/ttube-v1.0.63-apk" ]
+    branches: [ "main", "test/ttube-v1.0.63-apk" ]
   workflow_dispatch:
 
 permissions:
