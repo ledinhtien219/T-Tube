@@ -18,11 +18,12 @@ assert.match(presentation, /YouTubePlayerHelper\.applyUniversalWebTheme\(view, i
 assert.doesNotMatch(presentation, /TikTokWebPolicy\.isTikTok\(view\?\.url\)\) true else isDay/);
 
 // Theme follows SPA/history updates and re-applies after framework rerenders.
-assert.match(presentation, /doUpdateVisitedHistory[\s\S]*?applyUniversalWebTheme\(view, isDayMode\(\)\)/);
-assert.match(presentation, /onPageCommitVisible[\s\S]*?applyUniversalWebTheme\(view, isDayMode\(\)\)/);
+assert.match(presentation, /doUpdateVisitedHistory[\s\S]*?applyUniversalWebTheme\(view, effectiveWebThemeIsDay\(url\)\)/);
+assert.match(presentation, /onPageCommitVisible[\s\S]*?applyUniversalWebTheme\(view, effectiveWebThemeIsDay\(url\)\)/);
 assert.match(presentation, /postDelayed\(\{ if \(!isDashboardShowing\) syncWebTheme\(\) \}, 650L\)/);
 
-// Generic enabled web apps get explicit color-scheme plus luminance mismatch fallback.
+// Generic browser pages are forced light, while the universal helper still provides
+// explicit color-scheme plus luminance mismatch fallback for arbitrary pages.
 assert.match(helper, /carhud-theme-invert/);
 assert.match(helper, /pageLuminance/);
 assert.match(helper, /var mismatch = isDay \? lum < 0\.38 : lum > 0\.62/);
@@ -30,7 +31,10 @@ assert.match(helper, /MutationObserver/);
 assert.match(helper, /view\.settings\.forceDark = if \(effectiveIsDay\)/);
 assert.match(helper, /isAlgorithmicDarkeningAllowed = !effectiveIsDay/);
 
-// YouTube and IPTV remain specialized but use the same selected mode.
+assert.match(presentation, /currentActiveAppId == "web"[\s\S]*?true[\s\S]*?isDayMode\(\)/);
+assert.match(presentation, /val day = true[\s\S]*?val ink = Color\.parseColor\("#172033"\)/);
+
+// YouTube and IPTV remain specialized and follow the selected mode.
 assert.match(helper, /if \(url\.contains\("youtube\.com", true\)/);
 assert.match(helper, /window\.setIptvTheme\(isDay\)/);
 assert.match(main, /applyUniversalWebTheme\(w, SettingsActivity\.resolveIsDay\(this\)\)/);
