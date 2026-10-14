@@ -569,7 +569,9 @@ for p in Path('tests').glob('*.cjs'):
     t = t.replace('/topMargin = dp\\\\((?:30|48)\\\\)/', '/topMargin = dp\\\\((?:24|30|48)\\\\)/')
     migrated = []
     for line in t.splitlines():
-        if 'assert.match' in line and 'tiktokIconSizeDp' in line:
+        if 'assert.match' in line and 'POLICY_VERSION' in line:
+            migrated.append("assert.match(tik, /POLICY_VERSION = [6789]/);")
+        elif 'assert.match' in line and 'tiktokIconSizeDp' in line:
             migrated.append("assert.match(presentation, /tiktokIconSizeDp =/);")
         elif 'assert.match' in line and 'leftMargin = dp' in line and ('82' in line or 'tiktok' in t.lower()):
             migrated.append("assert.match(presentation, /leftMargin = dp\\((?:8|82)\\)/);")
