@@ -223,6 +223,14 @@ if p.exists():
             p.write_text(s)
 
 # ---------- Regression migration + v1.0.65 test ----------
+for tp in Path('tests').glob('*.cjs'):
+    t = tp.read_text()
+    t = t.replace('/POLICY_VERSION = [67]/', '/POLICY_VERSION = [6789]/')
+    t = t.replace('/POLICY_VERSION = [678]/', '/POLICY_VERSION = [6789]/')
+    t = t.replace('/POLICY_VERSION = [78]/', '/POLICY_VERSION = [789]/')
+    t = t.replace('/POLICY_VERSION = 8/', '/POLICY_VERSION = [89]/')
+    tp.write_text(t)
+
 for legacy_name in ['tests/v159-tiktok-guest-settings-toolbar.test.cjs', 'tests/v161-browser-tiktok-polish.test.cjs']:
     lp = Path(legacy_name)
     if not lp.exists():
