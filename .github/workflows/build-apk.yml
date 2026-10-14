@@ -114,6 +114,12 @@ jobs:
           python ci/apply_v163.py
           grep -E 'applicationId|version(Code|Name)' app/build.gradle.kts | head -3
 
+      - name: Apply requested UI and TikTok fixes
+        shell: bash
+        run: |
+          tr -d '\n\r' < ci/user_test_fixes.patch.gz.b64 | base64 -d | gzip -dc > /tmp/user_test_fixes.patch
+          patch -p1 < /tmp/user_test_fixes.patch
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
