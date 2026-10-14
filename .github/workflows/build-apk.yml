@@ -1,8 +1,8 @@
-name: Build T Tube v1.0.63 APK
+name: Build T Tube v1.0.64 APK
 
 on:
   push:
-    branches: [ "test/ttube-v1.0.63-apk" ]
+    branches: [ "test/ttube-v1.0.64-apk" ]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build T Tube v1.0.63 APK
+    name: Build T Tube v1.0.64 APK
     runs-on: ubuntu-latest
 
     steps:
@@ -114,6 +114,30 @@ jobs:
           python ci/apply_v163.py
           grep -E 'applicationId|version(Code|Name)' app/build.gradle.kts | head -3
 
+      - name: Apply T Tube v1.0.64 targeted patch
+        shell: bash
+        run: |
+          tr -d '\n\r' < ci/v164_patch.gz.b64 | base64 -d | gzip -dc > /tmp/v164.raw.patch
+          python - <<'PY'
+          from pathlib import Path
+          s = Path('/tmp/v164.raw.patch').read_text()
+          s = s.replace('TTube_v1.0.63_src/TTube_v1.0.63/', 'a/')
+          s = s.replace('TTube_v1.0.64_work/TTube_v1.0.64/', 'b/')
+          chunks = s.split('diff -ruN ')
+          out = []
+          for chunk in chunks:
+              if not chunk.strip():
+                  continue
+              first = chunk.splitlines()[0]
+              if 'a/.github/workflows/' in first:
+                  continue
+              out.append('diff -ruN ' + chunk)
+          Path('/tmp/v164.patch').write_text(''.join(out))
+          PY
+          patch -p1 < /tmp/v164.patch
+          grep -E 'applicationId|version(Code|Name)' app/build.gradle.kts | head -3
+          test -f tests/v164-theme-transition-tiktok.test.cjs
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -150,6 +174,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.0.63-build250-APK
+          name: TTube-v1.0.64-build251-APK
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 7
