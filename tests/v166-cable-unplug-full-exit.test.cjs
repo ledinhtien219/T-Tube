@@ -15,8 +15,9 @@ assert.match(projection, /UsbManager\.ACTION_USB_ACCESSORY_DETACHED/);
 assert.match(projection, /CarAppShutdownManager\.shutdownCompletely/);
 assert.match(projection, /if \(wasConnected\)[\s\S]*?Android Auto projection service destroyed/);
 
-// A real finishing surface must not deliberately restart background playback.
-assert.match(projection, /if \(isFinishing\)[\s\S]*?web\?\.onPause\(\)[\s\S]*?CarMediaManager\.releaseWakeLock\(\)/);
+// Surface recreation is not itself treated as a disconnect; cable/service lifecycle
+// owns the full exit so resize/config changes do not terminate the app.
+assert.match(projection, /Surface loss can be a resize\/recreation[\s\S]*?service-level USB\/power receiver owns full shutdown/);
 
 // Full shutdown disables playback, does not wake the phone WebView, and stops services.
 assert.match(shutdown, /CarMediaManager\.userWantsPlayback = false/);
