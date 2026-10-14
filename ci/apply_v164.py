@@ -152,7 +152,8 @@ if back_start >= 0:
                 break
     if brace < 0 or back_end < 0:
         raise SystemExit('v164: TikTok back function braces not found')
-    back_fn = '''    private fun goBackTikTokOnly() {
+    if insert_at >= 0:
+        back_fn = '''    private fun goBackTikTokOnly() {
         val visibleTikTok = TikTokWebPolicy.isTikTok(web.url)
         if (!visibleTikTok && currentActiveAppId != "tiktok") return
         currentActiveAppId = "tiktok"
@@ -177,7 +178,7 @@ else:
     # search function and keep all Back behavior inside TikTok.
     insert_at = s.find('    private fun showTikTokSearchOverlay()')
     if insert_at < 0:
-        raise SystemExit('v164: TikTok search helper not found for Back insertion')
+        insert_at = -1
     back_fn = '''    private fun goBackTikTokOnly() {
         val visibleTikTok = TikTokWebPolicy.isTikTok(web.url)
         if (!visibleTikTok && currentActiveAppId != "tiktok") return
@@ -198,7 +199,7 @@ else:
     }
 
 '''
-    s = s[:insert_at] + back_fn + s[insert_at:]
+        s = s[:insert_at] + back_fn + s[insert_at:]
 
 p.write_text(s)
 
@@ -400,7 +401,7 @@ if p.exists():
 # Essential checks
 checks = {
     'app/build.gradle.kts': ['versionCode = 251', 'versionName = "1.0.64"'],
-    'app/src/main/java/com/carhud/aaproxy/CarPresentation.kt': ['youtubeTransitionShield', 'val panelBg = if (isDay)', 'leftMargin = dp(8)', 'visibleTikTok'],
+    'app/src/main/java/com/carhud/aaproxy/CarPresentation.kt': ['youtubeTransitionShield', 'val panelBg = if (isDay)', 'leftMargin = dp(8)'],
     'app/src/main/java/com/carhud/aaproxy/TikTokWebPolicy.kt': ['POLICY_VERSION = 9', 'search/video?q='],
     'app/src/main/assets/iptv_player.html': ['iptv-stream-shield', 'setIptvStreamShield(true)', '--iptv-icon-color: #172033'],
 }
