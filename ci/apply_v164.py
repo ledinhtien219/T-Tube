@@ -135,55 +135,23 @@ if 'val panelBg = if (isDay)' not in yt:
                     'panelBg,\n                18f,\n                panelBorder,', 1)
 s = s[:start] + yt + s[end:]
 
-# TikTok Back never leaves TikTok, even if activeAppId is momentarily stale.
-back_start = s.find('goBackTikTokOnly()')
-if back_start >= 0:
-    back_start = s.rfind('\n', 0, back_start) + 1
-    brace = s.find('{', back_start)
-    depth = 0
-    back_end = -1
-    for i in range(brace, len(s)):
-        if s[i] == '{':
-            depth += 1
-        elif s[i] == '}':
-            depth -= 1
-            if depth == 0:
-                back_end = i + 1
-                break
-    if brace < 0 or back_end < 0:
-        raise SystemExit('v164: TikTok back function braces not found')
-    back_fn = '''    private fun goBackTikTokOnly() {
-        val visibleTikTok = TikTokWebPolicy.isTikTok(web.url)
-        if (!visibleTikTok && currentActiveAppId != "tiktok") return
-        currentActiveAppId = "tiktok"
-        CarMediaManager.activeAppId = "tiktok"
-        if (searchOverlay.visibility == View.VISIBLE) { hideSearchOverlay(); return }
-        if (web.canGoBack()) {
-            val history = web.copyBackForwardList()
-            val previous = history.getItemAtIndex(history.currentIndex - 1)?.url
-            if (TikTokWebPolicy.isTikTok(previous)) {
-                web.goBack()
-                return
-            }
-        }
-        // Stay inside TikTok instead of escaping to another web app/history entry.
-        val home = "https://www.tiktok.com/"
-        TikTokWebPolicy.configure(web, home)
-        web.loadUrl(home)
-    }'''
-    s = s[:back_start] + back_fn + s[back_end:]
-else:
-    # Some older overlay variants inline the action. Add a dedicated helper near the
-    # search function and keep all Back behavior inside TikTok.
-    insert_at = s.find('    private fun showTikTokSearchOverlay()')
+# TikTok Back never leaves TikTok. Insert a real class-level helper rather
+# than matching the toolbar lambda call.
+if 'private fun goBackTikTokOnly()' not in s:
+    insert_at = s.find('    private fun buildYouTubeMediaToolbar(scale: Int) {')
     if insert_at < 0:
-        insert_at = -1
+        insert_at = s.find('    private val autoHideHandler')
+    if insert_at < 0:
+        raise SystemExit('v164: class-level TikTok back insertion anchor missing')
     back_fn = '''    private fun goBackTikTokOnly() {
         val visibleTikTok = TikTokWebPolicy.isTikTok(web.url)
         if (!visibleTikTok && currentActiveAppId != "tiktok") return
         currentActiveAppId = "tiktok"
         CarMediaManager.activeAppId = "tiktok"
-        if (searchOverlay.visibility == View.VISIBLE) { hideSearchOverlay(); return }
+        if (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) {
+            hideSearchOverlay()
+            return
+        }
         if (web.canGoBack()) {
             val history = web.copyBackForwardList()
             val previous = history.getItemAtIndex(history.currentIndex - 1)?.url
@@ -198,8 +166,12 @@ else:
     }
 
 '''
-    if insert_at >= 0:
-        s = s[:insert_at] + back_fn + s[insert_at:]
+    s = s[:insert_at] + back_fn + s[insert_at:]
+
+# v1.0.62 supplies the TikTok search helper. Keep this as an explicit build
+# guard because the toolbar calls it directly.
+if 'private fun showTikTokSearchOverlay()' not in s:
+    raise SystemExit('v164: TikTok search helper missing after v1.0.62 overlay')
 
 p.write_text(s)
 
