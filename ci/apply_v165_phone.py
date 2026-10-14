@@ -207,7 +207,7 @@ if 'private fun setupPhoneHubPager(' not in s:
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.TOP
         }
-        pager.addView(track, HorizontalScrollView.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(286)))
+        pager.addView(track, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(286)))
 
         val pages = listOf(page1, page2, page3)
         val pageWidth = (resources.displayMetrics.widthPixels - dp(32)).coerceAtLeast(dp(280))
