@@ -15,7 +15,7 @@ import android.webkit.WebView
  * when the web feed itself becomes login-gated.
  */
 internal object TikTokWebPolicy {
-    private const val POLICY_VERSION = 9
+    private const val POLICY_VERSION = 10
 
     fun isTikTok(url: String?): Boolean {
         val host = runCatching { Uri.parse(url.orEmpty()).host.orEmpty().lowercase() }.getOrDefault("")
@@ -262,6 +262,21 @@ internal object TikTokWebPolicy {
                         var video = primaryVideo();
                         if (!video) return;
 
+                        // Do not hide the entire TikTok page until the selected video
+                        // has real media metadata. The old eager fullscreen class could
+                        // leave a permanent black canvas when TikTok had only mounted
+                        // an empty <video> shell after a search-result click.
+                        var ready = video.readyState >= 1 && (video.videoWidth > 0 || video.videoHeight > 0);
+                        if (!ready) {
+                            if (!video.__ttubeReadyHook) {
+                                video.__ttubeReadyHook = true;
+                                ['loadedmetadata', 'canplay', 'playing'].forEach(function(name) {
+                                    video.addEventListener(name, schedule, { once: true, passive: true });
+                                });
+                            }
+                            return;
+                        }
+
                         document.documentElement.classList.add('ttube-tiktok-video-only');
                         video.setAttribute('data-ttube-video-only', '1');
                         var node = video.parentElement;
@@ -270,6 +285,18 @@ internal object TikTokWebPolicy {
                             node.classList.add('ttube-tiktok-video-chain');
                             node = node.parentElement;
                         }
+
+                        // Android Auto allows autoplay for this WebView. Ask the
+                        // selected result to start once it is actually playable.
+                        try {
+                            video.playsInline = true;
+                            if (video.paused) {
+                                var playPromise = video.play();
+                                if (playPromise && typeof playPromise.catch === 'function') {
+                                    playPromise.catch(function() {});
+                                }
+                            }
+                        } catch (_) {}
                     }
 
                     function normalizeVideoUrl(raw) {
@@ -480,9 +507,42 @@ internal object TikTokWebPolicy {
                     }
 
                     function installFastSearchResultClicks() {
-                        // Leave search-result anchor navigation native. Forced JS
-                        // location.assign() produced extra guest risk/CAPTCHA events.
-                        state.searchClicksPatched = true;
+                        if (state.searchClickHandlerVersion === VERSION && state.searchClickHandler) return;
+
+                        if (state.searchClickHandler) {
+                            try { document.removeEventListener('click', state.searchClickHandler, true); } catch (_) {}
+                        }
+
+                        state.searchClickHandlerVersion = VERSION;
+                        state.searchClickHandler = function(event) {
+                            if (!isSearchRoute()) return;
+
+                            var target = event.target;
+                            if (target && target.nodeType !== 1) target = target.parentElement;
+                            var anchor = target && target.closest ? target.closest('a[href*="/video/"]') : null;
+                            if (!anchor) return;
+
+                            var canonical = normalizeVideoUrl(anchor.href || anchor.getAttribute('href'));
+                            if (!canonical) return;
+
+                            // TikTok sometimes rewrites a result click to /player/v1/<id>
+                            // in WebView. That player shell can paint black forever.
+                            // Navigate to the canonical public /@user/video/<id> route.
+                            collectPublicVideos(document);
+                            if (state.guestQueue.indexOf(canonical) < 0) state.guestQueue.push(canonical);
+                            saveGuestQueue();
+
+                            try {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+                            } catch (_) {}
+
+                            state.lastGuestNavAt = Date.now();
+                            try { location.assign(canonical); } catch (_) { location.href = canonical; }
+                        };
+
+                        document.addEventListener('click', state.searchClickHandler, true);
                     }
 
                     function recoverLegacyPlayerRoute() {
