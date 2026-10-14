@@ -1594,8 +1594,8 @@ object YouTubePlayerHelper {
                                 themeStyle.id = 'carhud-theme';
                                 (document.head || document.documentElement).appendChild(themeStyle);
                             }
-                            var isAutoScreen = document.documentElement.classList.contains('carhud-auto-screen');
-                            if (isDay && !isAutoScreen) {
+                            // Android Auto follows the selected Day/Night/Auto mode too.
+                            if (isDay) {
                                 document.documentElement.classList.remove('dark');
                                 document.documentElement.setAttribute('dark', 'false');
                                 if (document.body) {
@@ -1613,9 +1613,9 @@ object YouTubePlayerHelper {
                                     'ytm-mobile-topbar-renderer, .mobile-topbar-header { background: #ffffff !important; background-color: #ffffff !important; border-bottom: 1px solid #e5e5e5 !important; } ' +
                                     '.compact-media-item-headline, .media-item-headline, .video-title, h3, h3.title, h4, .c3-headline, [class*="media-item-headline"], [class*="video-title"], .details h3, .compact-media-item-metadata-content h3, .compact-media-item-metadata-content, .compact-media-item-headline *, .media-item-headline *, .video-title *, h3 *, [class*="media-item-headline"] *, .c3-headline *, ytm-media-item h3, ytm-compact-video-renderer h3 { color: #0f0f0f !important; -webkit-text-fill-color: #0f0f0f !important; } ' +
                                     '.compact-media-item-byline, .media-item-byline, .small-text, [class*="byline"], [class*="channel-name"], [class*="metadata"], .subhead, .compact-media-item-byline *, .media-item-byline *, [class*="byline"] *, [class*="channel-name"] *, [class*="metadata"] *, ytm-badge-and-byline-renderer * { color: #606060 !important; -webkit-text-fill-color: #606060 !important; } ' +
-                                    '.carhud-auto-screen, .carhud-auto-screen body, .carhud-auto-screen #app, .carhud-auto-screen ytm-app { background: #000000 !important; color: #ffffff !important; } ' +
-                                    '.carhud-auto-screen .compact-media-item-headline, .carhud-auto-screen .media-item-headline, .carhud-auto-screen .video-title, .carhud-auto-screen h3, .carhud-auto-screen h4 { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; } ' +
-                                    '.carhud-auto-screen .compact-media-item-byline, .carhud-auto-screen .media-item-byline, .carhud-auto-screen .small-text { color: #94A3B8 !important; -webkit-text-fill-color: #94A3B8 !important; } ' +
+                                    '.carhud-auto-screen, .carhud-auto-screen body, .carhud-auto-screen #app, .carhud-auto-screen ytm-app { background: #ffffff !important; background-color: #ffffff !important; color: #0f0f0f !important; } ' +
+                                    '.carhud-auto-screen .compact-media-item-headline, .carhud-auto-screen .media-item-headline, .carhud-auto-screen .video-title, .carhud-auto-screen h3, .carhud-auto-screen h4 { color: #0f0f0f !important; -webkit-text-fill-color: #0f0f0f !important; } ' +
+                                    '.carhud-auto-screen .compact-media-item-byline, .carhud-auto-screen .media-item-byline, .carhud-auto-screen .small-text { color: #606060 !important; -webkit-text-fill-color: #606060 !important; } ' +
                                     'ytm-searchbox input, input.search-input { color: #0f0f0f !important; -webkit-text-fill-color: #0f0f0f !important; background: #f2f2f2 !important; border: 1px solid #ccc !important; } ' +
                                     '.chip-cloud-chip-renderer, ytm-chip-cloud-chip-renderer { background: #f2f2f2 !important; color: #0f0f0f !important; } ' +
                                     '.chip-cloud-chip-renderer[selected], ytm-chip-cloud-chip-renderer[selected] { background: #0f0f0f !important; color: #ffffff !important; } ' +
@@ -1768,6 +1768,10 @@ object YouTubePlayerHelper {
                 })();
                 """.trimIndent(), null
             )
+
+            // screenInitJs adds carhud-auto-screen after the first theme pass.
+            // Re-apply at the end so projected YouTube cannot restore a stale dark palette.
+            applyTheme(view, isDay)
         } catch (e: Exception) {}
     }
 
