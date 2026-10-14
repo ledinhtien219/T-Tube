@@ -217,7 +217,7 @@ object CarMediaManager {
         }
     }
 
-    fun setCarConnectionState(connected: Boolean) {
+    fun setCarConnectionState(connected: Boolean, resumePhoneOnDisconnect: Boolean = true) {
         isCarConnected = connected
         mainHandler.post {
             try {
@@ -226,6 +226,13 @@ object CarMediaManager {
                     phoneWebView?.pauseTimers()
                 } else {
                     val phone = phoneWebView
+                    if (!resumePhoneOnDisconnect) {
+                        // Full cable/Android Auto shutdown: never wake the phone WebView
+                        // back up for background playback while the process is exiting.
+                        phone?.onPause()
+                        phone?.pauseTimers()
+                        return@post
+                    }
                     val backgroundEnabled = phone?.context
                         ?.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
                         ?.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true) ?: true
