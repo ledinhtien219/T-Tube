@@ -32,7 +32,7 @@ jobs:
               if not chunk.strip():
                   continue
               first = chunk.splitlines()[0]
-              if first.startswith('a/app/ '):
+              if first.startswith('a/app/'):
                   out.append('diff --git ' + chunk)
           Path('/tmp/app.patch').write_text(''.join(out))
           print('app patch bytes', Path('/tmp/app.patch').stat().st_size)
