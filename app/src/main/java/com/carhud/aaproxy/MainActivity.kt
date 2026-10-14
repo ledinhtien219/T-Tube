@@ -855,30 +855,19 @@ class MainActivity : AppCompatActivity() {
             R.id.settingCardPermissions,
             R.id.settingCardUser,
             R.id.settingCardIptv,
-            R.id.settingCardAdvanced
+            R.id.settingCardAdvanced,
+            R.id.phoneDisplayToggleCard,
+            R.id.phoneThemeCard
         ).forEach { id ->
             findViewById<View>(id)?.background = createCardBg(card, 16f, cardBorder, 1)
         }
 
-        fun grandParentOf(id: Int): View? {
-            val parent = findViewById<View>(id)?.parent as? View
-            return parent?.parent as? View
-        }
-
-        // The display-options panels do not all have IDs in XML; derive their cards
-        // from stable child controls so they theme together with the Settings hub.
-        listOfNotNull(
-            grandParentOf(R.id.switchShowHeroClock),
-            grandParentOf(R.id.btnThemeDark),
-            (findViewById<View>(R.id.accentPaletteContainer)?.parent as? View)
-        ).distinct().forEach { panel ->
-            if (panel.background != null) {
-                panel.backgroundTintList = android.content.res.ColorStateList.valueOf(card)
-            }
+        findViewById<Button>(R.id.btnRestoreDefaultLayout)?.apply {
+            background = createCardBg(Color.parseColor("#0284C7"), 12f, Color.parseColor("#38BDF8"), 1)
+            setTextColor(Color.WHITE)
         }
 
         listOf(
-            R.id.btnRestoreDefaultLayout,
             R.id.btnPermGrantLocation,
             R.id.btnPermGrantMic,
             R.id.btnPermGrantNotification,
@@ -903,6 +892,30 @@ class MainActivity : AppCompatActivity() {
         phoneClockText.setTextColor(Color.WHITE)
         phoneDateText.setTextColor(Color.WHITE)
         phoneLunarDateText.setTextColor(Color.WHITE)
+
+        val themeMode = prefs.getString(PREF_THEME_MODE, SettingsActivity.THEME_AUTO) ?: SettingsActivity.THEME_AUTO
+        val selectedThemeButton = when (themeMode) {
+            SettingsActivity.THEME_DAY, "light" -> findViewById<TextView>(R.id.btnThemeLight)
+            SettingsActivity.THEME_NIGHT, "dark" -> findViewById<TextView>(R.id.btnThemeDark)
+            else -> findViewById<TextView>(R.id.btnThemeAuto)
+        }
+        listOf(
+            findViewById<TextView>(R.id.btnThemeDark),
+            findViewById<TextView>(R.id.btnThemeLight),
+            findViewById<TextView>(R.id.btnThemeAuto)
+        ).filterNotNull().forEach { button ->
+            val selected = button === selectedThemeButton
+            button.background = if (selected) {
+                createCardBg(Color.parseColor("#0284C7"), 9f, Color.parseColor("#38BDF8"), 1)
+            } else {
+                createCardBg(Color.TRANSPARENT, 9f, Color.TRANSPARENT, 0)
+            }
+            button.setTextColor(
+                if (selected) Color.WHITE
+                else if (isDay) Color.parseColor("#475569") else Color.parseColor("#94A3B8")
+            )
+            button.typeface = if (selected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+        }
 
         // Header/back icons need contrast on light sub-screens.
         val iconColor = if (isDay) Color.parseColor("#0F172A") else Color.WHITE
@@ -1003,6 +1016,35 @@ class MainActivity : AppCompatActivity() {
         walk(root)
     }
 
+    private fun stylePhoneDynamicCard(view: View) {
+        val isDay = SettingsActivity.resolveIsDay(this)
+        val bg = if (isDay) Color.parseColor("#F8FAFC") else Color.parseColor("#CC162033")
+        val border = if (isDay) Color.parseColor("#CBD5E1") else Color.parseColor("#334155")
+        view.background = createCardBg(bg, 14f, border, 1)
+
+        fun walk(v: View) {
+            if (v is TextView) {
+                val current = v.currentTextColor
+                if (isDay) {
+                    when (current) {
+                        Color.WHITE, Color.parseColor("#E2E8F0") -> v.setTextColor(Color.parseColor("#0F172A"))
+                        Color.parseColor("#CBD5E1"), Color.parseColor("#94A3B8") -> v.setTextColor(Color.parseColor("#475569"))
+                    }
+                } else {
+                    when (current) {
+                        Color.parseColor("#0F172A") -> v.setTextColor(Color.WHITE)
+                        Color.parseColor("#334155"), Color.parseColor("#475569"), Color.parseColor("#64748B") ->
+                            v.setTextColor(Color.parseColor("#94A3B8"))
+                    }
+                }
+            }
+            if (v is ViewGroup) {
+                for (i in 0 until v.childCount) walk(v.getChildAt(i))
+            }
+        }
+        walk(view)
+    }
+
     private fun loadSavedFavorites() {
         val favSet = prefs.getStringSet(PREF_FAV_CHANNELS_SET, null)
         if (favSet != null) {
@@ -1024,6 +1066,7 @@ class MainActivity : AppCompatActivity() {
 
         for (ch in favs) {
             val itemView = LayoutInflater.from(this).inflate(R.layout.item_quick_channel, quickChannelsRow, false)
+            stylePhoneDynamicCard(itemView)
             val nameTv = itemView.findViewById<TextView>(R.id.channelName)
             val logoIv = itemView.findViewById<ImageView>(R.id.channelLogo)
 
@@ -1038,6 +1081,7 @@ class MainActivity : AppCompatActivity() {
 
         // Plus Add Button at end of row
         val addView = LayoutInflater.from(this).inflate(R.layout.item_quick_channel, quickChannelsRow, false)
+        stylePhoneDynamicCard(addView)
         addView.findViewById<TextView>(R.id.channelName).text = "+"
         addView.findViewById<ImageView>(R.id.channelLogo).setImageResource(R.drawable.ic_ch_add)
         addView.setOnClickListener {
@@ -1704,7 +1748,7 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     "Không tìm thấy kênh nào."
                 }
-                setTextColor(Color.parseColor("#94A3B8"))
+                setTextColor(if (SettingsActivity.resolveIsDay(this@MainActivity)) Color.parseColor("#64748B") else Color.parseColor("#94A3B8"))
                 textSize = 13f
                 gravity = Gravity.CENTER
                 setPadding(dp(16), dp(32), dp(16), dp(32))
@@ -1715,6 +1759,7 @@ class MainActivity : AppCompatActivity() {
 
         for (ch in list) {
             val itemView = LayoutInflater.from(this).inflate(R.layout.item_iptv_channel, container, false)
+            stylePhoneDynamicCard(itemView)
             val logoIv = itemView.findViewById<ImageView>(R.id.iptvItemLogo)
             val titleTv = itemView.findViewById<TextView>(R.id.iptvItemTitle)
             val catTv = itemView.findViewById<TextView>(R.id.iptvItemCategory)
