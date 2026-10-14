@@ -1,12 +1,12 @@
 {
   "channel": "stable",
   "approved": true,
-  "versionCode": 232,
-  "versionName": "1.0.45",
-  "downloadUrl": "https://github.com/ledinhtien219/THTV/releases/download/v1.0.45/THTV_v1.0.45_debug.apk",
-  "approvedCommit": "e6fc10576f90bf72731c7ac14c3d2bc78c3073cf",
-  "approvedAt": "2026-10-07T14:56:20+00:00",
+  "versionCode": 250,
+  "versionName": "1.0.63",
+  "downloadUrl": "https://github.com/ledinhtien219/T-Tube/releases/download/v1.0.63/TTube_v1.0.63_debug.apk",
+  "approvedCommit": "d04f84f34647fdedf48fc932311c11c4b643c1a8",
+  "approvedAt": "2026-10-14T09:49:34+00:00",
   "changelog": [
-    "Sửa lỗi tìm kiếm YouTube trên Android Auto bị quay lại màn hình cũ. - Sửa lỗi chuyển từ Trình duyệt sang YouTube nhưng vẫn hiện trang Web trước đó. - Cải thiện giữ session giữa YouTube, Browser và Dashboard. - Sửa giao diện Browser chế độ tối. - Thêm chặn quảng cáo cho Trình duyệt Web. - Sửa IPTV không phát do CORS/header CDN. - IPTV tự chuyển nguồn khi gặp 403, 404, lỗi mạng hoặc nguồn chết. - Cập nhật playlist IPTV mặc định. - Cải thiện độ ổn định tổng thể của Android Auto."
+    "Bug fix"
   ]
 }

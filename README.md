@@ -9,7 +9,7 @@
 ## ✅ Phiên bản hiện tại trong source
 
 - **Source/Main:** `v1.0.63` / Build `250`
-- **Public stable OTA:** `v1.0.45` / Build `232`
+- **Public stable OTA:** `v1.0.63` / Build `250`
 - **Branch:** `main`
 - **Application ID:** `com.tcar.auto`
 - **Min SDK:** Android 10 / API 29
