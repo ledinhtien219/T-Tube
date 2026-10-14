@@ -563,10 +563,10 @@ class MainActivity : AppCompatActivity() {
         hideAllSubviews()
         activeTab = tab
 
-        // Keep the phone navigation toolbar docked at the bottom on every tab, like the
-        // classic mobile UI. The mini-player stays above it except while YouTube is open.
+        // Keep the phone navigation toolbar docked at the bottom on every tab.
+        // The mini-player is only useful on the IPTV screen; keep Home and Settings clean.
         phoneBottomNav.visibility = if (prefs.getBoolean(PREF_SHOW_BOTTOM_NAV, true)) View.VISIBLE else View.GONE
-        phoneMiniPlayer.visibility = if (tab != TAB_YOUTUBE && prefs.getBoolean(PREF_SHOW_MINI_PLAYER, true)) View.VISIBLE else View.GONE
+        phoneMiniPlayer.visibility = if (tab == TAB_IPTV && prefs.getBoolean(PREF_SHOW_MINI_PLAYER, true)) View.VISIBLE else View.GONE
 
         val bgAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
 
@@ -1336,7 +1336,7 @@ class MainActivity : AppCompatActivity() {
         bindSwitch(sCardBrowser, PREF_SHOW_CARD_BROWSER) { phoneCardBrowser.visibility = if (it) View.VISIBLE else View.GONE }
         bindSwitch(sFav, PREF_SHOW_FAV_CHANNELS) { sectionFavChannels.visibility = if (it) View.VISIBLE else View.GONE }
         bindSwitch(sPlayer, PREF_SHOW_MINI_PLAYER) {
-            phoneMiniPlayer.visibility = if (it && activeTab != TAB_YOUTUBE) View.VISIBLE else View.GONE
+            phoneMiniPlayer.visibility = if (it && activeTab == TAB_IPTV) View.VISIBLE else View.GONE
         }
         bindSwitch(sNav, PREF_SHOW_BOTTOM_NAV) {
             phoneBottomNav.visibility = if (it) View.VISIBLE else View.GONE
@@ -1449,7 +1449,7 @@ class MainActivity : AppCompatActivity() {
         phoneCardM3u.visibility = if (prefs.getBoolean(PREF_SHOW_CARD_M3U, false)) View.VISIBLE else View.GONE
         phoneCardBrowser.visibility = if (prefs.getBoolean(PREF_SHOW_CARD_BROWSER, true)) View.VISIBLE else View.GONE
         sectionFavChannels.visibility = if (prefs.getBoolean(PREF_SHOW_FAV_CHANNELS, false)) View.VISIBLE else View.GONE
-        phoneMiniPlayer.visibility = if (activeTab != TAB_YOUTUBE && prefs.getBoolean(PREF_SHOW_MINI_PLAYER, true)) View.VISIBLE else View.GONE
+        phoneMiniPlayer.visibility = if (activeTab == TAB_IPTV && prefs.getBoolean(PREF_SHOW_MINI_PLAYER, true)) View.VISIBLE else View.GONE
         phoneBottomNav.visibility = if (prefs.getBoolean(PREF_SHOW_BOTTOM_NAV, true)) View.VISIBLE else View.GONE
     }
 
