@@ -1,9 +1,14 @@
 package com.carhud.aaproxy
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Color
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
+import android.hardware.usb.UsbManager
+import android.os.Build
 import android.os.Bundle
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -12,6 +17,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.util.Log
 import com.google.android.apps.auto.sdk.CarActivity
 import com.google.android.apps.auto.sdk.CarActivityService
 
@@ -22,6 +28,8 @@ import com.google.android.apps.auto.sdk.CarActivityService
  * On DHU/AA that can cover the VirtualDisplay surface and produce a black screen.
  */
 class CarHudProjectionService : CarActivityService() {
+
+    private var cableDisconnectReceiver: BroadcastReceiver? = null
 
     override fun getCarActivity(): Class<out CarActivity> =
         CarHudProjectionActivity::class.java
@@ -34,13 +42,54 @@ class CarHudProjectionService : CarActivityService() {
             CarTtsManager.startListeningToRepository()
             GpsSpeedManager.start(applicationContext)
             WazeHlpWebSocketManager.start()
+
+            // This is the projection service actually declared in AndroidManifest.
+            // Listen here (not only in the legacy AndroidX CarAppService) so a
+            // physical cable/accessory detach always shuts the phone app down too.
+            val disconnectFilter = IntentFilter().apply {
+                addAction(Intent.ACTION_POWER_DISCONNECTED)
+                addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+                addAction(UsbManager.ACTION_USB_ACCESSORY_DETACHED)
+            }
+            cableDisconnectReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    val action = intent?.action ?: return
+                    Log.i("CarHudProjectionService", "Projection cable disconnected: $action")
+                    CarAppShutdownManager.shutdownCompletely(
+                        (context ?: applicationContext).applicationContext,
+                        "Android Auto cable disconnected ($action)"
+                    )
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(cableDisconnectReceiver, disconnectFilter, RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(cableDisconnectReceiver, disconnectFilter)
+            }
         } catch (e: Exception) {
             try { AppCrashHandler.logError(e, "CarHudProjectionServiceOnCreate") } catch (_: Exception) {}
         }
     }
 
     override fun onDestroy() {
+        val wasConnected = CarMediaManager.isCarConnected
+        try {
+            cableDisconnectReceiver?.let { unregisterReceiver(it) }
+            cableDisconnectReceiver = null
+        } catch (_: Exception) {}
+
         super.onDestroy()
+
+        // Fallback for hosts/devices that do not deliver a USB detach broadcast.
+        // If an active projection service is destroyed, treat it as a real car
+        // disconnect and terminate the phone/background process as requested.
+        if (wasConnected) {
+            CarAppShutdownManager.shutdownCompletely(
+                applicationContext,
+                "Android Auto projection service destroyed"
+            )
+        }
     }
 }
 
@@ -145,13 +194,20 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
             virtualDisplay?.setSurface(null)
 
             val web = CarMediaManager.getPersistentWebView()
-            web?.onResume()
-            web?.resumeTimers()
-
-            if (CarMediaManager.isPlaying || CarMediaManager.userWantsPlayback) {
-                CarMediaManager.registerService(this)
-                CarMediaManager.acquireWakeLock(this)
-                CarMediaManager.ensureAudioFocus()
+            if (isFinishing) {
+                // Cable/host shutdown path: do not resurrect background playback.
+                web?.onPause()
+                web?.pauseTimers()
+                CarMediaManager.releaseWakeLock()
+            } else {
+                // A transient surface recreation (resize/config) may keep playback alive.
+                web?.onResume()
+                web?.resumeTimers()
+                if (CarMediaManager.isPlaying || CarMediaManager.userWantsPlayback) {
+                    CarMediaManager.registerService(this)
+                    CarMediaManager.acquireWakeLock(this)
+                    CarMediaManager.ensureAudioFocus()
+                }
             }
         } catch (_: Exception) {}
     }
