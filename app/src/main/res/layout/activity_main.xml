@@ -957,6 +957,7 @@
 
                     <!-- Toggle Switches Card -->
                     <LinearLayout
+                        android:id="@+id/phoneDisplayToggleCard"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:background="@drawable/bg_card_frosted_phone"
@@ -1011,6 +1012,7 @@
 
                         <!-- 3. YouTube -->
                         <LinearLayout
+                            android:visibility="gone"
                             android:layout_width="match_parent"
                             android:layout_height="48dp"
                             android:gravity="center_vertical"
@@ -1034,6 +1036,7 @@
 
                         <!-- 4. IPTV -->
                         <LinearLayout
+                            android:visibility="gone"
                             android:layout_width="match_parent"
                             android:layout_height="48dp"
                             android:gravity="center_vertical"
@@ -1057,6 +1060,7 @@
 
                         <!-- 5. M3U -->
                         <LinearLayout
+                            android:visibility="gone"
                             android:layout_width="match_parent"
                             android:layout_height="48dp"
                             android:gravity="center_vertical"
@@ -1080,6 +1084,7 @@
 
                         <!-- 6. Browser -->
                         <LinearLayout
+                            android:visibility="gone"
                             android:layout_width="match_parent"
                             android:layout_height="48dp"
                             android:gravity="center_vertical"
@@ -1185,6 +1190,7 @@
 
                     <!-- Section: Giao diện (Theme & Accent Color) -->
                     <LinearLayout
+                        android:id="@+id/phoneThemeCard"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="16dp"
