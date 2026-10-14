@@ -600,15 +600,15 @@ const dash = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarDashboardV
 const pres = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarPresentation.kt','utf8');
 const iptv = fs.readFileSync('app/src/main/assets/iptv_player.html','utf8');
 assert.match(gradle,/versionCode = 252/);
-assert.match(gradle,/versionName = "1\\.0\\.65"/);
-assert.match(dash,/setupProjectionPager\\(\\)/);
+assert.match(gradle,/versionName = "1\.0\.65"/);
+assert.match(dash,/setupProjectionPager\(\)/);
 assert.match(dash,/projectionPageIndex/);
-assert.match(dash,/showProjectionPage\\(projectionPageIndex \\+ 1\\)/);
-assert.match(dash,/btnSettings\\.visibility = View\\.GONE/);
-assert.match(dash,/btnNotification\\.visibility = View\\.GONE/);
-assert.match(dash,/GpsSpeedManager\\.rawGpsSpeed\\.collectLatest/);
+assert.match(dash,/showProjectionPage\(projectionPageIndex \+ 1\)/);
+assert.match(dash,/btnSettings\.visibility = View\.GONE/);
+assert.match(dash,/btnNotification\.visibility = View\.GONE/);
+assert.match(dash,/GpsSpeedManager\.rawGpsSpeed\.collectLatest/);
 assert.match(pres,/Cài đặt T Tube được quản lý trên điện thoại/);
-assert.match(iptv,/#btnIptvSettings,[\\s\\S]*#iptvModal[\\s\\S]*display: none !important/);
+assert.match(iptv,/#btnIptvSettings,[\s\S]*#iptvModal[\s\S]*display: none !important/);
 console.log('PASS v1.0.65: phone-only settings + 3-page car projection pager');
 ''')
 
