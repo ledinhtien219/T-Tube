@@ -108,10 +108,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnPhonePlayerPlayPause: ImageView
     private lateinit var btnPhonePlayerNext: ImageView
     private lateinit var phoneBottomNav: LinearLayout
+    private lateinit var phoneAppsPager: HorizontalScrollView
+    private lateinit var phoneAppsPages: LinearLayout
+    private lateinit var phoneAppsPageIndicator: TextView
 
     // WebViews
     private var youtubeWeb: BackgroundAudioWebView? = null
     private var iptvWeb: BackgroundAudioWebView? = null
+    private var activePhoneWebAppId: String = "youtube"
+    private var pendingPhoneWebUrl: String? = null
 
     // Wallpaper Badges
     private var wpBadgeBugatti: ImageView? = null
@@ -149,7 +154,7 @@ class MainActivity : AppCompatActivity() {
         const val PREF_SHOW_MINI_PLAYER = "pref_show_mini_player"
         const val PREF_SHOW_BOTTOM_NAV = "pref_show_bottom_nav"
         const val PREF_ACCENT_COLOR = "pref_phone_accent_color"
-        const val PREF_THEME_MODE = "pref_phone_theme_mode"
+        const val PREF_THEME_MODE = SettingsActivity.KEY_THEME_MODE
         const val PREF_FAV_CHANNELS_SET = "pref_fav_channels_set"
     }
 
@@ -448,6 +453,7 @@ class MainActivity : AppCompatActivity() {
         loadSavedFavorites()
         setupBottomNav()
         setupHomeActions()
+        setupPhoneAppGrid()
         setupWallpaperChooserScreen()
         setupDisplaySettingsScreen()
         setupPermissionsScreen()
@@ -457,6 +463,7 @@ class MainActivity : AppCompatActivity() {
         setupSettingsTab()
         setupMiniPlayer()
         applyDisplaySettings()
+        applyPhoneTheme()
         updateWallpaperDisplay()
         startClockTicker()
 
@@ -510,6 +517,9 @@ class MainActivity : AppCompatActivity() {
         btnPhonePlayerPlayPause = findViewById(R.id.btnPhonePlayerPlayPause)
         btnPhonePlayerNext = findViewById(R.id.btnPhonePlayerNext)
         phoneBottomNav = findViewById(R.id.phoneBottomNav)
+        phoneAppsPager = findViewById(R.id.phoneAppsPager)
+        phoneAppsPages = findViewById(R.id.phoneAppsPages)
+        phoneAppsPageIndicator = findViewById(R.id.phoneAppsPageIndicator)
 
         wpBadgeBugatti = findViewById(R.id.wpBadgeBugatti)
         wpBadgeSilver = findViewById(R.id.wpBadgeSilver)
@@ -553,9 +563,9 @@ class MainActivity : AppCompatActivity() {
         hideAllSubviews()
         activeTab = tab
 
-        // Keep the app toolbar available on the phone's YouTube tab too.
-        phoneBottomNav.visibility = if (prefs.getBoolean(PREF_SHOW_BOTTOM_NAV, true)) View.VISIBLE else View.GONE
-        phoneMiniPlayer.visibility = if (tab != TAB_YOUTUBE && prefs.getBoolean(PREF_SHOW_MINI_PLAYER, true)) View.VISIBLE else View.GONE
+        // The phone home is a clean launcher: controls stay inside app/settings screens.
+        phoneBottomNav.visibility = if (tab != TAB_HOME && prefs.getBoolean(PREF_SHOW_BOTTOM_NAV, true)) View.VISIBLE else View.GONE
+        phoneMiniPlayer.visibility = if (tab != TAB_HOME && tab != TAB_YOUTUBE && prefs.getBoolean(PREF_SHOW_MINI_PLAYER, true)) View.VISIBLE else View.GONE
 
         val bgAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
 
@@ -656,6 +666,182 @@ class MainActivity : AppCompatActivity() {
         // Search bar
         phoneSearchBar.setOnClickListener { showSearchDialog() }
         phoneMicBtn.setOnClickListener { showSearchDialog() }
+    }
+
+
+    private fun setupPhoneAppGrid() {
+        if (!::phoneAppsPages.isInitialized) return
+        val apps = WebAppManager.getAllApps(this).filter { WebAppManager.isAppEnabled(this, it.id) }
+        val pageSize = 9
+        val pageCount = kotlin.math.max(1, (apps.size + pageSize - 1) / pageSize)
+        val pageWidth = (resources.displayMetrics.widthPixels - dp(32)).coerceAtLeast(dp(300))
+
+        phoneAppsPages.removeAllViews()
+        if (apps.isEmpty()) {
+            phoneAppsPages.addView(TextView(this).apply {
+                text = "Chưa bật ứng dụng nào. Nhấn giữ để mở Cài đặt."
+                gravity = Gravity.CENTER
+                setTextColor(if (SettingsActivity.resolveIsDay(this@MainActivity)) Color.parseColor("#475569") else Color.parseColor("#94A3B8"))
+                layoutParams = LinearLayout.LayoutParams(pageWidth, dp(92))
+                setOnLongClickListener {
+                    startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
+                    true
+                }
+            })
+        } else {
+            apps.chunked(pageSize).forEach { pageApps ->
+                val grid = GridLayout(this).apply {
+                    columnCount = 3
+                    rowCount = 3
+                    alignmentMode = GridLayout.ALIGN_BOUNDS
+                    useDefaultMargins = false
+                    layoutParams = LinearLayout.LayoutParams(pageWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
+                }
+                val cardWidth = ((pageWidth - dp(16)) / 3).coerceAtLeast(dp(88))
+                for (slot in 0 until pageSize) {
+                    val row = slot / 3
+                    val col = slot % 3
+                    val app = pageApps.getOrNull(slot)
+                    val child = if (app != null) createPhoneAppCard(app, cardWidth) else View(this).apply { visibility = View.INVISIBLE }
+                    val lp = GridLayout.LayoutParams(
+                        GridLayout.spec(row, 1),
+                        GridLayout.spec(col, 1)
+                    ).apply {
+                        width = cardWidth
+                        height = dp(78)
+                        setMargins(dp(3), dp(4), dp(3), dp(4))
+                    }
+                    grid.addView(child, lp)
+                }
+                phoneAppsPages.addView(grid)
+            }
+        }
+
+        fun updateIndicator(page: Int) {
+            val safePage = page.coerceIn(0, pageCount - 1)
+            val dots = (0 until pageCount).joinToString("  ") { if (it == safePage) "•" else "◦" }
+            phoneAppsPageIndicator.text = "$dots   Vuốt ngang để chuyển · Trang ${safePage + 1} / $pageCount"
+        }
+        updateIndicator(0)
+        phoneAppsPager.setOnScrollChangeListener { _, scrollX, _, _, _ ->
+            val page = kotlin.math.round(scrollX.toFloat() / pageWidth.toFloat()).toInt()
+            updateIndicator(page)
+        }
+    }
+
+    private fun createPhoneAppCard(app: WebAppItem, cardWidth: Int): View {
+        val isDay = SettingsActivity.resolveIsDay(this)
+        val cardBg = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(14).toFloat()
+            setColor(if (isDay) Color.parseColor("#F8FAFC") else Color.parseColor("#0B111D"))
+            setStroke(dp(1), if (isDay) Color.parseColor("#CBD5E1") else Color.parseColor("#334155"))
+        }
+        val iconBgColor = runCatching { Color.parseColor(app.colorHex) }.getOrDefault(Color.parseColor("#0284C7"))
+
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            background = cardBg
+            isClickable = true
+            isFocusable = true
+            setPadding(dp(4), dp(7), dp(4), dp(5))
+
+            val iconFrame = FrameLayout(this@MainActivity).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(iconBgColor)
+                }
+            }
+            val icon = ImageView(this@MainActivity).apply {
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                val customPath = app.iconPath
+                if (!customPath.isNullOrBlank()) {
+                    val bmp = runCatching { BitmapFactory.decodeFile(customPath) }.getOrNull()
+                    if (bmp != null) setImageBitmap(bmp) else setImageResource(app.iconRes)
+                } else {
+                    setImageResource(app.iconRes)
+                }
+            }
+            iconFrame.addView(icon, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
+            addView(iconFrame, LinearLayout.LayoutParams(dp(36), dp(36)))
+
+            addView(TextView(this@MainActivity).apply {
+                text = app.name
+                textSize = 9.5f
+                gravity = Gravity.CENTER
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(if (isDay) Color.parseColor("#0F172A") else Color.WHITE)
+            }, LinearLayout.LayoutParams(cardWidth - dp(8), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(5)
+            })
+
+            setOnClickListener { openPhoneApp(app) }
+            setOnLongClickListener {
+                startActivity(Intent(this@MainActivity, SettingsActivity::class.java).apply {
+                    putExtra("focus_app_id", app.id)
+                })
+                true
+            }
+        }
+    }
+
+    private fun openPhoneApp(app: WebAppItem) {
+        when (app.id) {
+            "iptv" -> {
+                activePhoneWebAppId = "iptv"
+                switchTab(TAB_IPTV)
+            }
+            else -> {
+                activePhoneWebAppId = app.id
+                pendingPhoneWebUrl = app.url
+                val existing = youtubeWeb
+                switchTab(TAB_YOUTUBE)
+                val target = youtubeWeb ?: return
+                configurePhoneWebViewForApp(target, app, app.url)
+                if (existing != null) {
+                    val current = target.url.orEmpty()
+                    val sameTarget = when (app.id) {
+                        "youtube" -> current.contains("youtube.com", true) || current.contains("youtu.be", true)
+                        "tiktok" -> TikTokWebPolicy.isTikTok(current)
+                        else -> runCatching { Uri.parse(current).host == Uri.parse(app.url).host }.getOrDefault(false)
+                    }
+                    if (!sameTarget) target.loadUrl(app.url)
+                    pendingPhoneWebUrl = null
+                }
+            }
+        }
+    }
+
+    private fun applyPhoneTheme() {
+        if (!::tabHomeView.isInitialized) return
+        val isDay = SettingsActivity.resolveIsDay(this)
+        val bg = if (isDay) Color.parseColor("#F1F5F9") else Color.parseColor("#070A11")
+        val surface = if (isDay) Color.parseColor("#FFFFFF") else Color.parseColor("#0B111D")
+        val muted = if (isDay) Color.parseColor("#475569") else Color.parseColor("#94A3B8")
+
+        findViewById<View>(R.id.phoneRoot)?.setBackgroundColor(bg)
+        tabHomeView.setBackgroundColor(bg)
+        tabYoutubeView.setBackgroundColor(surface)
+        tabIptvView.setBackgroundColor(bg)
+        tabSettingsView.setBackgroundColor(bg)
+        phoneAppsPageIndicator.setTextColor(muted)
+        phoneSearchBar.background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(22).toFloat()
+            setColor(if (isDay) Color.parseColor("#E2E8F0") else Color.parseColor("#CC111827"))
+            setStroke(dp(1), if (isDay) Color.parseColor("#CBD5E1") else Color.parseColor("#475569"))
+        }
+        window.statusBarColor = bg
+        window.navigationBarColor = bg
+        youtubeWeb?.let { YouTubePlayerHelper.applyUniversalWebTheme(it, isDay) }
+        iptvWeb?.let {
+            YouTubePlayerHelper.applyUniversalWebTheme(it, isDay)
+            it.evaluateJavascript("if (typeof window.setIptvTheme === 'function') window.setIptvTheme(${if (isDay) "true" else "false"});", null)
+        }
+        if (::phoneAppsPages.isInitialized) setupPhoneAppGrid()
     }
 
     private fun loadSavedFavorites() {
@@ -946,8 +1132,12 @@ class MainActivity : AppCompatActivity() {
         bindSwitch(sCardM3u, PREF_SHOW_CARD_M3U) { phoneCardM3u.visibility = if (it) View.VISIBLE else View.GONE }
         bindSwitch(sCardBrowser, PREF_SHOW_CARD_BROWSER) { phoneCardBrowser.visibility = if (it) View.VISIBLE else View.GONE }
         bindSwitch(sFav, PREF_SHOW_FAV_CHANNELS) { sectionFavChannels.visibility = if (it) View.VISIBLE else View.GONE }
-        bindSwitch(sPlayer, PREF_SHOW_MINI_PLAYER) { phoneMiniPlayer.visibility = if (it) View.VISIBLE else View.GONE }
-        bindSwitch(sNav, PREF_SHOW_BOTTOM_NAV) { phoneBottomNav.visibility = if (it) View.VISIBLE else View.GONE }
+        bindSwitch(sPlayer, PREF_SHOW_MINI_PLAYER) {
+            phoneMiniPlayer.visibility = if (it && activeTab != TAB_HOME && activeTab != TAB_YOUTUBE) View.VISIBLE else View.GONE
+        }
+        bindSwitch(sNav, PREF_SHOW_BOTTOM_NAV) {
+            phoneBottomNav.visibility = if (it && activeTab != TAB_HOME) View.VISIBLE else View.GONE
+        }
 
         // Restore button
         findViewById<Button>(R.id.btnRestoreDefaultLayout)?.setOnClickListener {
@@ -967,9 +1157,9 @@ class MainActivity : AppCompatActivity() {
             sSearchBar.isChecked = true
             sCardYt.isChecked = true
             sCardIptv.isChecked = true
-            sCardM3u.isChecked = true
+            sCardM3u.isChecked = false
             sCardBrowser.isChecked = true
-            sFav.isChecked = true
+            sFav.isChecked = false
             sPlayer.isChecked = true
             sNav.isChecked = true
 
@@ -982,19 +1172,38 @@ class MainActivity : AppCompatActivity() {
         val btnLight = findViewById<TextView>(R.id.btnThemeLight)
         val btnAuto = findViewById<TextView>(R.id.btnThemeAuto)
 
-        fun selectThemeSegment(target: TextView, mode: String) {
-            listOf(btnDark, btnLight, btnAuto).forEach {
+        fun selectThemeSegment(target: TextView, mode: String, persist: Boolean = true) {
+            listOfNotNull(btnDark, btnLight, btnAuto).forEach {
                 it.setBackgroundResource(if (it == target) R.drawable.bg_segment_selected else 0)
                 it.setTextColor(if (it == target) Color.WHITE else Color.parseColor("#94A3B8"))
                 it.typeface = if (it == target) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
             }
-            prefs.edit().putString(PREF_THEME_MODE, mode).apply()
-            Toast.makeText(this, "Đã chọn chủ đề: ${target.text}", Toast.LENGTH_SHORT).show()
+            if (persist) {
+                prefs.edit().putString(PREF_THEME_MODE, mode).apply()
+                applyPhoneTheme()
+                Toast.makeText(this, "Đã chọn chủ đề: ${target.text}", Toast.LENGTH_SHORT).show()
+            }
         }
 
-        btnDark?.setOnClickListener { selectThemeSegment(btnDark, "dark") }
-        btnLight?.setOnClickListener { selectThemeSegment(btnLight, "light") }
-        btnAuto?.setOnClickListener { selectThemeSegment(btnAuto, "auto") }
+        val savedTheme = when (prefs.getString(PREF_THEME_MODE, SettingsActivity.THEME_AUTO)) {
+            "dark" -> SettingsActivity.THEME_NIGHT
+            "light" -> SettingsActivity.THEME_DAY
+            SettingsActivity.THEME_DAY -> SettingsActivity.THEME_DAY
+            SettingsActivity.THEME_NIGHT -> SettingsActivity.THEME_NIGHT
+            else -> SettingsActivity.THEME_AUTO
+        }
+        if (prefs.getString(PREF_THEME_MODE, null) != savedTheme) {
+            prefs.edit().putString(PREF_THEME_MODE, savedTheme).apply()
+        }
+        when (savedTheme) {
+            SettingsActivity.THEME_NIGHT -> btnDark?.let { selectThemeSegment(it, savedTheme, false) }
+            SettingsActivity.THEME_DAY -> btnLight?.let { selectThemeSegment(it, savedTheme, false) }
+            else -> btnAuto?.let { selectThemeSegment(it, SettingsActivity.THEME_AUTO, false) }
+        }
+
+        btnDark?.setOnClickListener { selectThemeSegment(btnDark, SettingsActivity.THEME_NIGHT) }
+        btnLight?.setOnClickListener { selectThemeSegment(btnLight, SettingsActivity.THEME_DAY) }
+        btnAuto?.setOnClickListener { selectThemeSegment(btnAuto, SettingsActivity.THEME_AUTO) }
 
         // Accent Palette
         val paletteContainer = findViewById<LinearLayout>(R.id.accentPaletteContainer)
@@ -1037,8 +1246,8 @@ class MainActivity : AppCompatActivity() {
         phoneCardM3u.visibility = if (prefs.getBoolean(PREF_SHOW_CARD_M3U, false)) View.VISIBLE else View.GONE
         phoneCardBrowser.visibility = if (prefs.getBoolean(PREF_SHOW_CARD_BROWSER, true)) View.VISIBLE else View.GONE
         sectionFavChannels.visibility = if (prefs.getBoolean(PREF_SHOW_FAV_CHANNELS, false)) View.VISIBLE else View.GONE
-        phoneMiniPlayer.visibility = if (prefs.getBoolean(PREF_SHOW_MINI_PLAYER, true)) View.VISIBLE else View.GONE
-        phoneBottomNav.visibility = if (prefs.getBoolean(PREF_SHOW_BOTTOM_NAV, true)) View.VISIBLE else View.GONE
+        phoneMiniPlayer.visibility = if (activeTab != TAB_HOME && activeTab != TAB_YOUTUBE && prefs.getBoolean(PREF_SHOW_MINI_PLAYER, true)) View.VISIBLE else View.GONE
+        phoneBottomNav.visibility = if (activeTab != TAB_HOME && prefs.getBoolean(PREF_SHOW_BOTTOM_NAV, true)) View.VISIBLE else View.GONE
     }
 
     // ==========================================
