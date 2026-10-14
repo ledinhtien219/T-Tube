@@ -114,6 +114,16 @@ jobs:
           python ci/apply_v163.py
           grep -E 'applicationId|version(Code|Name)' app/build.gradle.kts | head -3
 
+      - name: Snapshot v1.0.63 car UI
+        shell: bash
+        run: |
+          mkdir -p /tmp/ttube-v163-car/app/src/main/java/com/carhud/aaproxy
+          mkdir -p /tmp/ttube-v163-car/app/src/main/res/layout
+          cp app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt /tmp/ttube-v163-car/app/src/main/java/com/carhud/aaproxy/
+          cp app/src/main/java/com/carhud/aaproxy/CarPresentation.kt /tmp/ttube-v163-car/app/src/main/java/com/carhud/aaproxy/
+          cp app/src/main/java/com/carhud/aaproxy/CarHudAutoScreen.kt /tmp/ttube-v163-car/app/src/main/java/com/carhud/aaproxy/
+          cp app/src/main/res/layout/dashboard.xml /tmp/ttube-v163-car/app/src/main/res/layout/
+
       - name: Apply T Tube v1.0.64 targeted fixes
         shell: bash
         run: |
@@ -133,6 +143,38 @@ jobs:
           python ci/apply_v165_car.py
           grep -E 'applicationId|version(Code|Name)' app/build.gradle.kts | head -3
           test -f tests/v165-phone-hub-car-display.test.cjs
+
+      - name: Restore v1.0.63 car UI
+        shell: bash
+        run: |
+          cp /tmp/ttube-v163-car/app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt app/src/main/java/com/carhud/aaproxy/
+          cp /tmp/ttube-v163-car/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt app/src/main/java/com/carhud/aaproxy/
+          cp /tmp/ttube-v163-car/app/src/main/java/com/carhud/aaproxy/CarHudAutoScreen.kt app/src/main/java/com/carhud/aaproxy/
+          cp /tmp/ttube-v163-car/app/src/main/res/layout/dashboard.xml app/src/main/res/layout/
+          cat > tests/v165-phone-hub-car-display.test.cjs <<'EOF'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const gradle = fs.readFileSync('app/build.gradle.kts','utf8');
+          const main = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/MainActivity.kt','utf8');
+          const dash = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt','utf8');
+
+          assert.match(gradle,/versionCode = 252/);
+          assert.match(gradle,/versionName = "1\.0\.65"/);
+
+          // Phone Home is the new 3x3 app launcher.
+          assert.match(main,/PHONE_HOME_PAGE_COUNT = 3/);
+          assert.match(main,/PHONE_HOME_APPS_PER_PAGE = 9/);
+          assert.match(main,/WebAppManager\.getEnabledApps\(this\)/);
+          assert.match(main,/columnCount = 3/);
+          assert.match(main,/rowCount = 3/);
+
+          // Car dashboard visuals are restored to the v1.0.63 snapshot.
+          assert.doesNotMatch(dash,/btnSettings\.visibility = View\.GONE/);
+          assert.doesNotMatch(dash,/btnNotification\.visibility = View\.GONE/);
+          assert.match(dash,/private lateinit var weatherIcon: ImageView/);
+
+          console.log('PASS v1.0.65: phone 3x3 app launcher + car UI restored to v1.0.63');
+          EOF
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -167,9 +209,25 @@ jobs:
       - name: Build T Tube debug APK
         run: ./gradlew assembleDebug --stacktrace
 
+      - name: Package final source
+        shell: bash
+        run: |
+          rm -rf /tmp/TTube-v1.0.65-build252-source
+          mkdir -p /tmp/TTube-v1.0.65-build252-source
+          rsync -a --exclude '.git' --exclude '.gradle' --exclude 'app/build' --exclude 'build' ./ /tmp/TTube-v1.0.65-build252-source/
+          cd /tmp
+          zip -qr "$GITHUB_WORKSPACE/TTube-v1.0.65-build252-SOURCE.zip" TTube-v1.0.65-build252-source
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: TTube-v1.0.65-build252-APK
           path: app/build/outputs/apk/debug/*.apk
+          retention-days: 7
+
+      - name: Upload final source
+        uses: actions/upload-artifact@v4
+        with:
+          name: TTube-v1.0.65-build252-SOURCE
+          path: TTube-v1.0.65-build252-SOURCE.zip
           retention-days: 7
