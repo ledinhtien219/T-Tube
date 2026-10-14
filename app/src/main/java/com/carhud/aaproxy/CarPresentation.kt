@@ -627,8 +627,7 @@ class CarPresentation(
                 }
                 browserLoading = true
                 updateBrowserToolbar(url)
-                val isDay = isDayMode()
-                applyUniversalWebTheme(view, isDay)
+                applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
                 applyWebScaleForUrl(url)
                 TikTokWebPolicy.fitLayout(view, url)
             }
@@ -637,14 +636,14 @@ class CarPresentation(
                 super.doUpdateVisitedHistory(view, url, isReload)
                 updateBrowserToolbar(url)
                 if (view != null) {
-                    applyUniversalWebTheme(view, isDayMode())
+                    applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
                     TikTokWebPolicy.fitLayout(view, url)
                 }
             }
 
             override fun onPageCommitVisible(view: WebView, url: String) {
                 super.onPageCommitVisible(view, url)
-                applyUniversalWebTheme(view, isDayMode())
+                applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
                 TikTokWebPolicy.fitLayout(view, url)
             }
 
@@ -669,7 +668,7 @@ class CarPresentation(
                 YouTubeAdBlocker.onPageFinished(view, url)
                 applyWebScaleForUrl(url)
                 val isDay = isDayMode()
-                applyUniversalWebTheme(view, isDay)
+                applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
                 TikTokWebPolicy.fitLayout(view, url)
                 val isYouTube = currentActiveAppId == "youtube" && (url.contains("youtube.com") || url.contains("youtu.be"))
                 if (isYouTube) {
@@ -703,7 +702,7 @@ class CarPresentation(
             }
         }
 
-        web.setBackgroundColor(if (isDayMode()) Color.WHITE else Color.BLACK)
+        web.setBackgroundColor(if (effectiveWebThemeIsDay(web.url)) Color.WHITE else Color.BLACK)
         web.visibility = View.VISIBLE
 
         var customView: View? = null
@@ -1626,8 +1625,9 @@ class CarPresentation(
         updateBrowserViewport()
         if (currentActiveAppId != "web" || isDashboardShowing) return
 
-        val day = isDayMode()
-        val ink = if (day) Color.parseColor("#172033") else Color.parseColor("#F8FAFC")
+        // Browser chrome is always light, independent from the media theme.
+        val day = true
+        val ink = Color.parseColor("#172033")
         val mutedInk = if (day) Color.parseColor("#64748B") else Color.parseColor("#94A3B8")
         val shell = if (day) Color.parseColor("#F7FFFFFF") else Color.parseColor("#F20B1324")
         val field = if (day) Color.parseColor("#EEF2F7") else Color.parseColor("#182235")
@@ -1996,6 +1996,23 @@ class CarPresentation(
         }
     }
 
+    private fun effectiveWebThemeIsDay(url: String? = web.url): Boolean {
+        val current = url.orEmpty()
+        val specialized =
+            current.contains("youtube.com", true) ||
+            current.contains("youtu.be", true) ||
+            current.contains("tiktok.com", true) ||
+            current.contains("iptv_player.html", true)
+
+        // The standalone browser is intentionally always light for readability.
+        // YouTube/IPTV/TikTok continue to follow Day/Night/Auto.
+        return if (currentActiveAppId == "web" || (!specialized && current.isNotBlank() && current != "about:blank")) {
+            true
+        } else {
+            isDayMode()
+        }
+    }
+
     private fun isBrowserApp(): Boolean {
         val url = web.url.orEmpty()
 
@@ -2042,9 +2059,9 @@ class CarPresentation(
         CarMediaManager.lastEmbeddedApp = app
         CarMediaManager.isEmbeddedAppShowing = false
 
-        // Every enabled web app inherits the same car day/night preference.
-        // This is done before navigation and again by WebView callbacks after load.
-        applyUniversalWebTheme(web, isDayMode())
+        // Generic browser is always light; media apps follow the selected theme.
+        // Apply before navigation so there is no dark flash while a page starts.
+        applyUniversalWebTheme(web, effectiveWebThemeIsDay(startUrl ?: app.url))
 
         // YouTube's desktop shell is substantially heavier on projected WebViews.
         // Keep the phone preference intact, but always use the mobile site on the
@@ -2189,7 +2206,7 @@ class CarPresentation(
         
         ensureCorrectFullscreenAppPage()
         applyWebScaleForUrl(web.url ?: app?.url)
-        applyUniversalWebTheme(web, isDayMode())
+        applyUniversalWebTheme(web, effectiveWebThemeIsDay(web.url ?: app?.url))
         dashboardView?.detachEmbeddedWeb()
         dashboardView?.visibility = View.GONE
         web.visibility = View.VISIBLE
@@ -2314,7 +2331,8 @@ class CarPresentation(
         rebuildTopToolbar()
 
         fun syncWebTheme() {
-            applyUniversalWebTheme(web, isDay)
+            val pageIsDay = if (currentActiveAppId == "web") true else isDay
+            applyUniversalWebTheme(web, pageIsDay)
             if (currentActiveAppId == "iptv" || web.url?.contains("iptv_player.html") == true) {
                 try {
                     web.evaluateJavascript("if (typeof window.setIptvTheme === 'function') window.setIptvTheme(${if (isDay) "true" else "false"});", null)
