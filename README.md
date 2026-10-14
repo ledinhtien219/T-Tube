@@ -8,7 +8,7 @@
 
 ## ✅ Phiên bản hiện tại trong source
 
-- **Source/Internal test:** `v1.0.50` / Build `237`
+- **Source/Main:** `v1.0.63` / Build `250`
 - **Public stable OTA:** `v1.0.45` / Build `232`
 - **Branch:** `main`
 - **Application ID:** `com.tcar.auto`
@@ -122,7 +122,7 @@ TTube/
 │   ├── build-apk.yml                  # Build nội bộ + regression/unit/androidTest compile
 │   └── approve-stable-update.yml      # Promote đúng bản đã test thành public stable
 ├── app/
-│   ├── build.gradle.kts               # v1.0.50 / Build 237 trong source này
+│   ├── build.gradle.kts               # v1.0.63 / Build 250 trong source này
 │   └── src/main/
 │       ├── AndroidManifest.xml
 │       ├── assets/                    # IPTV player, web assets...
@@ -174,7 +174,7 @@ Yêu cầu: **JDK 17**.
 APK:
 
 ```text
-app/build/outputs/apk/debug/TTube_v1.0.54_debug.apk
+app/build/outputs/apk/debug/TTube_v1.0.63_debug.apk
 ```
 
 ### Release
@@ -186,13 +186,13 @@ app/build/outputs/apk/debug/TTube_v1.0.54_debug.apk
 APK:
 
 ```text
-app/build/outputs/apk/release/TTube_v1.0.54_release.apk
+app/build/outputs/apk/release/TTube_v1.0.63_release.apk
 ```
 
 ### Cài qua ADB
 
 ```bash
-adb install -r app/build/outputs/apk/debug/TTube_v1.0.54_debug.apk
+adb install -r app/build/outputs/apk/debug/TTube_v1.0.63_debug.apk
 ```
 
 ---
