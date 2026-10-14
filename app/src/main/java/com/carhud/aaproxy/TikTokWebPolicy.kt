@@ -665,24 +665,13 @@ internal object TikTokWebPolicy {
                         try {
                             state.observer = new MutationObserver(function(mutations) {
                                 for (var i = 0; i < mutations.length; i++) {
-                                    var m = mutations[i];
-                                    if (
-                                        (m.addedNodes && m.addedNodes.length) ||
-                                        m.type === 'characterData' ||
-                                        (m.type === 'attributes' && (m.attributeName === 'class' || m.attributeName === 'style' || m.attributeName === 'aria-hidden'))
-                                    ) {
+                                    if (mutations[i].addedNodes && mutations[i].addedNodes.length) {
                                         schedule();
                                         return;
                                     }
                                 }
                             });
-                            state.observer.observe(document.documentElement, {
-                                childList: true,
-                                subtree: true,
-                                characterData: true,
-                                attributes: true,
-                                attributeFilter: ['class', 'style', 'aria-hidden']
-                            });
+                            state.observer.observe(document.documentElement, { childList: true, subtree: true });
                         } catch (_) {}
                     }
 
