@@ -263,6 +263,38 @@ if resume_anchor in s and 'setupPhoneHubPager(rebuild = true)\n        val impor
 
 p.write_text(s)
 
+# T Tube launcher branding — replace the legacy THTV launcher mark in the final v1.0.65 overlay.
+for values in [
+    Path('app/src/main/res/values/strings.xml'),
+    Path('app/src/main/res/values-vi/strings.xml')
+]:
+    if values.exists():
+        text = values.read_text()
+        text = text.replace('<string name="app_name">THTV</string>', '<string name="app_name">T Tube</string>')
+        values.write_text(text)
+
+Path('app/src/main/res/drawable/ic_launcher_foreground.xml').write_text(r'''<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:gravity="center" android:width="88dp" android:height="88dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="24dp"/>
+            <solid android:color="#E50914"/>
+        </shape>
+    </item>
+    <item android:gravity="center" android:width="34dp" android:height="34dp">
+        <vector
+            android:width="34dp"
+            android:height="34dp"
+            android:viewportWidth="24"
+            android:viewportHeight="24">
+            <path
+                android:fillColor="#FFFFFF"
+                android:pathData="M8,5v14l11,-7z"/>
+        </vector>
+    </item>
+</layer-list>
+''')
+
 # Regression test: exactly the 9 requirements for phone Home.
 test = Path('tests/phone-home-grid.test.cjs')
 test.write_text(r'''const fs = require('node:fs');
