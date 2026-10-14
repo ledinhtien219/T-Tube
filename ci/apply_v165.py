@@ -579,12 +579,15 @@ for p in Path('tests').glob('*.cjs'):
             policy_line = line.replace('[678]', '[6789]').replace('[78]', '[789]')
             policy_line = policy_line.replace('POLICY_VERSION = 8/', 'POLICY_VERSION = [89]/')
             migrated.append(policy_line)
-        elif 'assert.match' in line and 'tiktokIconSizeDp' in line:
-            migrated.append("assert.match(presentation, /tiktokIconSizeDp =/);")
-        elif 'assert.match' in line and 'leftMargin = dp' in line and ('82' in line or 'tiktok' in t.lower()):
-            migrated.append("assert.match(presentation, /leftMargin = dp\\((?:8|82)\\)/);")
-        elif 'assert.match' in line and 'topMargin = dp' in line:
-            migrated.append("assert.match(presentation, /topMargin = dp\\((?:22|24|30|48)\\)/);")
+        elif p.name in ('v159-tiktok-guest-settings-toolbar.test.cjs', 'v161-browser-tiktok-polish.test.cjs') and 'assert.match' in line and 'tiktokIconSizeDp' in line:
+            source_var = line.split('assert.match(', 1)[1].split(',', 1)[0].strip()
+            migrated.append(f"assert.match({source_var}, /tiktokIconSizeDp =/);")
+        elif p.name in ('v159-tiktok-guest-settings-toolbar.test.cjs', 'v161-browser-tiktok-polish.test.cjs') and 'assert.match' in line and 'leftMargin = dp' in line:
+            source_var = line.split('assert.match(', 1)[1].split(',', 1)[0].strip()
+            migrated.append(f"assert.match({source_var}, /leftMargin = dp\\((?:8|82)\\)/);")
+        elif p.name in ('v159-tiktok-guest-settings-toolbar.test.cjs', 'v161-browser-tiktok-polish.test.cjs') and 'assert.match' in line and 'topMargin = dp' in line:
+            source_var = line.split('assert.match(', 1)[1].split(',', 1)[0].strip()
+            migrated.append(f"assert.match({source_var}, /topMargin = dp\\((?:22|24|30|48)\\)/);")
         else:
             migrated.append(line)
     t = '\n'.join(migrated) + ('\n' if t.endswith('\n') else '')
