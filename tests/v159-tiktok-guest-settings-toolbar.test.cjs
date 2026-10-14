@@ -22,10 +22,11 @@ assert.match(tiktok, /unlockDocumentAfterModal/);
 assert.doesNotMatch(tiktok, /setInterval\s*\(/);
 assert.doesNotMatch(tiktok, /\[id\*="login"\]/);
 
-// TikTok controls are bigger and moved into the requested #2 slot.
-assert.match(presentation, /tiktokIconSizeDp = \(\((?:62|64) \* scale\) \/ 100\)\.coerceIn\((?:58|60), (?:78|82)\)/);
-assert.match(presentation, /leftMargin = dp\((?:54|82)\)/);
-assert.match(presentation, /topMargin = dp\((?:22|48)\)/);
+// TikTok controls use the compact vertical rail requested at the far-left edge.
+assert.match(presentation, /tiktokIconSizeDp = \(\(58 \* scale\) \/ 100\)\.coerceIn\(52, 72\)/);
+assert.match(presentation, /orientation = LinearLayout\.VERTICAL/);
+assert.match(presentation, /leftMargin = dp\(3\)/);
+assert.match(presentation, /Gravity\.START or Gravity\.CENTER_VERTICAL/);
 
 // Simplified phone settings.
 assert.doesNotMatch(settings, /title = "MIC HỆ THỐNG ANDROID AUTO"/);
