@@ -168,10 +168,62 @@ if 'private fun goBackTikTokOnly()' not in s:
 '''
     s = s[:insert_at] + back_fn + s[insert_at:]
 
-# v1.0.62 supplies the TikTok search helper. Keep this as an explicit build
-# guard because the toolbar calls it directly.
+# Add a dedicated TikTok search overlay when the older overlay does not have one.
 if 'private fun showTikTokSearchOverlay()' not in s:
-    raise SystemExit('v164: TikTok search helper missing after v1.0.62 overlay')
+    insert_at = s.find('    fun showSearchOverlay()')
+    if insert_at < 0:
+        raise SystemExit('v164: generic search overlay anchor missing')
+    search_fn = '''    private fun showTikTokSearchOverlay() {
+        searchOverlayMode = "tiktok"
+        searchInput.error = null
+        searchInput.imeOptions = EditorInfo.IME_ACTION_SEARCH
+        webKeyboardTargetPending = false
+        searchInput.hint = "Tìm video TikTok..."
+        searchOverlayVoiceButton?.visibility = View.GONE
+        searchOverlaySubmitButton?.apply { visibility = View.VISIBLE; text = "🔍 Tìm" }
+        searchSuggestionStrip?.visibility = View.GONE
+        keyboardActionKey?.text = "🔍 TÌM"
+        showKeyboardOverlayInternal()
+    }
+
+'''
+    s = s[:insert_at] + search_fn + s[insert_at:]
+
+# Teach the shared search executor to navigate TikTok directly.
+if 'searchOverlayMode == "tiktok"' not in s:
+    needle = '''        val q = query.trim()
+        if (q.isEmpty()) return
+
+        if (currentActiveAppId != "youtube") return
+'''
+    replacement = '''        val q = query.trim()
+        if (q.isEmpty()) return
+
+        if (searchOverlayMode == "tiktok" || currentActiveAppId == "tiktok") {
+            val target = TikTokWebPolicy.searchUrl(q)
+            TikTokWebPolicy.configure(web, target)
+            web.loadUrl(target)
+            hideSearchOverlay()
+            return
+        }
+
+        if (currentActiveAppId != "youtube") return
+'''
+    if needle not in s:
+        raise SystemExit('v164: executeSearch TikTok insertion anchor missing')
+    s = s.replace(needle, replacement, 1)
+
+# Native Android Auto editor should label the TikTok action as Search.
+s = s.replace(
+    '''                mode == "youtube" -> "Tìm"
+                mode == "address" -> "Đi"
+''',
+    '''                mode == "youtube" -> "Tìm"
+                mode == "tiktok" -> "Tìm"
+                mode == "address" -> "Đi"
+''',
+    1
+)
 
 p.write_text(s)
 
