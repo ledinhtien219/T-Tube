@@ -18,6 +18,7 @@
             android:id="@+id/phoneTopBar"
             android:layout_width="match_parent"
             android:layout_height="52dp"
+            android:visibility="gone"
             android:background="#0B111D"
             android:gravity="center_vertical"
             android:paddingStart="16dp"
@@ -219,12 +220,15 @@
                         </LinearLayout>
                     </FrameLayout>
 
-                    <!-- 2x2 Services Grid -->
+                    <!-- Legacy 2x2 service grid kept for source compatibility; the phone home now
+                         uses the 3x3 app pager below. -->
                     <LinearLayout
+                        android:id="@+id/phoneLegacyServices"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="14dp"
-                        android:orientation="vertical">
+                        android:orientation="vertical"
+                        android:visibility="gone">
 
                         <!-- Row 1: YouTube & IPTV -->
                         <LinearLayout
@@ -457,6 +461,34 @@
                             </LinearLayout>
                         </LinearLayout>
                     </LinearLayout>
+
+                    <!-- 3x3 app launcher matching the compact phone dashboard reference.
+                         Pages are populated from WebAppManager so enabled/custom apps stay in sync. -->
+                    <HorizontalScrollView
+                        android:id="@+id/phoneAppsPager"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:fillViewport="true"
+                        android:overScrollMode="never"
+                        android:scrollbars="none">
+
+                        <LinearLayout
+                            android:id="@+id/phoneAppsPages"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal" />
+                    </HorizontalScrollView>
+
+                    <TextView
+                        android:id="@+id/phoneAppsPageIndicator"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center"
+                        android:text="•  ◦  ◦   Vuốt ngang để chuyển · Trang 1 / 1"
+                        android:textColor="#64748B"
+                        android:textSize="9.5sp" />
 
                     <!-- Section: Kênh yêu thích -->
                     <LinearLayout
@@ -1982,6 +2014,7 @@
         <!-- ================= MINI PLAYER BAR (FLOATING DOCKED) ================= -->
         <LinearLayout
             android:id="@+id/phoneMiniPlayer"
+            android:visibility="gone"
             android:layout_width="match_parent"
             android:layout_height="62dp"
             android:background="@drawable/bg_player_card_frosted"
@@ -2096,6 +2129,7 @@
         <!-- ================= MODERN BOTTOM NAVIGATION BAR ================= -->
         <LinearLayout
             android:id="@+id/phoneBottomNav"
+            android:visibility="gone"
             android:layout_width="match_parent"
             android:layout_height="58dp"
             android:background="@drawable/bg_phone_bottom_nav"
