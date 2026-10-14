@@ -17,10 +17,8 @@ if 'private var phoneHubPager:' not in s:
     private var phoneHubPage = 0
     private var phoneHubDownX = 0f
 
-    private companion object PhoneHomeGrid {
-        const val PHONE_HOME_PAGE_COUNT = 3
-        const val PHONE_HOME_APPS_PER_PAGE = 9
-    }
+    private val PHONE_HOME_PAGE_COUNT = 3
+    private val PHONE_HOME_APPS_PER_PAGE = 9
 '''
     if field_anchor not in s:
         raise SystemExit('v165 phone: field anchor missing')
