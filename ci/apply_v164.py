@@ -136,19 +136,32 @@ if 'val panelBg = if (isDay)' not in yt:
 s = s[:start] + yt + s[end:]
 
 # TikTok Back never leaves TikTok, even if activeAppId is momentarily stale.
-back_pattern = re.compile(
-    r'''    private fun goBackTikTokOnly\(\) \{\n        if \(currentActiveAppId != "tiktok"\) \{ goBack\(\); return \}\n        if \(searchOverlay\.visibility == View\.VISIBLE\) \{ hideSearchOverlay\(\); return \}\n'''
-)
-back_repl = '''    private fun goBackTikTokOnly() {
+back_start = s.find('    private fun goBackTikTokOnly()')
+back_end = s.find('    private fun showWebKeyboardOverlay', back_start)
+if back_start < 0 or back_end < 0:
+    raise SystemExit('v164: TikTok back function bounds not found')
+back_fn = '''    private fun goBackTikTokOnly() {
         val visibleTikTok = TikTokWebPolicy.isTikTok(web.url)
         if (!visibleTikTok && currentActiveAppId != "tiktok") return
         currentActiveAppId = "tiktok"
         CarMediaManager.activeAppId = "tiktok"
         if (searchOverlay.visibility == View.VISIBLE) { hideSearchOverlay(); return }
+        if (web.canGoBack()) {
+            val history = web.copyBackForwardList()
+            val previous = history.getItemAtIndex(history.currentIndex - 1)?.url
+            if (TikTokWebPolicy.isTikTok(previous)) {
+                web.goBack()
+                return
+            }
+        }
+        // Stay inside TikTok instead of escaping to another web app/history entry.
+        val home = "https://www.tiktok.com/"
+        TikTokWebPolicy.configure(web, home)
+        web.loadUrl(home)
+    }
+
 '''
-s, n = back_pattern.subn(back_repl, s, count=1)
-if n != 1 and 'val visibleTikTok = TikTokWebPolicy.isTikTok(web.url)' not in s:
-    raise SystemExit('v164: TikTok back block not found')
+s = s[:back_start] + back_fn + s[back_end:]
 
 p.write_text(s)
 
