@@ -18,7 +18,8 @@ assert.match(media,/"iptv" -> value\.contains\("iptv_player\.html"/);
 assert.match(media,/setOf\("web", "youtube", "tiktok", "iptv"\)/);
 assert.match(presentation,/shouldNavigateFresh/);
 assert.doesNotMatch(presentation,/!restoredSession \|\| youtubeSessionMismatch \|\| \(!isAlreadyLoaded \|\| startUrl != null\)/);
-assert.match(main,/initialYoutubeUrl = currentMediaUrl\.takeIf/);
+assert.match(main,/pendingPhoneWebUrl/);
+assert.match(main,/val startUrl = pendingPhoneWebUrl/);
 assert.match(main,/wasUninitialized = youtubeWeb == null/);
 assert.doesNotMatch(settings,/title = "Phím Voice trên vô lăng mở Micro"/);
 assert.match(main,/phoneAppVersionText\)\?\.visibility = View\.GONE/);
@@ -26,7 +27,7 @@ assert.match(iptv,/\.player-controls-right, \.btn-show-channels \{ display: none
 assert.match(presentation,/goBackWithinTikTok\(\)/);
 assert.match(presentation,/R\.drawable\.ic_bar_search/);
 assert.match(presentation,/searchOverlayMode = if \(currentActiveAppId == "tiktok"\) "tiktok" else "youtube"/);
-assert.match(tiktok,/POLICY_VERSION = [78]/);
+assert.match(tiktok,/POLICY_VERSION = [789]/);
 assert.match(tiktok,/Keep Android\/Chrome identity internally consistent/);
 // v1.0.63: canonical TikTok result navigation is intentional.
 assert.match(tiktok,/\[data-e2e="browse-sidebar"\]/);
