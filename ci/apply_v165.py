@@ -575,7 +575,7 @@ for p in Path('tests').glob('*.cjs'):
             migrated.append("assert.match(presentation, /leftMargin = dp\\((?:8|82)\\)/);")
         else:
             migrated.append(line)
-    t = '\\n'.join(migrated) + ('\\n' if t.endswith('\\n') else '')
+    t = '\n'.join(migrated) + ('\n' if t.endswith('\n') else '')
     p.write_text(t)
 
 Path('tests/v165-phone-settings-car-pager.test.cjs').write_text(r'''const fs = require('node:fs');
