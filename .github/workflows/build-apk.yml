@@ -151,6 +151,25 @@ jobs:
           cp /tmp/ttube-v163-car/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt app/src/main/java/com/carhud/aaproxy/
           cp /tmp/ttube-v163-car/app/src/main/java/com/carhud/aaproxy/CarHudAutoScreen.kt app/src/main/java/com/carhud/aaproxy/
           cp /tmp/ttube-v163-car/app/src/main/res/layout/dashboard.xml app/src/main/res/layout/
+          cat > tests/v164-theme-transition-tiktok.test.cjs <<'EOF'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const gradle = fs.readFileSync('app/build.gradle.kts','utf8');
+          const tik = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/TikTokWebPolicy.kt','utf8');
+          const iptv = fs.readFileSync('app/src/main/assets/iptv_player.html','utf8');
+
+          // v1.0.65 intentionally restores the car presentation/dashboard to v1.0.63,
+          // while keeping the v1.0.64 TikTok/IPTV fixes that are independent of car chrome.
+          assert.match(gradle,/versionCode = 252/);
+          assert.match(gradle,/versionName = "1\.0\.65"/);
+          assert.match(tik,/POLICY_VERSION = 9/);
+          assert.match(tik,/https:\/\/www\.tiktok\.com\/search\/video\?q=/);
+          assert.match(iptv,/iptv-stream-shield/);
+          assert.match(iptv,/setIptvStreamShield\(true\)/);
+          assert.match(iptv,/body\.iptv-day[\s\S]*--iptv-icon-color: #172033/);
+          console.log('PASS v1.0.65 v164-car63 compatibility: TikTok/IPTV fixes kept, car chrome restored to v1.0.63');
+          EOF
+
           cat > tests/v165-phone-hub-car-display.test.cjs <<'EOF'
           const fs = require('node:fs');
           const assert = require('node:assert/strict');
