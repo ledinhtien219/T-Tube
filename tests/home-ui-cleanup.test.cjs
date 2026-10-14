@@ -35,6 +35,11 @@ assert.match(projectionHost, /CarPresentation\(this, vd\.display, persistentWeb\
 assert.match(projectionHost, /hideAppHeader\(\)/);
 assert.match(projectionHost, /hideMenuButton\(\)/);
 
+// Keep NavigationTemplate for the legacy full app surface, but make the
+// required placeholder action fully transparent.
+assert.match(screen, /CarColor\.createCustom\(0x00000000, 0x00000000\)/);
+assert.match(screen, /ActionStrip\.Builder\(\)[\s\S]*?setTitle\("\\u200B"\)[\s\S]*?setFlags\(Action\.FLAG_PRIMARY\)[\s\S]*?setBackgroundColor\(transparent\)/);
+
 // Keep the existing weather-card bounds, but render weather with vector icons.
 assert.match(dashboardXml, /android:id="@\+id\/weatherCard"[\s\S]*?android:layout_width="150dp"[\s\S]*?android:layout_height="76dp"/);
 assert.match(dashboardXml, /<ImageView[\s\S]*?android:id="@\+id\/weatherIcon"[\s\S]*?android:layout_width="38dp"/);
