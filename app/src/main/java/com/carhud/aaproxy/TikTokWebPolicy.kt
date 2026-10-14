@@ -27,8 +27,8 @@ internal object TikTokWebPolicy {
             .let { it == "/search" || it.startsWith("/search/") }
 
     fun searchUrl(query: String): String =
-        // /search?q= is the stable public web route. /search/video?q= can render
-        // an empty mobile shell inside projected Android WebView sessions.
+        // The plain public search route is stable in projected Android WebView.
+        // The old video-specific route can render an empty mobile shell.
         "https://www.tiktok.com/search?q=" + Uri.encode(query.trim())
 
     fun userAgent(defaultUa: String): String {
