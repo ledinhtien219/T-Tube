@@ -28,7 +28,7 @@ assert.match(presentation,/goBackWithinTikTok\(\)/);
 assert.match(presentation,/R\.drawable\.ic_bar_search/);
 assert.match(presentation,/val tiktokActive = currentActiveAppId == "tiktok" \|\| TikTokWebPolicy\.isTikTok\(web\.url\)/);
 assert.match(presentation,/searchOverlayMode = if \(tiktokActive\) "tiktok" else "youtube"/);
-assert.match(tiktok,/POLICY_VERSION = (?:[789]|10)/);
+assert.match(tiktok,/POLICY_VERSION = (?:[789]|10|11)/);
 assert.match(tiktok,/Keep Android\/Chrome identity internally consistent/);
 // v1.0.63: canonical TikTok result navigation is intentional.
 assert.match(tiktok,/\[data-e2e="browse-sidebar"\]/);
