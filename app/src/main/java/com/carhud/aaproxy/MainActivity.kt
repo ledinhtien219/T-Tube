@@ -1330,6 +1330,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun configurePhoneWebViewForApp(view: WebView, app: WebAppItem, targetUrl: String = app.url) {
+        val defaultUa = android.webkit.WebSettings.getDefaultUserAgent(this)
+        val cleanUa = defaultUa.replace("; wv", "").replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
+        if (app.id == "tiktok" || TikTokWebPolicy.isTikTok(targetUrl)) {
+            TikTokWebPolicy.configure(view, targetUrl)
+        } else if (WebAppManager.isAppDesktop(this, app.id) && app.id != "youtube") {
+            view.settings.userAgentString = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+        } else {
+            view.settings.userAgentString = cleanUa
+            view.settings.useWideViewPort = true
+            view.settings.loadWithOverviewMode = app.id != "youtube"
+        }
+        view.setBackgroundColor(if (SettingsActivity.resolveIsDay(this)) Color.WHITE else Color.BLACK)
+        YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this))
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     private fun initYoutubeWebView() {
         if (youtubeWeb != null) return
@@ -1346,9 +1362,7 @@ class MainActivity : AppCompatActivity() {
         w.requestFocus()
         w.setOnTouchListener { v, event ->
             if (event.action == android.view.MotionEvent.ACTION_DOWN) {
-                if (!v.hasFocus()) {
-                    v.requestFocus()
-                }
+                if (!v.hasFocus()) v.requestFocus()
             } else if (event.action == android.view.MotionEvent.ACTION_UP) {
                 v.performClick()
             }
@@ -1359,8 +1373,8 @@ class MainActivity : AppCompatActivity() {
         w.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
+            databaseEnabled = true
             mediaPlaybackRequiresUserGesture = false
-            // Clean User-Agent removing '; wv' and 'Version/4.0' so Google Sign-In is supported natively inside WebView
             val cleanUa = android.webkit.WebSettings.getDefaultUserAgent(this@MainActivity)
                 .replace("; wv", "")
                 .replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
@@ -1368,7 +1382,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = true
             loadWithOverviewMode = true
             setSupportMultipleWindows(false)
-            javaScriptCanOpenWindowsAutomatically = true
+            javaScriptCanOpenWindowsAutomatically = false
         }
         YouTubePlayerHelper.applyUniversalWebTheme(w, SettingsActivity.resolveIsDay(this))
         android.webkit.CookieManager.getInstance().apply {
@@ -1379,23 +1393,52 @@ class MainActivity : AppCompatActivity() {
         w.webViewClient = object : android.webkit.WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
                 val target = request?.url?.toString() ?: return false
-                if (target.startsWith("intent:") ||
-                    target.startsWith("snssdk") ||
-                    target.startsWith("market:") ||
-                    target.contains("play.google.com/store")
-                ) {
+                if (target == "intent:home") {
+                    switchTab(TAB_HOME)
                     return true
+                }
+                if (target.startsWith("intent:") || target.startsWith("snssdk") || target.startsWith("market:") || target.contains("play.google.com/store")) {
+                    return true
+                }
+                if (view != null && request.isForMainFrame && TikTokWebPolicy.isTikTok(target)) {
+                    TikTokWebPolicy.configure(view, target)
                 }
                 return false
             }
 
+            override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this@MainActivity))
+                if (TikTokWebPolicy.isTikTok(url)) {
+                    activePhoneWebAppId = "tiktok"
+                    TikTokWebPolicy.configure(view, url)
+                    TikTokWebPolicy.fitLayout(view, url)
+                }
+            }
+
+            override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                super.doUpdateVisitedHistory(view, url, isReload)
+                if (view != null) {
+                    YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this@MainActivity))
+                    TikTokWebPolicy.fitLayout(view, url)
+                }
+            }
+
+            override fun onPageCommitVisible(view: WebView, url: String) {
+                super.onPageCommitVisible(view, url)
+                YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this@MainActivity))
+                TikTokWebPolicy.fitLayout(view, url)
+            }
+
             override fun shouldInterceptRequest(view: WebView?, request: android.webkit.WebResourceRequest?): android.webkit.WebResourceResponse? {
                 val url = request?.url?.toString()
-                if (url != null && (url.contains("accounts.google.com") || url.contains("ssl.gstatic.com/accounts") || url.contains("myaccount.google.com"))) {
+                val isYoutube = url?.contains("youtube.com", true) == true || url?.contains("youtu.be", true) == true
+                if (!isYoutube) return super.shouldInterceptRequest(view, request)
+                if (url.contains("accounts.google.com") || url.contains("ssl.gstatic.com/accounts") || url.contains("myaccount.google.com")) {
                     return super.shouldInterceptRequest(view, request)
                 }
                 YouTubeAdBlocker.shouldIntercept(request)?.let { return it }
-                if (url != null && YouTubePlayerHelper.isAdUrl(url)) {
+                if (YouTubePlayerHelper.isAdUrl(url)) {
                     val origin = request.requestHeaders?.get("Origin") ?: request.requestHeaders?.get("origin")
                     return YouTubePlayerHelper.createEmptyResponse(origin)
                 }
@@ -1404,8 +1447,16 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
-                YouTubeAdBlocker.onPageFinished(view, url)
-                YouTubePlayerHelper.trackVideoHistory(view)
+                val isYoutube = url.contains("youtube.com", true) || url.contains("youtu.be", true)
+                if (isYoutube) {
+                    YouTubeAdBlocker.onPageFinished(view, url)
+                    YouTubePlayerHelper.trackVideoHistory(view)
+                    activePhoneWebAppId = "youtube"
+                }
+                if (TikTokWebPolicy.isTikTok(url)) {
+                    activePhoneWebAppId = "tiktok"
+                    TikTokWebPolicy.fitLayout(view, url)
+                }
                 YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this@MainActivity))
                 android.webkit.CookieManager.getInstance().flush()
             }
@@ -1413,11 +1464,13 @@ class MainActivity : AppCompatActivity() {
 
         CarMediaManager.setupAndroidVoiceBridge(w, this, isAuto = false)
         CarMediaManager.registerPhoneWebView(w, this)
-        val currentMediaUrl = CarMediaManager.currentLoadingUrl.orEmpty()
-        val initialYoutubeUrl = currentMediaUrl.takeIf {
-            it.contains("youtube.com/watch", true) || it.contains("youtu.be/", true)
-        } ?: "https://m.youtube.com"
-        w.loadUrl(initialYoutubeUrl)
+        val startUrl = pendingPhoneWebUrl ?: if (activePhoneWebAppId == "youtube") "https://m.youtube.com" else
+            WebAppManager.getAllApps(this).find { it.id == activePhoneWebAppId }?.url ?: "https://m.youtube.com"
+        val startApp = WebAppManager.getAllApps(this).find { it.id == activePhoneWebAppId }
+            ?: WebAppManager.DEFAULT_APPS.first { it.id == "youtube" }
+        configurePhoneWebViewForApp(w, startApp, startUrl)
+        pendingPhoneWebUrl = null
+        w.loadUrl(startUrl)
     }
 
     // ==========================================
@@ -1581,6 +1634,10 @@ class MainActivity : AppCompatActivity() {
             @JavascriptInterface
             fun getM3uUrl(): String {
                 return IptvManager.getM3uUrl(this@MainActivity)
+            }
+            @JavascriptInterface
+            fun isDayTheme(): Boolean {
+                return SettingsActivity.resolveIsDay(this@MainActivity)
             }
             @JavascriptInterface
             fun reloadChannels() {
@@ -2344,6 +2401,8 @@ class MainActivity : AppCompatActivity() {
         iptvWeb?.onResume()
         youtubeWeb?.resumeTimers()
         iptvWeb?.resumeTimers()
+        applyPhoneTheme()
+        setupPhoneAppGrid()
         updatePermissionStatusDisplay()
         val imported = prefs.getLong(SettingsBackupManager.IMPORT_REVISION, 0L)
         if (imported != appliedSettingsImport) {
