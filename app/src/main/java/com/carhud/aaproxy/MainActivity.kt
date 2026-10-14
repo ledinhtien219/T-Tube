@@ -5,8 +5,10 @@ import com.carhud.app.R
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AlertDialog
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
@@ -59,6 +61,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var fullExitReceiver: BroadcastReceiver? = null
 
     // Tabs
     private lateinit var tabHomeView: ScrollView
@@ -429,6 +432,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        registerFullExitReceiver()
 
         // Reset một lần ở bản 0.9.1 để người dùng kiểm duyệt luồng kích hoạt
         val auditKey = "audit_activation_check_v171"
@@ -471,6 +475,29 @@ class MainActivity : AppCompatActivity() {
         ChangelogManager.checkAndShowChangelog(this, onDismiss = { UpdateNotificationManager.check(this) })
         startMediaObserver()
         loadQuickChannels()
+    }
+
+    private fun registerFullExitReceiver() {
+        if (fullExitReceiver != null) return
+        fullExitReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action != CarAppShutdownManager.ACTION_FULL_EXIT) return
+                try {
+                    // Remove the whole phone task immediately. The shutdown manager
+                    // then stops services and terminates the process a moment later.
+                    finishAndRemoveTask()
+                } catch (_: Throwable) {
+                    try { finishAffinity() } catch (_: Throwable) { finish() }
+                }
+            }
+        }
+        val filter = IntentFilter(CarAppShutdownManager.ACTION_FULL_EXIT)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(fullExitReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(fullExitReceiver, filter)
+        }
     }
 
     private fun initViews() {
@@ -2679,10 +2706,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
+        try {
+            fullExitReceiver?.let { unregisterReceiver(it) }
+            fullExitReceiver = null
+        } catch (_: Throwable) {}
+
         if (CarMediaManager.mainActivityRoot == findViewById<ViewGroup>(android.R.id.content)) {
             CarMediaManager.mainActivityRoot = null
         }
         mainHandler.removeCallbacksAndMessages(null)
+        super.onDestroy()
     }
 }
