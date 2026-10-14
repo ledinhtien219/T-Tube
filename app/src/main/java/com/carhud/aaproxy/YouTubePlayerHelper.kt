@@ -1454,13 +1454,41 @@ object YouTubePlayerHelper {
                                 if (!c) return null;
                                 return (0.2126*c.r + 0.7152*c.g + 0.0722*c.b) / 255;
                             }
-                            function pageLuminance() {
-                                var nodes = [body, root].filter(Boolean);
-                                for (var i=0; i<nodes.length; i++) {
-                                    var c = rgb(getComputedStyle(nodes[i]).backgroundColor);
-                                    if (c && c.a > 0.08) return luminance(c);
+                            function backgroundLuminanceFor(node) {
+                                var cur = node;
+                                for (var depth = 0; cur && depth < 8; depth++, cur = cur.parentElement) {
+                                    try {
+                                        var c = rgb(getComputedStyle(cur).backgroundColor);
+                                        if (c && c.a > 0.08) return luminance(c);
+                                    } catch (_) {}
                                 }
-                                return isDay ? 1 : 0;
+                                return null;
+                            }
+                            function pageLuminance() {
+                                var values = [];
+                                var w = Math.max(1, window.innerWidth || root.clientWidth || 1);
+                                var h = Math.max(1, window.innerHeight || root.clientHeight || 1);
+                                var points = [
+                                    [w * 0.50, h * 0.50],
+                                    [w * 0.25, h * 0.35],
+                                    [w * 0.75, h * 0.35],
+                                    [w * 0.25, h * 0.75],
+                                    [w * 0.75, h * 0.75]
+                                ];
+                                for (var p = 0; p < points.length; p++) {
+                                    try {
+                                        var hit = document.elementFromPoint(points[p][0], points[p][1]);
+                                        var hl = backgroundLuminanceFor(hit);
+                                        if (hl != null) values.push(hl);
+                                    } catch (_) {}
+                                }
+                                [body, root].filter(Boolean).forEach(function(node) {
+                                    var l = backgroundLuminanceFor(node);
+                                    if (l != null) values.push(l);
+                                });
+                                if (!values.length) return isDay ? 1 : 0;
+                                values.sort(function(a,b){ return a-b; });
+                                return values[Math.floor(values.length / 2)];
                             }
                             function applyMismatchFix() {
                                 try {
@@ -1479,8 +1507,16 @@ object YouTubePlayerHelper {
                                     var lum = pageLuminance();
                                     var mismatch = isDay ? lum < 0.38 : lum > 0.62;
                                     root.classList.toggle('carhud-theme-invert', !!mismatch);
-                                    root.style.setProperty('background-color', isDay ? '#ffffff' : '#0b0f14', 'important');
-                                    if (body) body.style.setProperty('background-color', isDay ? '#ffffff' : '#0b0f14', 'important');
+
+                                    // The CSS filter inverts the root itself too. When a page
+                                    // needs inversion, seed the pre-filter background with the
+                                    // opposite color so the rendered result matches the chosen
+                                    // day/night mode instead of flipping back to the wrong tone.
+                                    var renderedBg = mismatch
+                                        ? (isDay ? '#000000' : '#ffffff')
+                                        : (isDay ? '#ffffff' : '#0b0f14');
+                                    root.style.setProperty('background-color', renderedBg, 'important');
+                                    if (body) body.style.setProperty('background-color', renderedBg, 'important');
                                 } catch (_) {}
                             }
 
@@ -1588,8 +1624,8 @@ object YouTubePlayerHelper {
                                     'ytm-pivot-bar-item-renderer[aria-selected="true"] { color: #0f0f0f !important; } ' +
                                     'c3-icon, ytm-icon-button, [class*="icon-button"] { color: #0f0f0f !important; fill: #0f0f0f !important; } ' +
                                     'ytm-feed-nudge-renderer, .feed-nudge, ytm-rich-item-renderer, ytm-video-with-context-renderer, ytm-compact-video-renderer, ytm-item-section-renderer { background: transparent !important; } ' +
-                                    '.feed-nudge, ytm-feed-nudge-renderer { background: #f8f8f8 !important; border: 1px solid #e5e5e5 !important; border-radius: 12px !important; } ' +
-                                    '.feed-nudge *, ytm-feed-nudge-renderer * { color: #0f0f0f !important; -webkit-text-fill-color: #0f0f0f !important; } ' +
+                                    '.feed-nudge, [class*="feed-nudge"], ytm-feed-nudge-renderer, ytm-message-renderer, ytm-empty-state-renderer, ytm-background-promo-renderer { background: #f8f8f8 !important; background-color: #f8f8f8 !important; border: 1px solid #e5e5e5 !important; border-radius: 12px !important; color: #0f0f0f !important; } ' +
+                                    '.feed-nudge *, [class*="feed-nudge"] *, ytm-feed-nudge-renderer *, ytm-message-renderer *, ytm-empty-state-renderer *, ytm-background-promo-renderer * { color: #0f0f0f !important; -webkit-text-fill-color: #0f0f0f !important; } ' +
                                     'ytm-search-suggestion, .search-suggestion { background: #ffffff !important; color: #0f0f0f !important; }';
                             } else {
                                 document.documentElement.classList.add('dark');
@@ -1617,8 +1653,8 @@ object YouTubePlayerHelper {
                                     'ytm-pivot-bar-item-renderer[aria-selected="true"] { color: #ffffff !important; } ' +
                                     'c3-icon, ytm-icon-button, [class*="icon-button"] { color: #ffffff !important; fill: #ffffff !important; } ' +
                                     'ytm-feed-nudge-renderer, .feed-nudge, ytm-rich-item-renderer, ytm-video-with-context-renderer, ytm-compact-video-renderer, ytm-item-section-renderer { background: transparent !important; } ' +
-                                    '.feed-nudge, ytm-feed-nudge-renderer { background: #181818 !important; border: 1px solid #282828 !important; border-radius: 12px !important; } ' +
-                                    '.feed-nudge *, ytm-feed-nudge-renderer * { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; } ' +
+                                    '.feed-nudge, [class*="feed-nudge"], ytm-feed-nudge-renderer, ytm-message-renderer, ytm-empty-state-renderer, ytm-background-promo-renderer { background: #181818 !important; background-color: #181818 !important; border: 1px solid #282828 !important; border-radius: 12px !important; color: #ffffff !important; } ' +
+                                    '.feed-nudge *, [class*="feed-nudge"] *, ytm-feed-nudge-renderer *, ytm-message-renderer *, ytm-empty-state-renderer *, ytm-background-promo-renderer * { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; } ' +
                                     'ytm-search-suggestion, .search-suggestion { background: #000000 !important; color: #ffffff !important; }';
                             }
                         } catch(e) {}
