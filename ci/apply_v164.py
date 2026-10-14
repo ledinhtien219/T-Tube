@@ -152,8 +152,7 @@ if back_start >= 0:
                 break
     if brace < 0 or back_end < 0:
         raise SystemExit('v164: TikTok back function braces not found')
-    if insert_at >= 0:
-        back_fn = '''    private fun goBackTikTokOnly() {
+    back_fn = '''    private fun goBackTikTokOnly() {
         val visibleTikTok = TikTokWebPolicy.isTikTok(web.url)
         if (!visibleTikTok && currentActiveAppId != "tiktok") return
         currentActiveAppId = "tiktok"
@@ -199,6 +198,7 @@ else:
     }
 
 '''
+    if insert_at >= 0:
         s = s[:insert_at] + back_fn + s[insert_at:]
 
 p.write_text(s)
