@@ -15,7 +15,7 @@ import android.webkit.WebView
  * when the web feed itself becomes login-gated.
  */
 internal object TikTokWebPolicy {
-    private const val POLICY_VERSION = 10
+    private const val POLICY_VERSION = 11
 
     fun isTikTok(url: String?): Boolean {
         val host = runCatching { Uri.parse(url.orEmpty()).host.orEmpty().lowercase() }.getOrDefault("")
@@ -385,16 +385,38 @@ internal object TikTokWebPolicy {
                             (el.getAttribute('id') || '') + ' ' +
                             (el.getAttribute('role') || '')
                         )) || '').toLowerCase();
-                        var text = ((el.innerText || el.textContent || '') + '').toLowerCase().replace(/\s+/g, ' ').slice(0, 1800);
+                        var text = ((el.innerText || el.textContent || '') + '').toLowerCase().replace(/\s+/g, ' ').slice(0, 2200);
                         if (!text) return false;
-                        var asksOpenApp = text.indexOf('mở tiktok') >= 0 || text.indexOf('open tiktok') >= 0 ||
+
+                        var tiktokLitePromo =
+                            text.indexOf('tiktok lite') >= 0 &&
+                            (
+                                text.indexOf('open tiktok lite') >= 0 ||
+                                text.indexOf('try out more features') >= 0 ||
+                                text.indexOf('watch your favorite videos with less data') >= 0 ||
+                                text.indexOf('faster, smoother experience') >= 0
+                            );
+
+                        var asksOpenApp = tiktokLitePromo ||
+                            text.indexOf('mở tiktok') >= 0 || text.indexOf('open tiktok') >= 0 ||
                             text.indexOf('open app') >= 0 || text.indexOf('mở ứng dụng') >= 0 ||
                             text.indexOf('trải nghiệm đầy đủ trong ứng dụng') >= 0 ||
                             text.indexOf('full experience in the app') >= 0 ||
                             text.indexOf('enjoy the full experience') >= 0 ||
                             text.indexOf('tận hưởng trải nghiệm đầy đủ') >= 0;
                         if (!asksOpenApp) return false;
-                        return marker.indexOf('dialog') >= 0 || marker.indexOf('modal') >= 0 || isLargeFixedOverlay(el);
+
+                        var promoMarker =
+                            marker.indexOf('dialog') >= 0 ||
+                            marker.indexOf('modal') >= 0 ||
+                            marker.indexOf('popup') >= 0 ||
+                            marker.indexOf('bottomsheet') >= 0 ||
+                            marker.indexOf('app-promo') >= 0 ||
+                            marker.indexOf('apppromo') >= 0 ||
+                            marker.indexOf('download') >= 0 ||
+                            marker.indexOf('lite') >= 0;
+
+                        return promoMarker || isLargeFixedOverlay(el);
                     }
 
                     function unlockDocumentAfterModal() {
@@ -431,16 +453,45 @@ internal object TikTokWebPolicy {
 
                     function dismissLoginWalls(force) {
                         var now = Date.now();
-                        if (!force && state.lastLoginSweepAt && now - state.lastLoginSweepAt < 350) return;
+                        if (!force && state.lastLoginSweepAt && now - state.lastLoginSweepAt < 250) return;
                         state.lastLoginSweepAt = now;
-                        var candidates = document.querySelectorAll(
+
+                        var candidateList = Array.prototype.slice.call(document.querySelectorAll(
                             '[data-e2e="login-modal"], [data-e2e="modal-inner-wrapper"], ' +
                             '[data-e2e="bottom-login-entry"], [data-e2e="browse-login"], ' +
                             '[role="dialog"], [class*="LoginModal"], [class*="login-modal"], ' +
-                            '[class*="DivLoginGuide"], [class*="login-guide"], [class*="LoginContainer"]'
-                        );
+                            '[class*="DivLoginGuide"], [class*="login-guide"], [class*="LoginContainer"], ' +
+                            '[class*="Modal"], [class*="modal"], [class*="Popup"], [class*="popup"], ' +
+                            '[class*="BottomSheet"], [class*="bottom-sheet"], [class*="AppPromo"], ' +
+                            '[class*="app-promo"], [class*="TikTokLite"], [class*="tiktok-lite"]'
+                        ));
+
+                        // TikTok Lite promos are sometimes rendered in an anonymous portal
+                        // without dialog/modal classes. Find their CTA text, then walk up to
+                        // the large fixed/absolute container that owns the overlay.
+                        var triggers = document.querySelectorAll('button, a, [role="button"]');
+                        for (var i = 0; i < triggers.length; i++) {
+                            var trigger = triggers[i];
+                            var triggerText = ((trigger.innerText || trigger.textContent || '') + '')
+                                .toLowerCase().replace(/\s+/g, ' ').trim();
+                            if (
+                                triggerText.indexOf('open tiktok lite') < 0 &&
+                                triggerText.indexOf('tiktok lite') < 0 &&
+                                triggerText.indexOf('open tiktok') < 0
+                            ) continue;
+
+                            var node = trigger;
+                            for (var depth = 0; node && depth < 9; depth++, node = node.parentElement) {
+                                if (node === document.body || node === document.documentElement) break;
+                                if (looksLikeAppPromoWall(node) || isLargeFixedOverlay(node)) {
+                                    if (candidateList.indexOf(node) < 0) candidateList.push(node);
+                                    break;
+                                }
+                            }
+                        }
+
                         var hidden = false;
-                        candidates.forEach(function(el) {
+                        candidateList.forEach(function(el) {
                             var loginWall = looksLikeLoginWall(el);
                             var appPromo = !loginWall && looksLikeAppPromoWall(el);
                             if (!loginWall && !appPromo) return;
@@ -614,13 +665,24 @@ internal object TikTokWebPolicy {
                         try {
                             state.observer = new MutationObserver(function(mutations) {
                                 for (var i = 0; i < mutations.length; i++) {
-                                    if (mutations[i].addedNodes && mutations[i].addedNodes.length) {
+                                    var m = mutations[i];
+                                    if (
+                                        (m.addedNodes && m.addedNodes.length) ||
+                                        m.type === 'characterData' ||
+                                        (m.type === 'attributes' && (m.attributeName === 'class' || m.attributeName === 'style' || m.attributeName === 'aria-hidden'))
+                                    ) {
                                         schedule();
                                         return;
                                     }
                                 }
                             });
-                            state.observer.observe(document.documentElement, { childList: true, subtree: true });
+                            state.observer.observe(document.documentElement, {
+                                childList: true,
+                                subtree: true,
+                                characterData: true,
+                                attributes: true,
+                                attributeFilter: ['class', 'style', 'aria-hidden']
+                            });
                         } catch (_) {}
                     }
 
