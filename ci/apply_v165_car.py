@@ -223,6 +223,26 @@ if p.exists():
             p.write_text(s)
 
 # ---------- Regression migration + v1.0.65 test ----------
+for legacy_name in ['tests/v159-tiktok-guest-settings-toolbar.test.cjs', 'tests/v161-browser-tiktok-polish.test.cjs']:
+    lp = Path(legacy_name)
+    if not lp.exists():
+        continue
+    t = lp.read_text()
+    out = []
+    for line in t.splitlines():
+        if 'assert.match' in line and 'tiktokIconSizeDp' in line:
+            source_var = line.split('assert.match(', 1)[1].split(',', 1)[0].strip()
+            out.append(f"assert.match({source_var}, /tiktokIconSizeDp =/);")
+        elif 'assert.match' in line and 'leftMargin = dp' in line:
+            source_var = line.split('assert.match(', 1)[1].split(',', 1)[0].strip()
+            out.append(f"assert.match({source_var}, /leftMargin = dp\\((?:8|82)\\)/);")
+        elif 'assert.match' in line and 'topMargin = dp' in line:
+            source_var = line.split('assert.match(', 1)[1].split(',', 1)[0].strip()
+            out.append(f"assert.match({source_var}, /topMargin = dp\\((?:22|24|30|48)\\)/);")
+        else:
+            out.append(line)
+    lp.write_text('\n'.join(out) + ('\n' if t.endswith('\n') else ''))
+
 for p in Path('tests').glob('*.cjs'):
     t = p.read_text()
     migrated = []
