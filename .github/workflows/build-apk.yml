@@ -66,6 +66,7 @@ jobs:
           node tests/youtube-quality.test.cjs
           node tests/youtube-search-routing.test.cjs
           node tests/home-ui-cleanup.test.cjs
+          node tests/phone-home-grid.test.cjs
           node tests/web-session-retention.test.cjs
           node tests/app-switching.test.cjs
           node tests/youtube-voice-toolbar.test.cjs
