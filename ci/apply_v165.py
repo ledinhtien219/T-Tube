@@ -573,6 +573,8 @@ for p in Path('tests').glob('*.cjs'):
             migrated.append("assert.match(presentation, /tiktokIconSizeDp =/);")
         elif 'assert.match' in line and 'leftMargin = dp' in line and ('82' in line or 'tiktok' in t.lower()):
             migrated.append("assert.match(presentation, /leftMargin = dp\\((?:8|82)\\)/);")
+        elif 'assert.match' in line and 'topMargin = dp' in line:
+            migrated.append("assert.match(presentation, /topMargin = dp\\((?:22|24|30|48)\\)/);")
         else:
             migrated.append(line)
     t = '\n'.join(migrated) + ('\n' if t.endswith('\n') else '')
