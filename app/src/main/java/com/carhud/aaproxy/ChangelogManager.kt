@@ -31,22 +31,7 @@ object ChangelogManager {
             versionName = BuildConfig.VERSION_NAME,
             releaseDate = "Hiện tại",
             features = listOf(
-                "📱 TikTok guest: tự dọn login wall lớn, mở khóa cuộn và giữ hàng đợi video công khai để tiếp tục xem khi TikTok chặn feed đăng nhập.",
-                "↩️ Thanh Back/Home TikTok chuyển sang vị trí #2 cạnh rail trái và tăng kích thước để dễ bấm trên màn hình xe.",
-                "🧹 Cài đặt gọn hơn: bỏ thẻ Mic hệ thống Android Auto và bỏ 2 công tắc Giao diện Sáng/Tối + Bàn phím Web khỏi màn hình cài đặt.",
-                "📱 TikTok: trang xem video trên Android Auto chỉ còn khung video toàn màn hình; ẩn phần mô tả và bình luận bên phải.",
-                "🔎 YouTube: nút TÌM/ĐI trên bàn phím T Tube luôn điều hướng tới trang kết quả, kể cả khi Android Auto vừa dựng lại surface.",
-                "⌨️ Android Auto: ổn định bàn phím native/SearchTemplate, tránh phiên cũ hủy phiên mới và không còn phụ thuộc URL đứng yên khi submit YouTube.",
-                "🛡️ Tăng độ an toàn: các màn hình cài đặt/kích hoạt/tìm kiếm nội bộ không còn mở cho ứng dụng khác gọi trực tiếp.",
-                "🧹 Bỏ 2 quyền hệ thống không được sử dụng: BIND_APPWIDGET và SYSTEM_ALERT_WINDOW.",
-                "🧯 Giảm nguy cơ crash ở luồng giọng nói, chọn chất lượng YouTube và khôi phục phiên phát.",
-                "🔧 Chuẩn hóa gradlew về LF để build Linux/GitHub Actions ổn định hơn.",
-                "⌨️ Bàn phím nhận đầy đủ chuỗi chạm, hỗ trợ gõ nhanh và giữ phím.",
-                "▶️ Giảm thời gian chờ xử lý khi chọn video YouTube.",
-                "📱 TikTok nhận thao tác vuốt trực tiếp; tìm kiếm đi tới trang kết quả web.",
-                "🏠 Hiện tên ứng dụng, phóng lớn icon YouTube, Tivi và TikTok trên màn hình chính.",
-                "📱 TikTok dùng giao diện máy tính: menu trái, video dọc vừa chiều cao; xem video công khai không cần đăng nhập khi TikTok cho phép.",
-                "🧪 Bản thử nghiệm dựa trên projection v1.0.46. Chưa tích hợp Gboard trên màn hình xe."
+                "- Bug fix"
             )
         )
     )
