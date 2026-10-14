@@ -563,6 +563,10 @@ for p in Path('tests').glob('*.cjs'):
     t = p.read_text()
     t = t.replace('/versionCode = 251/', '/versionCode = 25[12]/')
     t = t.replace('/versionName = "1\\\\.0\\\\.64"/', '/versionName = "1\\\\.0\\\\.(?:64|65)"/')
+    t = t.replace('/tiktokIconSizeDp = \\\\(\\\\((?:62|64) \\\\* scale\\\\) \\\\/ 100\\\\)\\\\.coerceIn\\\\((?:58|60), (?:78|82)\\\\)/',
+                  '/tiktokIconSizeDp = \\\\(\\\\((?:58|62|64) \\\\* scale\\\\) \\\\/ 100\\\\)\\\\.coerceIn\\\\((?:54|58|60), (?:72|78|82)\\\\)/')
+    t = t.replace('/leftMargin = dp\\\\(82\\\\)/', '/leftMargin = dp\\\\((?:8|82)\\\\)/')
+    t = t.replace('/topMargin = dp\\\\((?:30|48)\\\\)/', '/topMargin = dp\\\\((?:24|30|48)\\\\)/')
     p.write_text(t)
 
 Path('tests/v165-phone-settings-car-pager.test.cjs').write_text(r'''const fs = require('node:fs');
