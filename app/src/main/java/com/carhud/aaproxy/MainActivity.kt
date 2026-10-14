@@ -563,9 +563,10 @@ class MainActivity : AppCompatActivity() {
         hideAllSubviews()
         activeTab = tab
 
-        // The phone home is a clean launcher: controls stay inside app/settings screens.
-        phoneBottomNav.visibility = if (tab != TAB_HOME && prefs.getBoolean(PREF_SHOW_BOTTOM_NAV, true)) View.VISIBLE else View.GONE
-        phoneMiniPlayer.visibility = if (tab != TAB_HOME && tab != TAB_YOUTUBE && prefs.getBoolean(PREF_SHOW_MINI_PLAYER, true)) View.VISIBLE else View.GONE
+        // Keep the phone navigation toolbar docked at the bottom on every tab, like the
+        // classic mobile UI. The mini-player stays above it except while YouTube is open.
+        phoneBottomNav.visibility = if (prefs.getBoolean(PREF_SHOW_BOTTOM_NAV, true)) View.VISIBLE else View.GONE
+        phoneMiniPlayer.visibility = if (tab != TAB_YOUTUBE && prefs.getBoolean(PREF_SHOW_MINI_PLAYER, true)) View.VISIBLE else View.GONE
 
         val bgAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
 
@@ -817,31 +818,189 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyPhoneTheme() {
         if (!::tabHomeView.isInitialized) return
+
         val isDay = SettingsActivity.resolveIsDay(this)
         val bg = if (isDay) Color.parseColor("#F1F5F9") else Color.parseColor("#070A11")
         val surface = if (isDay) Color.parseColor("#FFFFFF") else Color.parseColor("#0B111D")
+        val card = if (isDay) Color.parseColor("#D1D5DB") else Color.parseColor("#CC162033")
+        val cardBorder = if (isDay) Color.parseColor("#CBD5E1") else Color.parseColor("#334155")
+        val pill = if (isDay) Color.parseColor("#B8C0CC") else Color.parseColor("#401E293B")
+        val pillBorder = if (isDay) Color.parseColor("#94A3B8") else Color.parseColor("#475569")
         val muted = if (isDay) Color.parseColor("#475569") else Color.parseColor("#94A3B8")
 
+        // Main screens / sub-screens follow Day, Night or Auto. The T Tube header,
+        // mini-player and bottom navigation keep their familiar dark chrome.
         findViewById<View>(R.id.phoneRoot)?.setBackgroundColor(bg)
+        findViewById<View>(R.id.phoneTopBar)?.setBackgroundColor(Color.parseColor("#0B111D"))
         tabHomeView.setBackgroundColor(bg)
         tabYoutubeView.setBackgroundColor(surface)
         tabIptvView.setBackgroundColor(bg)
         tabSettingsView.setBackgroundColor(bg)
+        subviewWallpaper.setBackgroundColor(bg)
+        subviewDisplaySettings.setBackgroundColor(bg)
+        subviewPermissions.setBackgroundColor(bg)
+
         phoneAppsPageIndicator.setTextColor(muted)
-        phoneSearchBar.background = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(22).toFloat()
-            setColor(if (isDay) Color.parseColor("#E2E8F0") else Color.parseColor("#CC111827"))
-            setStroke(dp(1), if (isDay) Color.parseColor("#CBD5E1") else Color.parseColor("#475569"))
+        phoneSearchBar.background = createCardBg(
+            if (isDay) Color.parseColor("#E2E8F0") else Color.parseColor("#CC111827"),
+            22f,
+            if (isDay) Color.parseColor("#CBD5E1") else Color.parseColor("#475569"),
+            1
+        )
+
+        // Settings hub cards match the old light/dark phone interface.
+        listOf(
+            R.id.settingCardWallpaper,
+            R.id.settingCardDisplay,
+            R.id.settingCardPermissions,
+            R.id.settingCardUser,
+            R.id.settingCardIptv,
+            R.id.settingCardAdvanced
+        ).forEach { id ->
+            findViewById<View>(id)?.background = createCardBg(card, 16f, cardBorder, 1)
         }
+
+        fun grandParentOf(id: Int): View? {
+            val parent = findViewById<View>(id)?.parent as? View
+            return parent?.parent as? View
+        }
+
+        // The display-options panels do not all have IDs in XML; derive their cards
+        // from stable child controls so they theme together with the Settings hub.
+        listOfNotNull(
+            grandParentOf(R.id.switchShowHeroClock),
+            grandParentOf(R.id.btnThemeDark),
+            (findViewById<View>(R.id.accentPaletteContainer)?.parent as? View)
+        ).distinct().forEach { panel ->
+            if (panel.background != null) {
+                panel.backgroundTintList = android.content.res.ColorStateList.valueOf(card)
+            }
+        }
+
+        listOf(
+            R.id.btnRestoreDefaultLayout,
+            R.id.btnPermGrantLocation,
+            R.id.btnPermGrantMic,
+            R.id.btnPermGrantNotification,
+            R.id.btnPickM3uFile,
+            R.id.btnInputM3uUrl,
+            R.id.btnOpenAdvancedSettings
+        ).forEach { id ->
+            findViewById<View>(id)?.background = createCardBg(pill, 20f, pillBorder, 1)
+        }
+
+        // Convert the static XML text palette in both directions. Accent labels stay
+        // cyan; dark chrome (hero, player and bottom navigation) is deliberately skipped.
+        applyPhoneTextTheme(tabHomeView, isDay)
+        applyPhoneTextTheme(tabIptvView, isDay)
+        applyPhoneTextTheme(tabSettingsView, isDay)
+        applyPhoneTextTheme(subviewWallpaper, isDay)
+        applyPhoneTextTheme(subviewDisplaySettings, isDay)
+        applyPhoneTextTheme(subviewPermissions, isDay)
+
+        // Hero copy always overlays a photo and must remain white.
+        phoneGreetingText.setTextColor(Color.WHITE)
+        phoneClockText.setTextColor(Color.WHITE)
+        phoneDateText.setTextColor(Color.WHITE)
+        phoneLunarDateText.setTextColor(Color.WHITE)
+
+        // Header/back icons need contrast on light sub-screens.
+        val iconColor = if (isDay) Color.parseColor("#0F172A") else Color.WHITE
+        listOf(
+            R.id.btnBackWallpaper,
+            R.id.btnBackDisplaySettings,
+            R.id.btnBackPermissions,
+            R.id.btnBackIptv
+        ).forEach { id ->
+            findViewById<ImageView>(id)?.setColorFilter(iconColor)
+        }
+
         window.statusBarColor = bg
         window.navigationBarColor = bg
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            var flags = window.decorView.systemUiVisibility
+            flags = if (isDay) {
+                flags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            } else {
+                flags and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                flags = if (isDay) {
+                    flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                } else {
+                    flags and View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR.inv()
+                }
+            }
+            window.decorView.systemUiVisibility = flags
+        }
+
         youtubeWeb?.let { YouTubePlayerHelper.applyUniversalWebTheme(it, isDay) }
         iptvWeb?.let {
             YouTubePlayerHelper.applyUniversalWebTheme(it, isDay)
-            it.evaluateJavascript("if (typeof window.setIptvTheme === 'function') window.setIptvTheme(${if (isDay) "true" else "false"});", null)
+            it.evaluateJavascript(
+                "if (typeof window.setIptvTheme === 'function') window.setIptvTheme(${if (isDay) "true" else "false"});",
+                null
+            )
         }
+
         if (::phoneAppsPages.isInitialized) setupPhoneAppGrid()
+    }
+
+    private fun applyPhoneTextTheme(root: View, isDay: Boolean) {
+        val skipTreeIds = setOf(
+            R.id.cardPhoneCockpitPreview,
+            R.id.phoneMiniPlayer,
+            R.id.phoneBottomNav,
+            R.id.phoneTopBar
+        )
+        val skipTextIds = setOf(
+            R.id.btnThemeDark,
+            R.id.btnThemeLight,
+            R.id.btnThemeAuto
+        )
+
+        fun mappedColor(current: Int): Int? {
+            val white = Color.WHITE
+            val light1 = Color.parseColor("#E2E8F0")
+            val light2 = Color.parseColor("#CBD5E1")
+            val light3 = Color.parseColor("#94A3B8")
+            val dark1 = Color.parseColor("#0F172A")
+            val dark2 = Color.parseColor("#334155")
+            val dark3 = Color.parseColor("#475569")
+            val dark4 = Color.parseColor("#64748B")
+
+            return if (isDay) {
+                when (current) {
+                    white -> dark1
+                    light1 -> dark2
+                    light2 -> dark3
+                    light3 -> dark4
+                    else -> null
+                }
+            } else {
+                when (current) {
+                    dark1 -> white
+                    dark2 -> light1
+                    dark3 -> light2
+                    dark4 -> light3
+                    else -> null
+                }
+            }
+        }
+
+        fun walk(view: View) {
+            if (view.id in skipTreeIds) return
+            if (view is TextView && view.id !in skipTextIds) {
+                mappedColor(view.currentTextColor)?.let(view::setTextColor)
+            }
+            if (view is ViewGroup) {
+                for (i in 0 until view.childCount) {
+                    walk(view.getChildAt(i))
+                }
+            }
+        }
+
+        walk(root)
     }
 
     private fun loadSavedFavorites() {
@@ -1133,10 +1292,10 @@ class MainActivity : AppCompatActivity() {
         bindSwitch(sCardBrowser, PREF_SHOW_CARD_BROWSER) { phoneCardBrowser.visibility = if (it) View.VISIBLE else View.GONE }
         bindSwitch(sFav, PREF_SHOW_FAV_CHANNELS) { sectionFavChannels.visibility = if (it) View.VISIBLE else View.GONE }
         bindSwitch(sPlayer, PREF_SHOW_MINI_PLAYER) {
-            phoneMiniPlayer.visibility = if (it && activeTab != TAB_HOME && activeTab != TAB_YOUTUBE) View.VISIBLE else View.GONE
+            phoneMiniPlayer.visibility = if (it && activeTab != TAB_YOUTUBE) View.VISIBLE else View.GONE
         }
         bindSwitch(sNav, PREF_SHOW_BOTTOM_NAV) {
-            phoneBottomNav.visibility = if (it && activeTab != TAB_HOME) View.VISIBLE else View.GONE
+            phoneBottomNav.visibility = if (it) View.VISIBLE else View.GONE
         }
 
         // Restore button
@@ -1246,8 +1405,8 @@ class MainActivity : AppCompatActivity() {
         phoneCardM3u.visibility = if (prefs.getBoolean(PREF_SHOW_CARD_M3U, false)) View.VISIBLE else View.GONE
         phoneCardBrowser.visibility = if (prefs.getBoolean(PREF_SHOW_CARD_BROWSER, true)) View.VISIBLE else View.GONE
         sectionFavChannels.visibility = if (prefs.getBoolean(PREF_SHOW_FAV_CHANNELS, false)) View.VISIBLE else View.GONE
-        phoneMiniPlayer.visibility = if (activeTab != TAB_HOME && activeTab != TAB_YOUTUBE && prefs.getBoolean(PREF_SHOW_MINI_PLAYER, true)) View.VISIBLE else View.GONE
-        phoneBottomNav.visibility = if (activeTab != TAB_HOME && prefs.getBoolean(PREF_SHOW_BOTTOM_NAV, true)) View.VISIBLE else View.GONE
+        phoneMiniPlayer.visibility = if (activeTab != TAB_YOUTUBE && prefs.getBoolean(PREF_SHOW_MINI_PLAYER, true)) View.VISIBLE else View.GONE
+        phoneBottomNav.visibility = if (prefs.getBoolean(PREF_SHOW_BOTTOM_NAV, true)) View.VISIBLE else View.GONE
     }
 
     // ==========================================
