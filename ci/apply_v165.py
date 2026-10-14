@@ -569,6 +569,12 @@ for p in Path('tests').glob('*.cjs'):
     t = t.replace('/topMargin = dp\\\\((?:30|48)\\\\)/', '/topMargin = dp\\\\((?:24|30|48)\\\\)/')
     migrated = []
     for line in t.splitlines():
+        if p.name == 'v164-theme-transition-tiktok.test.cjs' and 'assert.match(gradle' in line and 'versionCode' in line:
+            migrated.append("assert.match(gradle,/versionCode = 25[12]/);")
+            continue
+        if p.name == 'v164-theme-transition-tiktok.test.cjs' and 'assert.match(gradle' in line and 'versionName' in line:
+            migrated.append('assert.match(gradle,/versionName = "1\\.0\\.(?:64|65)"/);')
+            continue
         if 'assert.match' in line and 'POLICY_VERSION' in line:
             policy_line = line.replace('[678]', '[6789]').replace('[78]', '[789]')
             policy_line = policy_line.replace('POLICY_VERSION = 8/', 'POLICY_VERSION = [89]/')
