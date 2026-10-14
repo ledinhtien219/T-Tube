@@ -18,7 +18,6 @@
             android:id="@+id/phoneTopBar"
             android:layout_width="match_parent"
             android:layout_height="52dp"
-            android:visibility="gone"
             android:background="#0B111D"
             android:gravity="center_vertical"
             android:paddingStart="16dp"
@@ -2014,7 +2013,6 @@
         <!-- ================= MINI PLAYER BAR (FLOATING DOCKED) ================= -->
         <LinearLayout
             android:id="@+id/phoneMiniPlayer"
-            android:visibility="gone"
             android:layout_width="match_parent"
             android:layout_height="62dp"
             android:background="@drawable/bg_player_card_frosted"
@@ -2129,7 +2127,6 @@
         <!-- ================= MODERN BOTTOM NAVIGATION BAR ================= -->
         <LinearLayout
             android:id="@+id/phoneBottomNav"
-            android:visibility="gone"
             android:layout_width="match_parent"
             android:layout_height="58dp"
             android:background="@drawable/bg_phone_bottom_nav"
