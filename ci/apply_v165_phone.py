@@ -1,6 +1,6 @@
 from pathlib import Path
 
-# T Tube v1.0.65 / Build 252 — phone becomes the configuration/control center.
+# T Tube v1.0.65 / Build 252 — phone Home is the app launcher.
 p = Path('app/build.gradle.kts')
 s = p.read_text().replace('versionCode = 251', 'versionCode = 252').replace('versionName = "1.0.64"', 'versionName = "1.0.65"')
 p.write_text(s)
@@ -17,12 +17,10 @@ if 'private var phoneHubPager:' not in s:
     private var phoneHubPage = 0
     private var phoneHubDownX = 0f
 
-    private data class PhoneHubItem(
-        val icon: String,
-        val title: String,
-        val accent: String,
-        val action: () -> Unit
-    )
+    private companion object PhoneHomeGrid {
+        const val PHONE_HOME_PAGE_COUNT = 3
+        const val PHONE_HOME_APPS_PER_PAGE = 9
+    }
 '''
     if field_anchor not in s:
         raise SystemExit('v165 phone: field anchor missing')
@@ -52,24 +50,23 @@ if 'private fun setupPhoneHubPager(' not in s:
         }
     }
 
-    private fun openPhoneAdvancedSettings() {
-        startActivity(Intent(this, SettingsActivity::class.java))
-    }
-
-    private fun openExternalPhoneUrl(url: String) {
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-        } catch (_: Throwable) {
-            Toast.makeText(this, "Không tìm thấy ứng dụng phù hợp để mở.", Toast.LENGTH_SHORT).show()
+    private fun openPhoneHomeApp(app: WebAppItem) {
+        when (app.id) {
+            "youtube" -> {
+                switchTab(TAB_YOUTUBE)
+                initYoutubeWebView()
+                youtubeWeb?.loadUrl(app.url)
+            }
+            "iptv" -> switchTab(TAB_IPTV)
+            else -> {
+                switchTab(TAB_YOUTUBE)
+                initYoutubeWebView()
+                youtubeWeb?.loadUrl(app.url)
+            }
         }
     }
 
-    private fun openPhoneSettingsCard(viewId: Int) {
-        switchTab(TAB_SETTINGS)
-        mainHandler.post { findViewById<View>(viewId)?.performClick() }
-    }
-
-    private fun createPhoneHubCell(item: PhoneHubItem, day: Boolean): LinearLayout {
+    private fun createPhoneHubCell(app: WebAppItem, day: Boolean): LinearLayout {
         val cardBg = if (day) Color.parseColor("#F6FFFFFF") else Color.parseColor("#E80D1522")
         val stroke = if (day) Color.parseColor("#D6E0E9") else Color.parseColor("#26384D")
         val primary = if (day) Color.parseColor("#172033") else Color.WHITE
@@ -82,18 +79,27 @@ if 'private fun setupPhoneHubPager(' not in s:
             isClickable = true
             isFocusable = true
             elevation = dp(1).toFloat()
+            contentDescription = app.name
 
-            addView(TextView(this@MainActivity).apply {
-                text = item.icon
-                textSize = 25f
-                gravity = Gravity.CENTER
-                background = createCircleBg(Color.parseColor(item.accent))
-            }, LinearLayout.LayoutParams(dp(48), dp(48)).apply {
+            val iconHolder = FrameLayout(this@MainActivity).apply {
+                background = createCircleBg(
+                    try { Color.parseColor(app.colorHex) } catch (_: Throwable) { activeAccentColor }
+                )
+            }
+            val icon = ImageView(this@MainActivity).apply {
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                val custom = app.iconPath?.takeIf { it.isNotBlank() }?.let {
+                    try { BitmapFactory.decodeFile(it) } catch (_: Throwable) { null }
+                }
+                if (custom != null) setImageBitmap(custom) else setImageResource(app.iconRes)
+            }
+            iconHolder.addView(icon, FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER))
+            addView(iconHolder, LinearLayout.LayoutParams(dp(48), dp(48)).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
             })
 
             addView(TextView(this@MainActivity).apply {
-                text = item.title
+                text = app.name
                 textSize = 10.5f
                 typeface = Typeface.DEFAULT_BOLD
                 gravity = Gravity.CENTER
@@ -104,7 +110,8 @@ if 'private fun setupPhoneHubPager(' not in s:
                 topMargin = dp(6)
             })
 
-            setOnClickListener { item.action() }
+            setOnClickListener { openPhoneHomeApp(app) }
+            enableTouchBounce(0.96f)
         }
     }
 
@@ -125,7 +132,7 @@ if 'private fun setupPhoneHubPager(' not in s:
 
     private fun showPhoneHubPage(page: Int, smooth: Boolean = true) {
         val pager = phoneHubPager ?: return
-        val target = page.coerceIn(0, 2)
+        val target = page.coerceIn(0, PHONE_HOME_PAGE_COUNT - 1)
         phoneHubPage = target
         val width = pager.width.takeIf { it > 0 }
             ?: (resources.displayMetrics.widthPixels - dp(32)).coerceAtLeast(dp(280))
@@ -141,54 +148,14 @@ if 'private fun setupPhoneHubPager(' not in s:
             homeColumn.removeView(old)
         }
 
+        // Keep the old 2x2 service block in the layout for preference compatibility,
+        // but never show it on the v1.0.65 phone Home.
         ((phoneCardYoutube.parent as? View)?.parent as? View)?.visibility = View.GONE
-        sectionFavChannels.visibility = View.GONE
-        phoneSearchBar.visibility = View.GONE
 
         val day = phoneHubIsDay()
         val secondary = if (day) Color.parseColor("#687789") else Color.parseColor("#94A3B8")
-
-        val page1 = listOf(
-            PhoneHubItem("▶", "YouTube", "#E11D48") { switchTab(TAB_YOUTUBE) },
-            PhoneHubItem("📺", "IPTV", "#7C3AED") { switchTab(TAB_IPTV) },
-            PhoneHubItem("🌐", "Trình duyệt", "#0284C7") {
-                switchTab(TAB_YOUTUBE)
-                initYoutubeWebView()
-                youtubeWeb?.loadUrl("https://www.google.com")
-            },
-            PhoneHubItem("♪", "TikTok", "#111827") { openExternalPhoneUrl("https://www.tiktok.com/") },
-            PhoneHubItem("📍", "Google Maps", "#2563EB") { openExternalPhoneUrl("https://maps.google.com/") },
-            PhoneHubItem("🎵", "Zing MP3", "#9333EA") { openExternalPhoneUrl("https://zingmp3.vn/") },
-            PhoneHubItem("●", "Spotify", "#16A34A") { openExternalPhoneUrl("https://open.spotify.com/") },
-            PhoneHubItem("TV", "VTV Go", "#DC2626") { openExternalPhoneUrl("https://vtvgo.vn/") },
-            PhoneHubItem("▤", "Báo Mới", "#0EA5E9") { openExternalPhoneUrl("https://baomoi.com/") }
-        )
-
-        val page2 = listOf(
-            PhoneHubItem("▦", "Ứng dụng xe", "#334155") { openPhoneAdvancedSettings() },
-            PhoneHubItem("◐", "Sáng / Tối / Auto", "#4F46E5") { showSubview(subviewDisplaySettings) },
-            PhoneHubItem("▣", "Hình nền", "#0891B2") { showSubview(subviewWallpaper) },
-            PhoneHubItem("M3U", "IPTV / M3U", "#7C3AED") { switchTab(TAB_SETTINGS) },
-            PhoneHubItem("♫", "Media & vô lăng", "#9333EA") { openPhoneAdvancedSettings() },
-            PhoneHubItem("🛡", "HUD & tốc độ", "#059669") { openPhoneAdvancedSettings() },
-            PhoneHubItem("🎙", "Mic hệ thống", "#0F766E") { openPhoneAdvancedSettings() },
-            PhoneHubItem("▤", "Dock màn hình xe", "#0369A1") { openPhoneAdvancedSettings() },
-            PhoneHubItem("⌨", "Bàn phím Web", "#475569") { openPhoneAdvancedSettings() }
-        )
-
-        val page3 = listOf(
-            PhoneHubItem("🔐", "Quyền truy cập", "#B45309") { showSubview(subviewPermissions) },
-            PhoneHubItem("👤", "Tên hiển thị", "#2563EB") { openPhoneSettingsCard(R.id.settingCardUser) },
-            PhoneHubItem("✓", "Bản quyền", "#059669") { startActivity(Intent(this, ActivationActivity::class.java)) },
-            PhoneHubItem("ID", "Mã thiết bị", "#0F766E") { startActivity(Intent(this, ActivationActivity::class.java)) },
-            PhoneHubItem("↻", "Cập nhật", "#0284C7") { UpdateNotificationManager.check(this, manual = true) },
-            PhoneHubItem("⇧", "Sao lưu", "#4F46E5") { openPhoneAdvancedSettings() },
-            PhoneHubItem("⇩", "Khôi phục", "#7C3AED") { openPhoneAdvancedSettings() },
-            PhoneHubItem("≡", "Nhật ký", "#334155") { ChangelogManager.showChangelogDialog(this) },
-            PhoneHubItem("i", "Thông tin", "#475569") {
-                Toast.makeText(this, "T Tube " + BuildConfig.VERSION_NAME + " • Build " + BuildConfig.VERSION_CODE, Toast.LENGTH_LONG).show()
-            }
-        )
+        val apps = WebAppManager.getEnabledApps(this)
+            .take(PHONE_HOME_PAGE_COUNT * PHONE_HOME_APPS_PER_PAGE)
 
         val section = LinearLayout(this).apply {
             tag = "ttube-phone-hub"
@@ -209,30 +176,33 @@ if 'private fun setupPhoneHubPager(' not in s:
         }
         pager.addView(track, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(286)))
 
-        val pages = listOf(page1, page2, page3)
         val pageWidth = (resources.displayMetrics.widthPixels - dp(32)).coerceAtLeast(dp(280))
-        for (items in pages) {
+        repeat(PHONE_HOME_PAGE_COUNT) { pageIndex ->
             val grid = android.widget.GridLayout(this).apply {
                 columnCount = 3
                 rowCount = 3
                 setPadding(dp(2), dp(2), dp(2), dp(2))
             }
-            items.forEachIndexed { index, item ->
-                grid.addView(createPhoneHubCell(item, day), android.widget.GridLayout.LayoutParams().apply {
-                    width = 0
-                    height = dp(88)
-                    columnSpec = android.widget.GridLayout.spec(index % 3, 1, 1f)
-                    rowSpec = android.widget.GridLayout.spec(index / 3, 1, 1f)
-                    setMargins(dp(4), dp(4), dp(4), dp(4))
-                })
-            }
+
+            apps.drop(pageIndex * PHONE_HOME_APPS_PER_PAGE)
+                .take(PHONE_HOME_APPS_PER_PAGE)
+                .forEachIndexed { index, app ->
+                    grid.addView(createPhoneHubCell(app, day), android.widget.GridLayout.LayoutParams().apply {
+                        width = 0
+                        height = dp(88)
+                        columnSpec = android.widget.GridLayout.spec(index % 3, 1, 1f)
+                        rowSpec = android.widget.GridLayout.spec(index / 3, 1, 1f)
+                        setMargins(dp(4), dp(4), dp(4), dp(4))
+                    })
+                }
+
             track.addView(grid, LinearLayout.LayoutParams(pageWidth, dp(286)))
         }
 
         val dots = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            repeat(3) {
+            repeat(PHONE_HOME_PAGE_COUNT) {
                 addView(View(this@MainActivity), LinearLayout.LayoutParams(dp(7), dp(7)).apply {
                     marginStart = dp(4)
                     marginEnd = dp(4)
@@ -282,11 +252,55 @@ theme_save = '            prefs.edit().putString(PREF_THEME_MODE, mode).apply()\
 if theme_save in s and 'setupPhoneHubPager(rebuild = true)' not in s:
     s = s.replace(theme_save, theme_save + '            setupPhoneHubPager(rebuild = true)\n', 1)
 
+# Refresh the app launcher when returning from app/settings management.
+resume_anchor = '        updatePermissionStatusDisplay()\n'
+if resume_anchor in s and 'setupPhoneHubPager(rebuild = true)\n        val imported' not in s:
+    s = s.replace(
+        resume_anchor,
+        resume_anchor + '        if (phoneHubPager != null) setupPhoneHubPager(rebuild = true)\n',
+        1
+    )
+
 p.write_text(s)
 
-checks = ['setupPhoneHubPager()', 'columnCount = 3', 'rowCount = 3', 'Vuốt ngang để chuyển Trang 1 / 2 / 3']
+# Regression test: exactly the 9 requirements for phone Home.
+test = Path('tests/phone-home-grid.test.cjs')
+test.write_text(r'''const fs = require('node:fs');
+const assert = require('node:assert/strict');
+
+const main = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/MainActivity.kt', 'utf8');
+
+assert.match(main, /PHONE_HOME_PAGE_COUNT = 3/);
+assert.match(main, /PHONE_HOME_APPS_PER_PAGE = 9/);
+assert.match(main, /WebAppManager\.getEnabledApps\(this\)/);
+assert.match(main, /take\(PHONE_HOME_PAGE_COUNT \* PHONE_HOME_APPS_PER_PAGE\)/);
+assert.match(main, /repeat\(PHONE_HOME_PAGE_COUNT\)/);
+assert.match(main, /columnCount = 3/);
+assert.match(main, /rowCount = 3/);
+assert.match(main, /take\(PHONE_HOME_APPS_PER_PAGE\)/);
+assert.match(main, /Vuốt ngang để chuyển Trang 1 \/ 2 \/ 3/);
+assert.match(main, /phoneCardYoutube\.parent[\s\S]*?visibility = View\.GONE/);
+
+const pagerStart = main.indexOf('private fun setupPhoneHubPager');
+const pagerEnd = main.indexOf('private fun setupHomeActions', pagerStart);
+assert.ok(pagerStart >= 0 && pagerEnd > pagerStart);
+const pager = main.slice(pagerStart, pagerEnd);
+assert.doesNotMatch(pager, /Quyền truy cập|Tên hiển thị|Bản quyền/);
+
+console.log('PASS phone Home: 3x3, 9 apps/page, 3 pages, max 27 enabled apps, legacy 2x2 hidden');
+''')
+
+checks = [
+    'setupPhoneHubPager()',
+    'PHONE_HOME_PAGE_COUNT = 3',
+    'PHONE_HOME_APPS_PER_PAGE = 9',
+    'WebAppManager.getEnabledApps(this)',
+    'columnCount = 3',
+    'rowCount = 3',
+    'Vuốt ngang để chuyển Trang 1 / 2 / 3'
+]
 for needle in checks:
     if needle not in s:
         raise SystemExit('v165 phone missing: ' + needle)
 
-print('v1.0.65 phone 3x3 pager transform complete')
+print('v1.0.65 phone 3x3 app launcher transform complete')
