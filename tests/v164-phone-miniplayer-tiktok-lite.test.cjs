@@ -30,8 +30,8 @@ assert.match(tiktok, /open tiktok lite/);
 assert.match(tiktok, /watch your favorite videos with less data/);
 assert.match(tiktok, /candidateList/);
 assert.match(tiktok, /button, a, \[role="button"\]/);
-assert.match(tiktok, /characterData: true/);
-assert.match(tiktok, /attributeFilter: \['class', 'style', 'aria-hidden'\]/);
+assert.match(tiktok, /\{ childList: true, subtree: true \}/);
+assert.doesNotMatch(tiktok, /attributeFilter/);
 assert.doesNotMatch(tiktok, /setInterval\s*\(/);
 
 console.log('PASS mini-player tab scope + delayed TikTok Lite popup suppression');
