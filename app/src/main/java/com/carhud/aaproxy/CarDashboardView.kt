@@ -104,8 +104,16 @@ class CarDashboardView(
                 updateWallpaper()
             }
         }
-        if (key != null && (key.startsWith("pref_show_") || key == SettingsActivity.KEY_THEME_MODE || key == MainActivity.PREF_FAV_CHANNELS_SET)) {
+        if (key != null && (
+                key.startsWith("pref_show_") ||
+                    key == MainActivity.PREF_DASHBOARD_PINNED_APPS ||
+                    key == SettingsActivity.KEY_THEME_MODE ||
+                    key == MainActivity.PREF_FAV_CHANNELS_SET
+                )) {
             post {
+                if (key == MainActivity.PREF_DASHBOARD_PINNED_APPS) {
+                    refreshPinnedApps()
+                }
                 applyComponentVisibility()
                 if (key == MainActivity.PREF_FAV_CHANNELS_SET) {
                     populateFavChannels()
@@ -151,6 +159,9 @@ class CarDashboardView(
     private lateinit var cardYoutube: LinearLayout
     private lateinit var cardBrowser: LinearLayout
     private lateinit var cardBookmark: LinearLayout
+    private var pinnedAppsScroll: View? = null
+    private var pinnedAppsRow: LinearLayout? = null
+    private val dynamicPinnedCards = mutableListOf<LinearLayout>()
 
     // Favorite Channels row
     private var favChannelsScroll: View? = null
@@ -228,6 +239,8 @@ class CarDashboardView(
         cardYoutube = findViewById(R.id.cardYoutube)
         cardBrowser = findViewById(R.id.cardBrowser)
         cardBookmark = findViewById(R.id.cardBookmark)
+        pinnedAppsScroll = findViewById(R.id.pinnedAppsScroll)
+        pinnedAppsRow = findViewById(R.id.pinnedAppsRow)
 
         favChannelsScroll = findViewById(R.id.favChannelsScroll)
         favChannelsRow = findViewById(R.id.favChannelsRow)
@@ -250,6 +263,7 @@ class CarDashboardView(
         playerTitleText.isSelected = true
         applyDayNightMode(SettingsActivity.resolveIsDay(context))
         populateFavChannels()
+        refreshPinnedApps()
         applyComponentVisibility()
     }
 
@@ -311,13 +325,29 @@ class CarDashboardView(
         val cardHeight = if (compactHeight) 68 else if (compactWidth) 74 else 82
         val cardGap = if (compactWidth) 6 else 10
 
-        listOfNotNull(cardVtv, cardM3u, cardYoutube, cardBrowser, cardBookmark).forEachIndexed { index, card ->
-            val lp = card.layoutParams as? LinearLayout.LayoutParams ?: return@forEachIndexed
+        listOfNotNull(cardM3u, cardBookmark).plus(dynamicPinnedCards).forEach { card ->
+            val lp = card.layoutParams as? LinearLayout.LayoutParams ?: return@forEach
             lp.width = dp(cardWidth)
             lp.height = dp(cardHeight)
-            lp.marginEnd = dp(if (index == 4) cardGap + 2 else cardGap)
+            lp.marginEnd = dp(cardGap)
             card.layoutParams = lp
             card.setPadding(dp(if (compactWidth) 4 else 6), dp(4), dp(if (compactWidth) 4 else 6), dp(4))
+            (card.getChildAt(0) as? ImageView)?.let { icon ->
+                val iconSize = dp(if (cardHeight < 74) 40 else 48)
+                icon.layoutParams = icon.layoutParams.apply { width = iconSize; height = iconSize }
+            }
+        }
+
+        pinnedAppsScroll?.layoutParams = pinnedAppsScroll?.layoutParams?.apply {
+            width = dp(
+                when {
+                    veryCompactWidth -> 210
+                    compactWidth -> 260
+                    widthDp < 1000f -> 320
+                    else -> 360
+                }
+            )
+            height = dp(cardHeight)
         }
 
         (miniPlayerCard.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
@@ -354,13 +384,80 @@ class CarDashboardView(
         dashboardMainContent.requestLayout()
     }
 
+    private fun refreshPinnedApps() {
+        val row = pinnedAppsRow ?: return
+        row.removeAllViews()
+        dynamicPinnedCards.clear()
+
+        val apps = WebAppManager.getPinnedDashboardApps(context)
+        apps.forEach { app ->
+            val card = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(6), dp(4), dp(6), dp(4))
+                background = rounded(
+                    Color.parseColor("#33101E33"),
+                    14f,
+                    Color.parseColor("#4038BDF8"),
+                    1
+                )
+                isClickable = true
+                isFocusable = true
+                layoutParams = LinearLayout.LayoutParams(dp(92), dp(82)).apply {
+                    marginEnd = dp(10)
+                }
+
+                val icon = ImageView(context).apply {
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    if (!app.iconPath.isNullOrBlank() && File(app.iconPath).exists()) {
+                        val bmp = BitmapFactory.decodeFile(app.iconPath)
+                        if (bmp != null) setImageBitmap(bmp) else setImageResource(app.iconRes)
+                    } else {
+                        setImageResource(app.iconRes)
+                    }
+                }
+                addView(icon, LinearLayout.LayoutParams(dp(48), dp(48)))
+
+                contentDescription = app.name
+                addView(TextView(context).apply {
+                    text = when (app.id) { "youtube" -> "YouTube"; "iptv" -> "Tivi"; else -> app.name }
+                    textSize = 12f
+                    includeFontPadding = false
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(Color.WHITE)
+                    gravity = Gravity.CENTER
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).apply { topMargin = dp(2) }
+                })
+
+                addView(TextView(context).apply {
+                    visibility = View.GONE
+                    text = WebAppManager.getCategoryName(app.id)
+                    textSize = 9f
+                    setTextColor(Color.parseColor("#38BDF8"))
+                    gravity = Gravity.CENTER
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                })
+
+                setOnClickListener { onAppClick(app) }
+            }
+
+            dynamicPinnedCards.add(card)
+            row.addView(card)
+        }
+
+        pinnedAppsScroll?.visibility = if (apps.isEmpty()) View.GONE else View.VISIBLE
+    }
+
     fun applyComponentVisibility() {
         val showHeroClock = prefs.getBoolean(MainActivity.PREF_SHOW_HERO_CLOCK, true)
         val showSearchBar = prefs.getBoolean(MainActivity.PREF_SHOW_SEARCH_BAR, true)
-        val showCardYt = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_YOUTUBE, true)
-        val showCardIptv = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_IPTV, true)
         val showCardM3u = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_M3U, true)
-        val showCardBrowser = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_BROWSER, true)
         val showMiniPlayer = prefs.getBoolean(MainActivity.PREF_SHOW_MINI_PLAYER, true)
         val showFavChannels = prefs.getBoolean(MainActivity.PREF_SHOW_FAV_CHANNELS, true)
 
@@ -370,16 +467,14 @@ class CarDashboardView(
         if (::searchBarPill.isInitialized) {
             searchBarPill.visibility = if (showSearchBar) View.VISIBLE else View.GONE
         }
-        if (::cardYoutube.isInitialized) {
-            cardYoutube.visibility = if (showCardYt) View.VISIBLE else View.GONE
-        }
-        if (::cardVtv.isInitialized) {
-            cardVtv.visibility = if (showCardIptv) View.VISIBLE else View.GONE
-        }
+        // YouTube/IPTV/Browser are represented by the user-selected pinned row.
+        if (::cardYoutube.isInitialized) cardYoutube.visibility = View.GONE
+        if (::cardVtv.isInitialized) cardVtv.visibility = View.GONE
+        if (::cardBrowser.isInitialized) cardBrowser.visibility = View.GONE
+        pinnedAppsScroll?.visibility =
+            if ((pinnedAppsRow?.childCount ?: 0) > 0) View.VISIBLE else View.GONE
+
         cardM3u?.visibility = if (showCardM3u) View.VISIBLE else View.GONE
-        if (::cardBrowser.isInitialized) {
-            cardBrowser.visibility = if (showCardBrowser) View.VISIBLE else View.GONE
-        }
         if (::miniPlayerCard.isInitialized) {
             miniPlayerCard.visibility = if (showMiniPlayer) View.VISIBLE else View.GONE
         }
@@ -467,7 +562,9 @@ class CarDashboardView(
                 }
                 addView(icon)
 
+                contentDescription = name
                 val txt = TextView(context).apply {
+                    visibility = View.GONE
                     text = name
                     textSize = 13f
                     setSingleLine(true)
@@ -973,7 +1070,8 @@ class CarDashboardView(
     }
 
     fun refreshAppsList() {
-        // App tiles are fixed launcher shortcuts (VTVgo, YouTube, Trình duyệt, Dấu trang)
+        refreshPinnedApps()
+        applyComponentVisibility()
     }
 
     fun applyDayNightMode(isDay: Boolean) {
