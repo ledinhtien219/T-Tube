@@ -517,6 +517,11 @@ class CarPresentation(
             }
 
             @android.webkit.JavascriptInterface
+            fun isDayTheme(): Boolean {
+                return isDayMode()
+            }
+
+            @android.webkit.JavascriptInterface
             fun saveCustomUrl(newUrl: String) {
                 mainHandler.post {
                     IptvManager.setM3uUrl(context, newUrl)
@@ -1174,16 +1179,22 @@ class CarPresentation(
         }
 
         if (currentActiveAppId == "tiktok") {
-            // TikTok uses only T Tube controls. Native left/right rails are removed
-            // by TikTokWebPolicy, so this pill can sit close to the safe top-left edge.
-            val tiktokIconSizeDp = ((64 * scale) / 100).coerceIn(60, 82)
+            // Persistent TikTok rail at the far-left edge; Back never exits TikTok.
+            val isDay = isDayMode()
+            val tiktokIconSizeDp = ((58 * scale) / 100).coerceIn(52, 72)
             val controls = LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
+                orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                background = rounded(Color.parseColor("#F20B1324"), 24f, Color.parseColor("#8838BDF8"), 2)
-                setPadding(dp(6), dp(6), dp(6), dp(6))
+                background = if (isDay) {
+                    rounded(Color.parseColor("#F7F8FAFC"), 20f, Color.parseColor("#802D9CDB"), 1)
+                } else {
+                    rounded(Color.parseColor("#EE0B1324"), 20f, Color.parseColor("#8038BDF8"), 1)
+                }
+                setPadding(dp(4), dp(5), dp(4), dp(5))
                 addView(createBarIcon(R.drawable.ic_bar_back, tiktokIconSizeDp) { goBackWithinTikTok() })
+                addView(createDivider(tiktokIconSizeDp, false))
                 addView(createBarIcon(R.drawable.ic_bar_home, tiktokIconSizeDp) { showDashboard() })
+                addView(createDivider(tiktokIconSizeDp, false))
                 addView(createBarIcon(R.drawable.ic_bar_search, tiktokIconSizeDp) { showSearchOverlay() })
                 elevation = dp(18).toFloat()
             }
@@ -1195,9 +1206,10 @@ class CarPresentation(
             sidebarContainer = wrapper
             videoTimePill = null
             root.addView(wrapper, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.START or Gravity.TOP).apply {
-                    leftMargin = dp(54)
-                    topMargin = dp(22)
+                Gravity.START or Gravity.CENTER_VERTICAL).apply {
+                    leftMargin = dp(3)
+                    topMargin = dp(6)
+                    bottomMargin = dp(6)
                 })
             root.bringChildToFront(wrapper)
             autoHideHandler.removeCallbacks(hideBarsRunnable)
@@ -1210,7 +1222,8 @@ class CarPresentation(
         val showBack = prefs.getBoolean(SettingsActivity.KEY_SHOW_BACK, true)
         val showHome = prefs.getBoolean(SettingsActivity.KEY_SHOW_HOME, true)
         val showTv = prefs.getBoolean(SettingsActivity.KEY_SHOW_TV, true)
-        val showDayNight = prefs.getBoolean(SettingsActivity.KEY_SHOW_DAY_NIGHT, true)
+        // Theme selection is owned by the phone app.
+        val showDayNight = false
         val showSearch = isBrowserApp() && prefs.getBoolean(SettingsActivity.KEY_SHOW_KEYBOARD_SEARCH, true)
         val showMic = prefs.getBoolean(SettingsActivity.KEY_SHOW_VOICE_SEARCH, true)
         val showPlayPause = false
@@ -1426,6 +1439,7 @@ class CarPresentation(
     }
 
     private fun buildYouTubeMediaToolbar(scale: Int) {
+        val isDay = isDayMode()
         val btnWidth = ((64 * scale) / 100).coerceIn(52, 82)
         val btnHeight = ((52 * scale) / 100).coerceIn(46, 68)
         val iconSize = ((23 * scale) / 100).coerceIn(19, 30)
@@ -1436,9 +1450,9 @@ class CarPresentation(
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 background = rounded(
-                    Color.parseColor("#D91A2430"),
+                    if (isDay) Color.parseColor("#F7F8FAFC") else Color.parseColor("#D91A2430"),
                     12f,
-                    Color.parseColor("#33485C70"),
+                    if (isDay) Color.parseColor("#CBD5E1") else Color.parseColor("#33485C70"),
                     1
                 )
                 setPadding(dp(3), dp(4), dp(3), dp(3))
@@ -1449,7 +1463,7 @@ class CarPresentation(
                 val icon = ImageView(context).apply {
                     setImageResource(iconRes)
                     scaleType = ImageView.ScaleType.CENTER_INSIDE
-                    setColorFilter(Color.WHITE)
+                    if (isDay) setColorFilter(Color.parseColor("#0F172A")) else setColorFilter(Color.WHITE)
                 }
                 addView(icon, LinearLayout.LayoutParams(dp(iconSize), dp(iconSize)))
                 addView(TextView(context).apply {
@@ -1458,7 +1472,7 @@ class CarPresentation(
                     gravity = Gravity.CENTER
                     maxLines = 1
                     includeFontPadding = false
-                    setTextColor(Color.parseColor("#EAF2F8"))
+                    setTextColor(if (isDay) Color.parseColor("#0F172A") else Color.parseColor("#EAF2F8"))
                 }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                     topMargin = dp(1)
                 })
@@ -1471,9 +1485,9 @@ class CarPresentation(
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             background = rounded(
-                Color.parseColor("#E60B1118"),
+                if (isDay) Color.parseColor("#F7FFFFFF") else Color.parseColor("#E60B1118"),
                 18f,
-                Color.parseColor("#506B8299"),
+                if (isDay) Color.parseColor("#94A3B8") else Color.parseColor("#506B8299"),
                 1
             )
             setPadding(dp(5), dp(5), dp(5), dp(5))
@@ -2047,6 +2061,9 @@ class CarPresentation(
             app.url
         }
 
+        // Hide dashboard/wallpaper before any restore/load can paint.
+        prepareFullscreenTransition()
+
         val restoredSession = if (canRestoreSession) {
             CarMediaManager.restoreWebAppSession(app.id, web)
         } else {
@@ -2118,6 +2135,18 @@ class CarPresentation(
                 }
             }
         }
+    }
+
+    private fun prepareFullscreenTransition() {
+        isDashboardShowing = false
+        CarMediaManager.isWebShowingFullscreen = true
+        CarMediaManager.isEmbeddedAppShowing = false
+        dashboardView?.detachEmbeddedWeb()
+        dashboardView?.visibility = View.GONE
+        web.setBackgroundColor(if (isDayMode()) Color.WHITE else Color.BLACK)
+        web.visibility = View.VISIBLE
+        web.alpha = 1f
+        web.bringToFront()
     }
 
     fun showWebFullscreen(app: WebAppItem? = null) {
@@ -4261,6 +4290,12 @@ class CarPresentation(
         }
         if (event.action == KeyEvent.ACTION_DOWN) {
             when (event.keyCode) {
+                KeyEvent.KEYCODE_BACK -> {
+                    if (currentActiveAppId == "tiktok" && !isDashboardShowing) {
+                        goBackWithinTikTok()
+                        return true
+                    }
+                }
                 KeyEvent.KEYCODE_VOICE_ASSIST,
                 KeyEvent.KEYCODE_SEARCH -> {
                     startVoiceSearch()
