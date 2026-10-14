@@ -25,7 +25,7 @@ jobs:
           grep -q 'phoneAppsPager' app/src/main/res/layout/activity_main.xml
           grep -q 'PREF_THEME_MODE = SettingsActivity.KEY_THEME_MODE' app/src/main/java/com/carhud/aaproxy/MainActivity.kt
           grep -q 'prepareFullscreenTransition' app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
-          grep -q 'search/video?q=' app/src/main/java/com/carhud/aaproxy/TikTokWebPolicy.kt
+          grep -q 'tiktok.com/search?q=' app/src/main/java/com/carhud/aaproxy/TikTokWebPolicy.kt
           grep -q 'recoverSearchShell' app/src/main/java/com/carhud/aaproxy/TikTokWebPolicy.kt
 
       - name: Set up JDK 17
