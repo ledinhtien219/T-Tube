@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">THTV</string>
+    <string name="app_name">T Tube</string>
     <string name="car_app_library_version">1.7.0</string>
     <string name="waze_not_connected">Chưa kết nối</string>
     <string name="waze_connected">Đã kết nối</string>

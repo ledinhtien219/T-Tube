@@ -154,7 +154,16 @@ object YouTubePlayerHelper {
                 if (visible) layoutHome();
             };
             window.__carhudSearchHomeRefresh();
-            setInterval(window.__carhudSearchHomeRefresh, 500);
+            // Avoid walking the whole YouTube DOM every 500 ms. That polling was
+            // expensive on Android Auto. Refresh only when YouTube/History navigates.
+            var refreshHome = function() {
+                setTimeout(function() {
+                    if (window.__carhudSearchHomeRefresh) window.__carhudSearchHomeRefresh();
+                }, 80);
+            };
+            document.addEventListener('yt-navigate-finish', refreshHome, true);
+            window.addEventListener('popstate', refreshHome, true);
+            window.addEventListener('hashchange', refreshHome, true);
         })();
     """.trimIndent()
 
@@ -1396,39 +1405,122 @@ object YouTubePlayerHelper {
         val effectiveIsDay = isDay ?: SettingsActivity.resolveIsDay(view.context)
         view.post {
             try {
+                // Keep the platform WebView darkening state in sync with the user setting.
+                // forceDark is retained as a compatibility fallback because many DHU builds
+                // ship a WebView implementation whose behavior does not exactly match its API.
+                @Suppress("DEPRECATION")
+                try {
+                    view.settings.forceDark = if (effectiveIsDay) WebSettings.FORCE_DARK_OFF else WebSettings.FORCE_DARK_ON
+                } catch (_: Exception) {}
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     try {
                         view.settings.isAlgorithmicDarkeningAllowed = !effectiveIsDay
-                    } catch (e: Exception) {}
-                } else {
-                    @Suppress("DEPRECATION")
-                    try {
-                        view.settings.forceDark = if (effectiveIsDay) WebSettings.FORCE_DARK_OFF else WebSettings.FORCE_DARK_ON
-                    } catch (e: Exception) {}
+                    } catch (_: Exception) {}
                 }
                 view.setBackgroundColor(if (effectiveIsDay) Color.WHITE else Color.BLACK)
 
                 val js = """
                     (function() {
                         try {
-                            window.__carhudCurrentIsDay = $effectiveIsDay;
+                            var isDay = $effectiveIsDay;
+                            window.__carhudCurrentIsDay = isDay;
+                            var root = document.documentElement;
+                            var body = document.body;
+                            if (!root) return;
+
+                            root.style.setProperty('color-scheme', isDay ? 'light' : 'dark', 'important');
+                            if (body) body.style.setProperty('color-scheme', isDay ? 'light' : 'dark', 'important');
+
                             var style = document.getElementById('carhud-universal-theme');
                             if (!style) {
                                 style = document.createElement('style');
                                 style.id = 'carhud-universal-theme';
-                                (document.head || document.documentElement).appendChild(style);
+                                (document.head || root).appendChild(style);
                             }
-                            style.textContent = ':root, html, body { color-scheme: ${if (effectiveIsDay) "light" else "dark"} !important; }';
+                            style.textContent =
+                                ':root, html, body { color-scheme: ' + (isDay ? 'light' : 'dark') + ' !important; } ' +
+                                'input, textarea, select, button { color-scheme: ' + (isDay ? 'light' : 'dark') + ' !important; } ' +
+                                'html.carhud-theme-invert { filter: invert(1) hue-rotate(180deg) !important; } ' +
+                                'html.carhud-theme-invert img, html.carhud-theme-invert video, html.carhud-theme-invert picture, ' +
+                                'html.carhud-theme-invert canvas, html.carhud-theme-invert svg, html.carhud-theme-invert iframe { ' +
+                                'filter: invert(1) hue-rotate(180deg) !important; }';
+
+                            function rgb(color) {
+                                var m = String(color || '').match(/rgba?\(\s*(\d+)[, ]+\s*(\d+)[, ]+\s*(\d+)(?:[, /]+\s*([\d.]+))?/i);
+                                if (!m) return null;
+                                return { r:+m[1], g:+m[2], b:+m[3], a:m[4] == null ? 1 : +m[4] };
+                            }
+                            function luminance(c) {
+                                if (!c) return null;
+                                return (0.2126*c.r + 0.7152*c.g + 0.0722*c.b) / 255;
+                            }
+                            function pageLuminance() {
+                                var nodes = [body, root].filter(Boolean);
+                                for (var i=0; i<nodes.length; i++) {
+                                    var c = rgb(getComputedStyle(nodes[i]).backgroundColor);
+                                    if (c && c.a > 0.08) return luminance(c);
+                                }
+                                return isDay ? 1 : 0;
+                            }
+                            function applyMismatchFix() {
+                                try {
+                                    var host = (location.hostname || '').toLowerCase();
+                                    var path = location.pathname || '';
+                                    var youtube = host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com');
+                                    var tiktok = host === 'tiktok.com' || host.endsWith('.tiktok.com');
+                                    var iptv = location.href.indexOf('iptv_player.html') >= 0;
+                                    // YouTube, TikTok and IPTV have specialized layout/theme handling.
+                                    // Never run the generic inversion observer on TikTok: its SPA mutates
+                                    // the DOM continuously and this causes visible jank on Android Auto.
+                                    if (youtube || tiktok || iptv) {
+                                        root.classList.remove('carhud-theme-invert');
+                                        return;
+                                    }
+                                    var lum = pageLuminance();
+                                    var mismatch = isDay ? lum < 0.38 : lum > 0.62;
+                                    root.classList.toggle('carhud-theme-invert', !!mismatch);
+                                    root.style.setProperty('background-color', isDay ? '#ffffff' : '#0b0f14', 'important');
+                                    if (body) body.style.setProperty('background-color', isDay ? '#ffffff' : '#0b0f14', 'important');
+                                } catch (_) {}
+                            }
+
+                            var currentHost = (location.hostname || '').toLowerCase();
+                            var specialized = currentHost === 'youtu.be' || currentHost === 'youtube.com' ||
+                                currentHost.endsWith('.youtube.com') || currentHost === 'tiktok.com' ||
+                                currentHost.endsWith('.tiktok.com') || location.href.indexOf('iptv_player.html') >= 0;
+                            applyMismatchFix();
+                            clearTimeout(window.__carhudThemeTimer);
+                            if (!specialized) {
+                                window.__carhudThemeTimer = setTimeout(applyMismatchFix, 120);
+                                if (!window.__carhudThemeObserverInstalled) {
+                                    window.__carhudThemeObserverInstalled = true;
+                                    try {
+                                        window.__carhudThemeObserver = new MutationObserver(function() {
+                                            clearTimeout(window.__carhudThemeMutationTimer);
+                                            window.__carhudThemeMutationTimer = setTimeout(applyMismatchFix, 90);
+                                        });
+                                        window.__carhudThemeObserver.observe(root, { childList:true, subtree:true, attributes:true, attributeFilter:['class','style'] });
+                                    } catch (_) {}
+                                }
+                            } else if (window.__carhudThemeObserver) {
+                                try { window.__carhudThemeObserver.disconnect(); } catch (_) {}
+                                window.__carhudThemeObserver = null;
+                                window.__carhudThemeObserverInstalled = false;
+                            }
+
+                            if (location.href.indexOf('iptv_player.html') >= 0 && typeof window.setIptvTheme === 'function') {
+                                window.setIptvTheme(isDay);
+                            }
                         } catch (e) {}
                     })();
                 """.trimIndent()
                 view.evaluateJavascript(js, null)
 
                 val url = view.url ?: ""
-                if (url.contains("youtube.com") || url.contains("youtu.be")) {
+                if (url.contains("youtube.com", true) || url.contains("youtu.be", true)) {
                     applyTheme(view, effectiveIsDay)
                 }
-            } catch (e: Exception) {}
+            } catch (_: Exception) {}
         }
     }
 
@@ -2042,7 +2134,14 @@ object YouTubePlayerHelper {
         view.post {
             try {
                 val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
-                val host = if (view.url?.contains("www.youtube.com") == true) "https://www.youtube.com" else "https://m.youtube.com"
+                // Android Auto works more reliably with YouTube's mobile route. In
+                // particular, avoid relying on desktop SPA form state after the car
+                // keyboard closes: an explicit /results URL is the source of truth.
+                val host = if (autoPlayFirst && view.url?.contains("www.youtube.com") == true) {
+                    "https://www.youtube.com"
+                } else {
+                    "https://m.youtube.com"
+                }
                 val targetUrl = "$host/results?search_query=$encoded"
 
                 val curUrl = view.url.orEmpty()
@@ -2067,10 +2166,37 @@ object YouTubePlayerHelper {
                     } catch (_: Exception) {}
                 }
 
-                // Always navigate to the explicit results URL. Submitting YouTube's
-                // live search form can trigger stale SPA selection/voice handlers and
-                // jump directly to /watch before manual-search cancellation settles.
+                // Always navigate to the explicit results URL. Before leaving the
+                // custom empty-home surface, hide it immediately so it cannot visually
+                // mask the results page while WebView is committing the navigation.
+                try {
+                    view.evaluateJavascript(
+                        "try { var p=document.getElementById('carhud-search-home'); if(p) p.style.display='none'; if(window.__carhudSearchHomeRefresh) window.__carhudSearchHomeRefresh=function(){}; } catch(e) {}",
+                        null
+                    )
+                } catch (_: Exception) {}
+                // Do not call stopLoading() here. On DHU/slow connections the old
+                // URL can remain visible for over a second while the new request is
+                // already in flight; stopping it at 350/1100 ms cancelled the search.
                 view.loadUrl(targetUrl)
+
+                // One conservative fallback is enough. Retry only after the WebView
+                // has effectively finished and is still sitting on the YouTube home
+                // page. Never interrupt an in-flight results navigation.
+                view.postDelayed({
+                    if (searchGeneration.get() != generation) return@postDelayed
+                    val now = view.url.orEmpty()
+                    val onResults = now.contains("/results", true) && now.contains("search_query=", true)
+                    val onWatch = now.contains("/watch", true)
+                    val stillHome = try {
+                        val uri = android.net.Uri.parse(now)
+                        (uri.path.isNullOrBlank() || uri.path == "/" || uri.path == "/feed/what_to_watch") &&
+                            uri.host.orEmpty().contains("youtube.com", true)
+                    } catch (_: Exception) { false }
+                    if (!onResults && !(autoPlayFirst && onWatch) && stillHome && view.progress >= 95) {
+                        view.loadUrl(targetUrl)
+                    }
+                }, 3000L)
 
                 if (autoPlayFirst) {
                     scheduleAutoPlayFirstSearchResult(view, generation)

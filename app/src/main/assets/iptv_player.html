@@ -721,6 +721,10 @@
         display: none !important;
       }
     }
+
+    /* T Tube v1.0.62: simplify projected player chrome. Channel controls live in the left dock/settings. */
+    .player-controls-right, .btn-show-channels { display: none !important; }
+    .player-info { pointer-events: none !important; }
   </style>
 </head>
 <body>
@@ -730,13 +734,13 @@
     <div class="player-section" id="playerSection">
       <div class="player-info" id="playerInfo">
         <div class="current-title" id="currentTitle">Chọn kênh để xem trực tiếp</div>
-        <div class="player-controls-right">
+        <div class="player-controls-right" aria-hidden="true">
           <div class="badge-live" id="liveBadge" style="display:none;">● LIVE</div>
-          <button class="btn-fs" id="btnToggleFit" onclick="toggleVideoFit(event)" title="Đổi tỉ lệ (Vừa khung / Tràn viền)">⤢</button>
-          <button class="btn-fs" id="btnToggleFs" onclick="toggleChannels(event)" title="Ẩn/Hiện danh sách kênh">&#x26F6;</button>
+          <button class="btn-fs" id="btnToggleFit" onclick="toggleVideoFit(event)" tabindex="-1">⤢</button>
+          <button class="btn-fs" id="btnToggleFs" onclick="toggleChannels(event)" tabindex="-1">&#x26F6;</button>
         </div>
       </div>
-      <div class="btn-show-channels" id="btnShowChannels" onclick="toggleChannels(event)" title="Mở danh sách kênh">
+      <div class="btn-show-channels" id="btnShowChannels" onclick="toggleChannels(event)" aria-hidden="true" tabindex="-1">
         <span>📺 Kênh</span>
       </div>
       <div class="video-container">
@@ -868,12 +872,19 @@
 
     window.setIptvTheme = function(isDay) {
       try {
+        window.__carhudIptvIsDay = !!isDay;
+        document.documentElement.style.colorScheme = isDay ? 'light' : 'dark';
         document.body.classList.toggle('iptv-day', !!isDay);
         document.body.classList.toggle('iptv-night', !isDay);
       } catch(e) {}
     };
+    // Temporary fallback until Android applies the explicit T Tube theme preference.
     try {
-      window.setIptvTheme(!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches));
+      if (typeof window.__carhudCurrentIsDay === 'boolean') {
+        window.setIptvTheme(window.__carhudCurrentIsDay);
+      } else {
+        window.setIptvTheme(!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches));
+      }
     } catch(e) { window.setIptvTheme(false); }
 
     function closeIptvQuickSettings() {

@@ -457,9 +457,9 @@ class CarDashboardView(
     fun applyComponentVisibility() {
         val showHeroClock = prefs.getBoolean(MainActivity.PREF_SHOW_HERO_CLOCK, true)
         val showSearchBar = prefs.getBoolean(MainActivity.PREF_SHOW_SEARCH_BAR, true)
-        val showCardM3u = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_M3U, true)
+        val showCardM3u = prefs.getBoolean(MainActivity.PREF_SHOW_CARD_M3U, false)
         val showMiniPlayer = prefs.getBoolean(MainActivity.PREF_SHOW_MINI_PLAYER, true)
-        val showFavChannels = prefs.getBoolean(MainActivity.PREF_SHOW_FAV_CHANNELS, true)
+        val showFavChannels = prefs.getBoolean(MainActivity.PREF_SHOW_FAV_CHANNELS, false)
 
         if (::topLeftContainer.isInitialized) {
             topLeftContainer.visibility = if (showHeroClock) View.VISIBLE else View.GONE
@@ -503,7 +503,7 @@ class CarDashboardView(
             }
         }
 
-        val showFavSetting = prefs.getBoolean(MainActivity.PREF_SHOW_FAV_CHANNELS, true)
+        val showFavSetting = prefs.getBoolean(MainActivity.PREF_SHOW_FAV_CHANNELS, false)
         favChannelsScroll?.visibility = if (showFavSetting && channelsToShow.isNotEmpty()) View.VISIBLE else View.GONE
         if (channelsToShow.isEmpty()) return
 

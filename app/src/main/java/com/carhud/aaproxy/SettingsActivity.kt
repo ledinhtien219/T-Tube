@@ -131,7 +131,7 @@ class SettingsActivity : AppCompatActivity() {
                     val stream = contentResolver.openOutputStream(uri, "wt") ?: error("Không mở được file để lưu.")
                     stream.use { it.write(text.toByteArray(Charsets.UTF_8)) }
                 }
-                Toast.makeText(this@SettingsActivity, "Đã xuất cấu hình THTV.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@SettingsActivity, "Đã xuất cấu hình T Tube.", Toast.LENGTH_LONG).show()
             } catch (e: Exception) { showBackupError(e) }
         }
     }
@@ -143,7 +143,7 @@ class SettingsActivity : AppCompatActivity() {
                     stream.use { SettingsBackupManager.read(it) }
                 }
                 AlertDialog.Builder(this@SettingsActivity)
-                    .setTitle("Nạp cấu hình THTV?")
+                    .setTitle("Nạp cấu hình T Tube?")
                     .setMessage("File gồm ${backup.count} tùy chọn và ${backup.favorites} kênh yêu thích.\n\nCác nhóm cài đặt trong file sẽ được khôi phục, gồm cả tùy chọn mặc định. Ảnh nền và biểu tượng tùy chỉnh cần chọn lại nếu chuyển điện thoại.")
                     .setNegativeButton("Hủy", null)
                     .setPositiveButton("Nạp cấu hình") { _, _ ->
@@ -493,7 +493,7 @@ class SettingsActivity : AppCompatActivity() {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
                     val title = TextView(this@SettingsActivity).apply {
-                        text = "THTV Pro"
+                        text = "T Tube"
                         textSize = 21f
                         setTextColor(colorTextPrimary)
                         typeface = Typeface.DEFAULT_BOLD
@@ -881,15 +881,13 @@ class SettingsActivity : AppCompatActivity() {
                 content.addView(createSwitchRow("Nút Quay lại (‹)", "Lùi về trang hoặc video trước", KEY_SHOW_BACK, true))
                 content.addView(createSwitchRow("Nút Trang chủ (⌂)", "Quay về trang chủ YouTube / Dashboard", KEY_SHOW_HOME, true))
                 content.addView(createSwitchRow("Nút Tỷ lệ khung hình (⤢)", "Chọn tỷ lệ hiển thị YouTube & IPTV (Tràn viền, 16:9, Phóng to...)", KEY_SHOW_TV, true))
-                content.addView(createSwitchRow("Nút Giao diện Sáng / Tối (☀️/🌙)", "Chuyển nhanh chế độ Ngày / Đêm", KEY_SHOW_DAY_NIGHT, true))
-                content.addView(createSwitchRow("Nút Bàn phím Web (⌨️)", "Hiện bàn phím trên Android Auto khi dùng Trình duyệt Web", KEY_SHOW_KEYBOARD_SEARCH, true))
                 content.addView(settingCard(
                     title = "BÀN PHÍM NHẬP TRÊN XE",
-                    subtitle = "Android Auto nhận chữ trực tiếp để gõ nhanh; bàn phím THTV dùng chạm trên màn hình.",
-                    badgeText = if (prefs.getString("car_keyboard_input_mode", "native") == "thtv") "THTV" else "Android Auto",
+                    subtitle = "Android Auto nhận chữ trực tiếp để gõ nhanh; bàn phím T Tube dùng chạm trên màn hình.",
+                    badgeText = if (prefs.getString("car_keyboard_input_mode", "native") == "thtv") "T Tube" else "Android Auto",
                     onClick = {
                         choose("Chọn bàn phím trên xe",
-                            arrayOf("Android Auto (Khuyên dùng để gõ nhanh)", "Bàn phím THTV"),
+                            arrayOf("Android Auto (Khuyên dùng để gõ nhanh)", "Bàn phím T Tube"),
                             arrayOf("native", "thtv"), "car_keyboard_input_mode")
                     }
                 ))
@@ -926,46 +924,6 @@ class SettingsActivity : AppCompatActivity() {
                 WebAppManager.getAllApps(this@SettingsActivity).forEach { app ->
                     content.addView(createWebAppPinRow(app))
                 }
-            }
-        )
-
-        // ==========================================
-        // Independent system-assistant integration; separate from our own microphone.
-        root.addView(
-            createExpandableCard(
-                iconEmoji = "🎙️",
-                iconBgColor = if (isDarkTheme) Color.parseColor("#123047") else Color.parseColor("#DBEAFE"),
-                title = "MIC HỆ THỐNG ANDROID AUTO",
-                subtitle = "Nhận lệnh mở nhạc, mở kênh từ trợ lý Google",
-                initiallyExpanded = false
-            ) { content ->
-                content.addView(createSwitchRow(
-                    "Nhận lệnh từ mic hệ thống", "Cho phép THTV xử lý lệnh nhạc/TV do trợ lý chuyển tới",
-                    SystemVoiceModule.PREF_ENABLED, true
-                ))
-                content.addView(TextView(this).apply {
-                    text = "Mở THTV trên Android Auto, bấm mic hệ thống và nói:\n• Phát bài Nắng ấm xa dần trên THTV\n• Phát VTV1 trên THTV\n• Phát HTV7 trên THTV\n\nNếu trợ lý chưa nhận ra tên app, thử nói THTV Media. Nút mic vẫn mở trợ lý Google."
-                    textSize = 13f
-                    setTextColor(colorTextSecondary)
-                    setPadding(dp(12), dp(8), dp(12), dp(12))
-                })
-                content.addView(settingCard(
-                    title = "THỬ LỆNH TRONG THTV",
-                    subtitle = "Nhập lệnh thử khi THTV đang mở trên Android Auto; không kiểm tra mic Google",
-                    badgeText = "Thử",
-                    onClick = { showSystemVoiceTestDialog() }
-                ))
-                content.addView(settingCard(
-                    title = "LỆNH GẦN NHẤT ĐÃ NHẬN",
-                    subtitle = "Xem trợ lý đã chuyển lệnh tới THTV chưa và kết quả xử lý",
-                    badgeText = "Xem",
-                    onClick = {
-                        androidx.appcompat.app.AlertDialog.Builder(this)
-                            .setTitle("Mic hệ thống Android Auto")
-                            .setMessage(SystemVoiceModule.diagnostics(this))
-                            .setPositiveButton("Đóng", null).show()
-                    }
-                ))
             }
         )
 
@@ -1038,15 +996,6 @@ class SettingsActivity : AppCompatActivity() {
                 )
 
                 content.addView(createSeparator())
-
-                content.addView(
-                    createSwitchRow(
-                        title = "Phím Voice trên vô lăng mở Micro",
-                        subtitle = "Bấm nút Voice/Micro trên vô lăng xe để tìm bài hát",
-                        key = KEY_STEERING_VOICE_ENABLED,
-                        default = true
-                    )
-                )
 
                 content.addView(
                     createSwitchRow(
@@ -2262,7 +2211,7 @@ class SettingsActivity : AppCompatActivity() {
 
                 content.addView(
                     settingCard(
-                        title = "PHIÊN BẢN THTV PRO",
+                        title = "PHIÊN BẢN T Tube",
                         subtitle = "Phiên bản: v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})\nChạm để xem nhật ký cập nhật ✨",
                         badgeText = "v${BuildConfig.VERSION_NAME}",
                         onClick = {
@@ -2283,12 +2232,12 @@ class SettingsActivity : AppCompatActivity() {
                     badgeText = "Xuất file",
                     onClick = {
                         val date = java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(java.util.Date())
-                        exportSettings.launch("THTV-settings-$date.json")
+                        exportSettings.launch("TTube-settings-$date.json")
                     }
                 ))
                 content.addView(settingCard(
                     title = "NẠP CẤU HÌNH & YÊU THÍCH",
-                    subtitle = "Chọn file cấu hình THTV đã xuất; xem số tùy chọn trước khi nạp.",
+                    subtitle = "Chọn file cấu hình T Tube đã xuất; xem số tùy chọn trước khi nạp.",
                     badgeText = "Chọn file",
                     onClick = { importSettings.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
                 ))
@@ -2297,8 +2246,8 @@ class SettingsActivity : AppCompatActivity() {
 
                 content.addView(
                     settingCard(
-                        title = "BẢN QUYỀN THTV PRO",
-                        subtitle = "THTV • Đã mở khóa đầy đủ tính năng\nMã máy: ${LicenseManager.getDeviceId(this@SettingsActivity)}",
+                        title = "BẢN QUYỀN T Tube",
+                        subtitle = "T Tube • Đã mở khóa đầy đủ tính năng\nMã máy: ${LicenseManager.getDeviceId(this@SettingsActivity)}",
                         badgeText = "● ĐÃ MỞ KHÓA",
                         onClick = {
                             val email = LicenseManager.getLicenseEmail(this@SettingsActivity).ifEmpty { "Chưa đăng ký" }
@@ -2307,7 +2256,7 @@ class SettingsActivity : AppCompatActivity() {
                             val deviceId = LicenseManager.getDeviceId(this@SettingsActivity)
 
                             AlertDialog.Builder(this@SettingsActivity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                                .setTitle("🔑 BẢN QUYỀN THTV PRO")
+                                .setTitle("🔑 BẢN QUYỀN T Tube")
                                 .setMessage(
                                     "• Mã máy: $deviceId\n" +
                                     "• Email: $email\n" +
@@ -2697,7 +2646,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Thử lệnh nhạc / TV")
-            .setMessage("Lệnh sẽ chạy trên THTV đang mở ở Android Auto. Đây là thử xử lý lệnh, không gọi mic Google.")
+            .setMessage("Lệnh sẽ chạy trên T Tube đang mở ở Android Auto. Đây là thử xử lý lệnh, không gọi mic Google.")
             .setView(input)
             .setPositiveButton("Thử lệnh") { _, _ ->
                 val result = SystemVoiceModule.submit(this, input.text.toString(), source = "Thử trong Cài đặt")
@@ -2941,7 +2890,7 @@ class SettingsActivity : AppCompatActivity() {
             .setView(layout)
             .setPositiveButton("📋 Sao chép log") { _, _ ->
                 val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
-                val clip = ClipData.newPlainText("THTV Error Logs", summary)
+                val clip = ClipData.newPlainText("T Tube Error Logs", summary)
                 cm.setPrimaryClip(clip)
                 Toast.makeText(this, "📋 Đã sao chép nhật ký lỗi vào bộ nhớ tạm!", Toast.LENGTH_SHORT).show()
             }

@@ -100,9 +100,9 @@ class ActivationActivity : AppCompatActivity() {
         }
         root.addView(container)
 
-        // 1. HEADER: compact THTV wordmark only
+        // 1. HEADER: compact T Tube wordmark only
         val logoIv = ImageView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(132), dp(46)).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(172), dp(52)).apply {
                 bottomMargin = dp(12)
             }
             scaleType = ImageView.ScaleType.FIT_CENTER
@@ -188,7 +188,7 @@ class ActivationActivity : AppCompatActivity() {
             }
             setOnClickListener {
                 val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                cm.setPrimaryClip(ClipData.newPlainText("THTV Device ID", deviceIdStr))
+                cm.setPrimaryClip(ClipData.newPlainText("T Tube Device ID", deviceIdStr))
                 Toast.makeText(this@ActivationActivity, "📋 Đã sao chép mã máy: $deviceIdStr", Toast.LENGTH_SHORT).show()
             }
         }
@@ -439,7 +439,7 @@ class ActivationActivity : AppCompatActivity() {
 
                 if (status == LicenseManager.STATUS_APPROVED) {
                     stopPolling()
-                    Toast.makeText(this, "🎉 Bản quyền THTV ($plan) đã được kích hoạt!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "🎉 Bản quyền T Tube ($plan) đã được kích hoạt!", Toast.LENGTH_LONG).show()
                     updateUiState(LicenseManager.STATUS_APPROVED)
                     pollHandler.postDelayed({
                         launchMainApp()

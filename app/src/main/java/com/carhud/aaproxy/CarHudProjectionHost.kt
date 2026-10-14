@@ -168,7 +168,7 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
             val dpi = resources.displayMetrics.densityDpi.takeIf { it > 0 } ?: 160
             val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
             val vd = dm.createVirtualDisplay(
-                "THTVProjectionDisplay",
+                "TTubeProjectionDisplay",
                 width,
                 height,
                 dpi,

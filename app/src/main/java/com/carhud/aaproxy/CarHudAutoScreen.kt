@@ -30,13 +30,18 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     private val nativeSearchListener: (CarInputSession) -> Unit = { input ->
         handler.post {
             try {
-                if (nativeInput?.closed == false) {
-                    input.cancel()
-                } else {
-                    nativeInput = input
-                    screenManager.push(CarSearchScreen(carContext, input))
-                }
+                // Replace a stale native keyboard session instead of cancelling the
+                // new request. This matters on DHU/AA hosts that briefly keep the old
+                // SearchTemplate alive while the projection surface is recreated.
+                nativeInput?.takeIf { it !== input && !it.closed }?.cancel()
+                nativeInput = input
+                screenManager.push(
+                    CarSearchScreen(carContext, input) {
+                        if (nativeInput === input) nativeInput = null
+                    }
+                )
             } catch (e: Exception) {
+                if (nativeInput === input) nativeInput = null
                 input.cancel()
                 e.printStackTrace()
             }

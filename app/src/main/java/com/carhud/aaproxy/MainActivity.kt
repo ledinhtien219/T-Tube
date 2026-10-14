@@ -926,9 +926,9 @@ class MainActivity : AppCompatActivity() {
         sSearchBar.isChecked = prefs.getBoolean(PREF_SHOW_SEARCH_BAR, true)
         sCardYt.isChecked = prefs.getBoolean(PREF_SHOW_CARD_YOUTUBE, true)
         sCardIptv.isChecked = prefs.getBoolean(PREF_SHOW_CARD_IPTV, true)
-        sCardM3u.isChecked = prefs.getBoolean(PREF_SHOW_CARD_M3U, true)
+        sCardM3u.isChecked = prefs.getBoolean(PREF_SHOW_CARD_M3U, false)
         sCardBrowser.isChecked = prefs.getBoolean(PREF_SHOW_CARD_BROWSER, true)
-        sFav.isChecked = prefs.getBoolean(PREF_SHOW_FAV_CHANNELS, true)
+        sFav.isChecked = prefs.getBoolean(PREF_SHOW_FAV_CHANNELS, false)
         sPlayer.isChecked = prefs.getBoolean(PREF_SHOW_MINI_PLAYER, true)
         sNav.isChecked = prefs.getBoolean(PREF_SHOW_BOTTOM_NAV, true)
 
@@ -956,9 +956,9 @@ class MainActivity : AppCompatActivity() {
                 .putBoolean(PREF_SHOW_SEARCH_BAR, true)
                 .putBoolean(PREF_SHOW_CARD_YOUTUBE, true)
                 .putBoolean(PREF_SHOW_CARD_IPTV, true)
-                .putBoolean(PREF_SHOW_CARD_M3U, true)
+                .putBoolean(PREF_SHOW_CARD_M3U, false)
                 .putBoolean(PREF_SHOW_CARD_BROWSER, true)
-                .putBoolean(PREF_SHOW_FAV_CHANNELS, true)
+                .putBoolean(PREF_SHOW_FAV_CHANNELS, false)
                 .putBoolean(PREF_SHOW_MINI_PLAYER, true)
                 .putBoolean(PREF_SHOW_BOTTOM_NAV, true)
                 .apply()
@@ -1034,9 +1034,9 @@ class MainActivity : AppCompatActivity() {
         phoneSearchBar.visibility = if (prefs.getBoolean(PREF_SHOW_SEARCH_BAR, true)) View.VISIBLE else View.GONE
         phoneCardYoutube.visibility = if (prefs.getBoolean(PREF_SHOW_CARD_YOUTUBE, true)) View.VISIBLE else View.GONE
         phoneCardIptv.visibility = if (prefs.getBoolean(PREF_SHOW_CARD_IPTV, true)) View.VISIBLE else View.GONE
-        phoneCardM3u.visibility = if (prefs.getBoolean(PREF_SHOW_CARD_M3U, true)) View.VISIBLE else View.GONE
+        phoneCardM3u.visibility = if (prefs.getBoolean(PREF_SHOW_CARD_M3U, false)) View.VISIBLE else View.GONE
         phoneCardBrowser.visibility = if (prefs.getBoolean(PREF_SHOW_CARD_BROWSER, true)) View.VISIBLE else View.GONE
-        sectionFavChannels.visibility = if (prefs.getBoolean(PREF_SHOW_FAV_CHANNELS, true)) View.VISIBLE else View.GONE
+        sectionFavChannels.visibility = if (prefs.getBoolean(PREF_SHOW_FAV_CHANNELS, false)) View.VISIBLE else View.GONE
         phoneMiniPlayer.visibility = if (prefs.getBoolean(PREF_SHOW_MINI_PLAYER, true)) View.VISIBLE else View.GONE
         phoneBottomNav.visibility = if (prefs.getBoolean(PREF_SHOW_BOTTOM_NAV, true)) View.VISIBLE else View.GONE
     }
@@ -1161,13 +1161,7 @@ class MainActivity : AppCompatActivity() {
             setSupportMultipleWindows(false)
             javaScriptCanOpenWindowsAutomatically = true
         }
-        w.setBackgroundColor(Color.WHITE)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            w.settings.isAlgorithmicDarkeningAllowed = false
-        } else {
-            @Suppress("DEPRECATION")
-            w.settings.forceDark = android.webkit.WebSettings.FORCE_DARK_OFF
-        }
+        YouTubePlayerHelper.applyUniversalWebTheme(w, SettingsActivity.resolveIsDay(this))
         android.webkit.CookieManager.getInstance().apply {
             setAcceptCookie(true)
             setAcceptThirdPartyCookies(w, true)
@@ -1203,13 +1197,18 @@ class MainActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 YouTubeAdBlocker.onPageFinished(view, url)
                 YouTubePlayerHelper.trackVideoHistory(view)
+                YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this@MainActivity))
                 android.webkit.CookieManager.getInstance().flush()
             }
         }
 
         CarMediaManager.setupAndroidVoiceBridge(w, this, isAuto = false)
         CarMediaManager.registerPhoneWebView(w, this)
-        w.loadUrl("https://m.youtube.com")
+        val currentMediaUrl = CarMediaManager.currentLoadingUrl.orEmpty()
+        val initialYoutubeUrl = currentMediaUrl.takeIf {
+            it.contains("youtube.com/watch", true) || it.contains("youtu.be/", true)
+        } ?: "https://m.youtube.com"
+        w.loadUrl(initialYoutubeUrl)
     }
 
     // ==========================================
@@ -1354,6 +1353,13 @@ class MainActivity : AppCompatActivity() {
             mediaPlaybackRequiresUserGesture = false
         }
         w.webChromeClient = WebChromeClient()
+        w.webViewClient = object : android.webkit.WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String) {
+                super.onPageFinished(view, url)
+                YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this@MainActivity))
+            }
+        }
+        YouTubePlayerHelper.applyUniversalWebTheme(w, SettingsActivity.resolveIsDay(this))
 
         CarMediaManager.setupAndroidVoiceBridge(w, this, isAuto = false)
         CarMediaManager.registerPhoneWebView(w, this)
@@ -1394,7 +1400,15 @@ class MainActivity : AppCompatActivity() {
             if (currentUrl.contains("iptv_player.html")) {
                 switchTab(TAB_IPTV)
             } else {
+                val wasUninitialized = youtubeWeb == null
                 switchTab(TAB_YOUTUBE)
+                if (wasUninitialized && (currentUrl.contains("youtube.com/watch", true) || currentUrl.contains("youtu.be/", true))) {
+                    val resumeUrl = if (CarMediaManager.currentPositionSec > 0 && currentUrl.contains("youtube.com/watch", true)) {
+                        val sep = if (currentUrl.contains("?")) "&" else "?"
+                        currentUrl.substringBefore("&t=").substringBefore("?t=") + sep + "t=${CarMediaManager.currentPositionSec}s"
+                    } else currentUrl
+                    youtubeWeb?.loadUrl(resumeUrl)
+                }
             }
         }
 
@@ -1450,17 +1464,7 @@ class MainActivity : AppCompatActivity() {
     // ==========================================
 
     private fun setupSettingsTab() {
-        val verTv = findViewById<TextView>(R.id.phoneAppVersionText)
-        verTv?.text = "THTV v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE}) • Nhật ký cập nhật 📋"
-        verTv?.setOnClickListener {
-            ChangelogManager.showChangelogDialog(this)
-        }
-        (verTv?.parent as? android.view.ViewGroup)?.addView(TextView(this).apply {
-            text = "🔎 Kiểm tra cập nhật"
-            setPadding(0, 16, 0, 16)
-            setTextColor(android.graphics.Color.parseColor("#38BDF8"))
-            setOnClickListener { UpdateNotificationManager.check(this@MainActivity, manual = true) }
-        })
+        findViewById<TextView>(R.id.phoneAppVersionText)?.visibility = View.GONE
         updateUserSettingsText()
         updateWallpaperSettingsText()
         updateIptvStatusText()

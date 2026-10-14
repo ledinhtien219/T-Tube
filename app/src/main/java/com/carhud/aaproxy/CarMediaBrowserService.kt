@@ -39,7 +39,7 @@ class CarMediaBrowserService : MediaBrowserServiceCompat() {
         private set
 
     private var currentTitle = "YouTube Music"
-    private var currentArtist = "THTV"
+    private var currentArtist = "T Tube"
     private var isPlayingState = false
     private var logoBitmap: Bitmap? = null
     var currentArtworkBitmap: Bitmap? = null
@@ -64,7 +64,7 @@ class CarMediaBrowserService : MediaBrowserServiceCompat() {
 
         createNotificationChannel()
 
-        logoBitmap = getBitmapFromVector(R.drawable.ic_carhud_media) ?: getBitmapFromVector(R.drawable.ic_carhud_logo)
+        logoBitmap = getBitmapFromVector(R.drawable.ic_carhud_media_round) ?: getBitmapFromVector(R.drawable.ic_carhud_logo)
         currentTitle = CarMediaManager.currentTitle
         currentArtist = CarMediaManager.currentArtist
         currentArtworkBitmap = CarMediaManager.currentArtworkBitmap
@@ -533,7 +533,7 @@ class CarMediaBrowserService : MediaBrowserServiceCompat() {
 
     override fun onLoadChildren(parentId: String, result: Result<MutableList<MediaBrowserCompat.MediaItem>>) {
         val items = mutableListOf<MediaBrowserCompat.MediaItem>()
-        val title = if (currentTitle.isNotBlank()) currentTitle else "YouTube Media (THTV)"
+        val title = if (currentTitle.isNotBlank()) currentTitle else "YouTube Media (T Tube)"
         val artist = if (currentArtist.isNotBlank()) currentArtist else "Chạm để nghe hoặc điều khiển"
         val art = currentArtworkBitmap ?: logoBitmap
 
@@ -588,11 +588,11 @@ class CarMediaBrowserService : MediaBrowserServiceCompat() {
             .build()
         items.add(MediaBrowserCompat.MediaItem(descHome, MediaBrowserCompat.MediaItem.FLAG_PLAYABLE))
 
-        // 6. Open THTV
+        // 6. Open T Tube
         val descOpenCarHUD = MediaDescriptionCompat.Builder()
             .setMediaId("media_open_carhud")
-            .setTitle("Mở THTV 🚗")
-            .setSubtitle("Chuyển sang buồng lái THTV")
+            .setTitle("Mở T Tube 🚗")
+            .setSubtitle("Chuyển sang buồng lái T Tube")
             .setIconBitmap(logoBitmap)
             .build()
         items.add(MediaBrowserCompat.MediaItem(descOpenCarHUD, MediaBrowserCompat.MediaItem.FLAG_PLAYABLE))

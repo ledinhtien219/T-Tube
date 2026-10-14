@@ -1,0 +1,17 @@
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const gradle = fs.readFileSync('app/build.gradle.kts', 'utf8');
+const presentation = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarPresentation.kt', 'utf8');
+const helper = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/YouTubePlayerHelper.kt', 'utf8');
+const versionCode = Number(gradle.match(/versionCode = (\d+)/)?.[1] || 0);
+const versionName = gradle.match(/versionName = "([^"]+)"/)?.[1] || '';
+assert.ok(versionCode >= 247);
+assert.ok(/^1\.0\./.test(versionName));
+assert.match(presentation, /if \(performAction && isYouTubePage && cleanValue\.isNotBlank\(\)\)/);
+assert.match(presentation, /YouTubePlayerHelper\.search\(web, cleanValue, autoPlayFirst = false\)/);
+assert.match(presentation, /val isDesktop = if \(app\.id == "youtube"\) false else WebAppManager\.isAppDesktop/);
+assert.match(helper, /val host = if \(autoPlayFirst && view\.url\?\.contains\("www\.youtube\.com"\) == true\)/);
+assert.doesNotMatch(helper.match(/fun search\(view: WebView\?, query: String,[\s\S]*?fun cancelSearchAutoPlay/)?.[0] || '', /verifyNavigation\(350L\)|verifyNavigation\(1100L\)/);
+assert.doesNotMatch(helper, /setInterval\(window\.__carhudSearchHomeRefresh, 500\)/);
+assert.match(helper, /view\.progress >= 95/);
+console.log('PASS v1.0.60: YouTube search cannot be cancelled by premature retries and captured input routes directly');

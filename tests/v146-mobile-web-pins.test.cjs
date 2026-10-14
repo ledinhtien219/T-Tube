@@ -37,8 +37,8 @@ assert.match(presentation, /params\.width = ViewGroup\.LayoutParams\.MATCH_PAREN
 assert.match(presentation, /params\.rightMargin = 0/);
 assert.match(presentation, /web\.setInitialScale\(100\)/);
 
-// TikTok uses a consistent desktop identity and is freshly loaded.
-assert.match(presentation, /app\.id != "tiktok"/);
+// TikTok uses a consistent desktop identity and can restore its own session.
+assert.doesNotMatch(presentation, /app\.id != "tiktok"/);
 assert.match(presentation, /getDefaultUserAgent\(context\)/);
 assert.match(presentation, /replace\("; wv", ""\)/);
 assert.match(presentation, /TikTokWebPolicy\.configure\(web, startUrl \?: app\.url\)/);

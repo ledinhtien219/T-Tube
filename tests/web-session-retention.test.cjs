@@ -29,7 +29,8 @@ assert.match(media, /YouTubePlayerHelper\.seekTo\(web, session\.videoPositionSec
 assert.match(presentation, /CarMediaManager\.saveWebAppSession\(previousAppId, web\)/);
 assert.match(presentation, /CarMediaManager\.hasWebAppSession\(app\.id\)/);
 assert.match(presentation, /CarMediaManager\.restoreWebAppSession\(app\.id, web\)/);
-assert.match(presentation, /if \(!restoredSession && \(!isAlreadyLoaded \|\| startUrl != null\)\)/);
+assert.match(presentation, /pendingSessionRestoreAppId/);
+assert.match(presentation, /shouldNavigateFresh/);
 
 // Switching to another Android Auto app also captures the current state.
 assert.match(presentation, /override fun onStop\(\)[\s\S]*?saveWebAppSession\(currentActiveAppId, web\)/);

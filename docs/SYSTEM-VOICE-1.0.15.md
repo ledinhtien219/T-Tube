@@ -3,10 +3,10 @@
 ## Cách thử
 
 1. Build/cài bản nguồn này. Trên điện thoại vào **Cài đặt → MIC HỆ THỐNG ANDROID AUTO → Nhận lệnh từ mic hệ thống**. Công tắc mặc định bật và độc lập với bấm đôi Next/mic riêng của THTV.
-2. Mở THTV trên Android Auto trước, sau đó bấm nút mic hệ thống.
-3. Thử nói **“Phát VTV1 trên THTV”**, **“Phát HTV7 trên THTV”**, hoặc **“Phát bài Nắng ấm xa dần trên THTV”**. Nếu Google chưa nhận tên ứng dụng, thử **“trên THTV Media”**.
-4. Vào **LỆNH GẦN NHẤT ĐÃ NHẬN** để xem thời điểm, nội dung và kết quả xử lý. Nếu chưa có lệnh mới từ nguồn “Mic hệ thống”, trợ lý chưa chuyển yêu cầu vào THTV. Việc Google mở một ứng dụng khác không chứng minh bộ xử lý THTV đã nhận lệnh.
-5. Nút **THỬ LỆNH TRONG THTV** cho nhập “mở kênh VTV1” hoặc “mở nhạc Sơn Tùng” để thử riêng bộ xử lý khi Android Auto đang mở. Nút này không thử nhận dạng giọng nói hay khả năng chuyển lệnh của Google.
+2. Mở T Tube trên Android Auto trước, sau đó bấm nút mic hệ thống.
+3. Thử nói **“Phát VTV1 trên T Tube”**, **“Phát HTV7 trên T Tube”**, hoặc **“Phát bài Nắng ấm xa dần trên T Tube”**. Nếu Google chưa nhận tên ứng dụng, thử **“trên T Tube Media”**.
+4. Vào **LỆNH GẦN NHẤT ĐÃ NHẬN** để xem thời điểm, nội dung và kết quả xử lý. Nếu chưa có lệnh mới từ nguồn “Mic hệ thống”, trợ lý chưa chuyển yêu cầu vào THTV. Việc Google mở một ứng dụng khác không chứng minh bộ xử lý T Tube đã nhận lệnh.
+5. Nút **THỬ LỆNH TRONG T Tube** cho nhập “mở kênh VTV1” hoặc “mở nhạc Sơn Tùng” để thử riêng bộ xử lý khi Android Auto đang mở. Nút này không thử nhận dạng giọng nói hay khả năng chuyển lệnh của Google.
 
 ## Hành vi
 
@@ -19,9 +19,9 @@
 
 ## Phạm vi tích hợp
 
-Nút mic hệ thống vẫn thuộc Google Assistant/Gemini. THTV nhận lệnh media do trợ lý chuyển qua `MediaSession.onPlayFromSearch`, hoặc Activity nhận `MEDIA_PLAY_FROM_SEARCH`. `onPrepareFromSearch` lưu yêu cầu, chỉ thực hiện khi có `onPlay`. Khi tắt tính năng, không công bố các action tìm kiếm giọng nói trên MediaSession.
+Nút mic hệ thống vẫn thuộc Google Assistant/Gemini. T Tube nhận lệnh media do trợ lý chuyển qua `MediaSession.onPlayFromSearch`, hoặc Activity nhận `MEDIA_PLAY_FROM_SEARCH`. `onPrepareFromSearch` lưu yêu cầu, chỉ thực hiện khi có `onPlay`. Khi tắt tính năng, không công bố các action tìm kiếm giọng nói trên MediaSession.
 
-Tích hợp hiện cần THTV đã mở trên Android Auto để có màn hình phát. Nếu chưa sẵn sàng, trả lỗi yêu cầu mở THTV trước; không xếp hàng để tự phát vào lần mở sau. Không thay đổi ứng dụng trợ lý mặc định và không chiếm nút mic của hệ thống. Khả năng Google nhận tên và chọn THTV cần thử trên thiết bị, tài khoản và bản Android Auto thực tế.
+Tích hợp hiện cần T Tube đã mở trên Android Auto để có màn hình phát. Nếu chưa sẵn sàng, trả lỗi yêu cầu mở T Tube trước; không xếp hàng để tự phát vào lần mở sau. Không thay đổi ứng dụng trợ lý mặc định và không chiếm nút mic của hệ thống. Khả năng Google nhận tên và chọn T Tube cần thử trên thiết bị, tài khoản và bản Android Auto thực tế.
 
 Tham khảo chính thức: [Voice actions cho ứng dụng media trên xe](https://developer.android.com/training/cars/media/voice-actions), [Tích hợp ứng dụng media với Assistant](https://developer.android.com/media/implement/assistant).
 
