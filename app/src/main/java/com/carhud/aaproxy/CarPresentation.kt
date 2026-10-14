@@ -315,6 +315,15 @@ class CarPresentation(
                 currentActiveAppId == "iptv" -> {
                     playTvChannel(query)
                 }
+                currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(web.url) -> {
+                    currentActiveAppId = "tiktok"
+                    CarMediaManager.activeAppId = "tiktok"
+                    val target = TikTokWebPolicy.searchUrl(query)
+                    TikTokWebPolicy.configure(web, target)
+                    if (isDashboardShowing) showWebFullscreen()
+                    web.loadUrl(target)
+                    hideSearchOverlay(notifyPhone = false)
+                }
                 isBrowserApp() -> {
                     navigateBrowser(query)
                 }
@@ -694,7 +703,7 @@ class CarPresentation(
             }
         }
 
-        web.setBackgroundColor(Color.BLACK)
+        web.setBackgroundColor(if (isDayMode()) Color.WHITE else Color.BLACK)
         web.visibility = View.VISIBLE
 
         var customView: View? = null
@@ -1884,6 +1893,17 @@ class CarPresentation(
     private fun handleVoiceQuery(query: String) {
         cancelSystemVoiceRequest()
 
+        if ((currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(web.url)) && !isDashboardShowing) {
+            YouTubePlayerHelper.setDuckingVolume(web, 1.0f)
+            currentActiveAppId = "tiktok"
+            CarMediaManager.activeAppId = "tiktok"
+            val target = TikTokWebPolicy.searchUrl(query)
+            TikTokWebPolicy.configure(web, target)
+            web.loadUrl(target)
+            hideSearchOverlay()
+            return
+        }
+
         // Browser voice input stays literal: a spoken URL/search phrase should not
         // be rewritten as a music command.
         if (isBrowserApp() && !isDashboardShowing) {
@@ -1977,17 +1997,21 @@ class CarPresentation(
     }
 
     private fun isBrowserApp(): Boolean {
+        val url = web.url.orEmpty()
+
+        // TikTok has its own search/back/navigation contract. Do not classify it
+        // as the generic browser merely because both are rendered by WebView.
+        if (currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(url)) return false
         if (currentActiveAppId != "youtube" && currentActiveAppId != "iptv") return true
 
         // The persistent WebView can outlive/recreate the Presentation. During
         // that handoff the stored app id can briefly be stale. Trust the actual
         // page too, so a visible Google/browser page can never be treated as
         // YouTube just because currentActiveAppId still says "youtube".
-        val url = web.url.orEmpty()
         if (url.isBlank() || url == "about:blank") return false
         val isYoutubePage = url.contains("youtube.com", true) || url.contains("youtu.be", true)
         val isIptvPage = url.contains("iptv_player.html", true)
-        return !isYoutubePage && !isIptvPage
+        return !isYoutubePage && !isIptvPage && !TikTokWebPolicy.isTikTok(url)
     }
 
     fun switchWebApp(app: WebAppItem, embedded: Boolean = false, startUrl: String? = null) {
@@ -3656,7 +3680,8 @@ class CarPresentation(
     }
 
     fun showSearchOverlay() {
-        if (isBrowserApp()) { showBrowserAddressOverlay(); return }
+        val tiktokActive = currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(web.url)
+        if (!tiktokActive && isBrowserApp()) { showBrowserAddressOverlay(); return }
 
         // Opening a keyboard is an explicit manual action. It cancels delayed
         // voice-search auto-play before the user submits typed text.
@@ -3665,7 +3690,7 @@ class CarPresentation(
             web.evaluateJavascript("document.getElementById('searchInput')?.click();", null)
             return
         }
-        searchOverlayMode = if (currentActiveAppId == "tiktok") "tiktok" else "youtube"
+        searchOverlayMode = if (tiktokActive) "tiktok" else "youtube"
         searchInput.error = null
         searchInput.imeOptions = EditorInfo.IME_ACTION_SEARCH
         webKeyboardTargetPending = false
