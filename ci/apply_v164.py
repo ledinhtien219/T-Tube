@@ -136,11 +136,23 @@ if 'val panelBg = if (isDay)' not in yt:
 s = s[:start] + yt + s[end:]
 
 # TikTok Back never leaves TikTok, even if activeAppId is momentarily stale.
-back_start = s.find('    private fun goBackTikTokOnly()')
-back_end = s.find('    private fun showWebKeyboardOverlay', back_start)
-if back_start < 0 or back_end < 0:
-    raise SystemExit('v164: TikTok back function bounds not found')
-back_fn = '''    private fun goBackTikTokOnly() {
+back_start = s.find('goBackTikTokOnly()')
+if back_start >= 0:
+    back_start = s.rfind('\n', 0, back_start) + 1
+    brace = s.find('{', back_start)
+    depth = 0
+    back_end = -1
+    for i in range(brace, len(s)):
+        if s[i] == '{':
+            depth += 1
+        elif s[i] == '}':
+            depth -= 1
+            if depth == 0:
+                back_end = i + 1
+                break
+    if brace < 0 or back_end < 0:
+        raise SystemExit('v164: TikTok back function braces not found')
+    back_fn = '''    private fun goBackTikTokOnly() {
         val visibleTikTok = TikTokWebPolicy.isTikTok(web.url)
         if (!visibleTikTok && currentActiveAppId != "tiktok") return
         currentActiveAppId = "tiktok"
@@ -158,10 +170,35 @@ back_fn = '''    private fun goBackTikTokOnly() {
         val home = "https://www.tiktok.com/"
         TikTokWebPolicy.configure(web, home)
         web.loadUrl(home)
+    }'''
+    s = s[:back_start] + back_fn + s[back_end:]
+else:
+    # Some older overlay variants inline the action. Add a dedicated helper near the
+    # search function and keep all Back behavior inside TikTok.
+    insert_at = s.find('    private fun showTikTokSearchOverlay()')
+    if insert_at < 0:
+        raise SystemExit('v164: TikTok search helper not found for Back insertion')
+    back_fn = '''    private fun goBackTikTokOnly() {
+        val visibleTikTok = TikTokWebPolicy.isTikTok(web.url)
+        if (!visibleTikTok && currentActiveAppId != "tiktok") return
+        currentActiveAppId = "tiktok"
+        CarMediaManager.activeAppId = "tiktok"
+        if (searchOverlay.visibility == View.VISIBLE) { hideSearchOverlay(); return }
+        if (web.canGoBack()) {
+            val history = web.copyBackForwardList()
+            val previous = history.getItemAtIndex(history.currentIndex - 1)?.url
+            if (TikTokWebPolicy.isTikTok(previous)) {
+                web.goBack()
+                return
+            }
+        }
+        val home = "https://www.tiktok.com/"
+        TikTokWebPolicy.configure(web, home)
+        web.loadUrl(home)
     }
 
 '''
-s = s[:back_start] + back_fn + s[back_end:]
+    s = s[:insert_at] + back_fn + s[insert_at:]
 
 p.write_text(s)
 
