@@ -14,7 +14,6 @@ import androidx.car.app.SurfaceCallback
 import androidx.car.app.SurfaceContainer
 import androidx.car.app.model.Action
 import androidx.car.app.model.ActionStrip
-import androidx.car.app.model.CarColor
 import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.car.app.model.Template
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -197,18 +196,16 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     }
 
     override fun onGetTemplate(): Template {
-        // NavigationTemplate keeps the custom Surface behavior used by the
-        // original v1.0.39 dashboard. Android Auto requires one action in the
-        // strip, so provide a zero-width action with a fully transparent
-        // background instead of BACK. This avoids both the host BACK button and
-        // the "No items" content overlay from list-based templates.
-        val transparent = CarColor.createCustom(0x00000000, 0x00000000)
+        // Keep the required NavigationTemplate action strip for the projected
+        // Surface, but do not mark the placeholder as PRIMARY and do not set a
+        // background color. Some Android Auto hosts render PRIMARY actions as a
+        // circular floating control even when the action itself is transparent.
+        // This is closer to Fermata's projection behavior: no visible host-owned
+        // primary action chrome over the app surface.
         val hiddenActionStrip = ActionStrip.Builder()
             .addAction(
                 Action.Builder()
                     .setTitle("\u200B")
-                    .setFlags(Action.FLAG_PRIMARY)
-                    .setBackgroundColor(transparent)
                     .build()
             )
             .build()

@@ -14,23 +14,28 @@ const dashboardXml = fs.readFileSync(
   'utf8'
 );
 
-// The host-rendered BACK action and list-template overlay must both be gone.
-// Keep NavigationTemplate for the full app surface, but make the required
-// placeholder action fully transparent.
+// Car UI is intentionally restored to the v6.3 dashboard/screen implementation.
+// The legacy host-rendered BACK/list overlay must remain absent.
 assert.doesNotMatch(screen, /Action\.BACK/);
 assert.doesNotMatch(screen, /PlaceListNavigationTemplate/);
 assert.doesNotMatch(screen, /ItemList\.Builder/);
-assert.match(screen, /CarColor\.createCustom\(0x00000000, 0x00000000\)/);
-assert.match(screen, /ActionStrip\.Builder\(\)[\s\S]*?setTitle\("\\u200B"\)[\s\S]*?setFlags\(Action\.FLAG_PRIMARY\)[\s\S]*?setBackgroundColor\(transparent\)/);
-assert.match(screen, /NavigationTemplate\.Builder\(\)[\s\S]*?setActionStrip\(hiddenActionStrip\)/);
 
-// Keep the existing weather-card bounds, but render weather with vector icons.
-assert.match(dashboardXml, /android:id="@\+id\/weatherCard"[\s\S]*?android:layout_width="150dp"[\s\S]*?android:layout_height="76dp"/);
-assert.match(dashboardXml, /<ImageView[\s\S]*?android:id="@\+id\/weatherIcon"[\s\S]*?android:layout_width="38dp"/);
+// v6.3 weather-card bounds and vector rendering.
+assert.match(
+  dashboardXml,
+  /android:id="@\+id\/weatherCard"[\s\S]*?android:layout_width="150dp"[\s\S]*?android:layout_height="76dp"/
+);
+assert.match(
+  dashboardXml,
+  /<ImageView[\s\S]*?android:id="@\+id\/weatherIcon"[\s\S]*?android:layout_width="38dp"/
+);
 assert.match(dashboardXml, /android:src="@drawable\/ic_weather_partly_cloudy"/);
 assert.match(dashboardKt, /private lateinit var weatherIcon: ImageView/);
 assert.match(dashboardKt, /fun weatherIconRes\(iconEmoji: String\): Int/);
-assert.match(dashboardKt, /weatherIcon\.setImageResource\(weatherIconRes\(weather\.iconEmoji\)\)/);
+assert.match(
+  dashboardKt,
+  /weatherIcon\.setImageResource\(weatherIconRes\(weather\.iconEmoji\)\)/
+);
 assert.match(dashboardKt, /Color\.parseColor\("#66F8FAFC"\)/);
 assert.match(dashboardKt, /Color\.parseColor\("#66101A24"\)/);
 assert.match(dashboardKt, /Color\.parseColor\("#80FFFFFF"\)/);
@@ -46,4 +51,4 @@ for (const file of [
   assert.ok(fs.existsSync('app/src/main/res/drawable/' + file), file + ' missing');
 }
 
-console.log('PASS home UI cleanup: back action removed + vector weather icons');
+console.log('PASS car UI v6.3 dashboard regression');

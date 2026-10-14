@@ -94,6 +94,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var phoneCardIptv: LinearLayout
     private lateinit var phoneCardM3u: LinearLayout
     private lateinit var phoneCardBrowser: LinearLayout
+    private lateinit var phoneAppPager: HorizontalScrollView
+    private lateinit var phoneAppPages: LinearLayout
+    private lateinit var phoneAppPageIndicator: TextView
     private lateinit var sectionFavChannels: LinearLayout
     private lateinit var quickChannelsRow: LinearLayout
 
@@ -144,12 +147,16 @@ class MainActivity : AppCompatActivity() {
         const val PREF_SHOW_CARD_IPTV = "pref_show_card_iptv"
         const val PREF_SHOW_CARD_M3U = "pref_show_card_m3u"
         const val PREF_SHOW_CARD_BROWSER = "pref_show_card_browser"
+        const val PREF_DASHBOARD_PINNED_APPS = "pref_dashboard_pinned_apps"
         const val PREF_SHOW_FAV_CHANNELS = "pref_show_fav_channels"
         const val PREF_SHOW_MINI_PLAYER = "pref_show_mini_player"
         const val PREF_SHOW_BOTTOM_NAV = "pref_show_bottom_nav"
         const val PREF_ACCENT_COLOR = "pref_phone_accent_color"
         const val PREF_THEME_MODE = "pref_phone_theme_mode"
         const val PREF_FAV_CHANNELS_SET = "pref_fav_channels_set"
+
+        private const val PHONE_HOME_PAGE_COUNT = 3
+        private const val PHONE_HOME_APPS_PER_PAGE = 9
     }
 
     data class ChannelItem(
@@ -496,6 +503,9 @@ class MainActivity : AppCompatActivity() {
         phoneCardIptv = findViewById(R.id.phoneCardIptv)
         phoneCardM3u = findViewById(R.id.phoneCardM3u)
         phoneCardBrowser = findViewById(R.id.phoneCardBrowser)
+        phoneAppPager = findViewById(R.id.phoneAppPager)
+        phoneAppPages = findViewById(R.id.phoneAppPages)
+        phoneAppPageIndicator = findViewById(R.id.phoneAppPageIndicator)
         sectionFavChannels = findViewById(R.id.sectionFavChannels)
         quickChannelsRow = findViewById(R.id.quickChannelsRow)
 
@@ -640,7 +650,10 @@ class MainActivity : AppCompatActivity() {
             showSubview(subviewWallpaper)
         }
 
-        // 2x2 Services Grid
+        // Phone launcher: the visible Home is a real 3x3 app grid backed by WebAppManager.
+        setupPhoneAppPager()
+
+        // Legacy 2x2 cards remain hidden in XML for preference/backward compatibility.
         phoneCardYoutube.setOnClickListener { switchTab(TAB_YOUTUBE) }
         phoneCardIptv.setOnClickListener { switchTab(TAB_IPTV) }
         phoneCardM3u.setOnClickListener {
@@ -655,6 +668,170 @@ class MainActivity : AppCompatActivity() {
         // Search bar
         phoneSearchBar.setOnClickListener { showSearchDialog() }
         phoneMicBtn.setOnClickListener { showSearchDialog() }
+    }
+
+    private fun setupPhoneAppPager() {
+        phoneAppPager.isHorizontalScrollBarEnabled = false
+        phoneAppPager.overScrollMode = View.OVER_SCROLL_NEVER
+
+        phoneAppPager.setOnScrollChangeListener { _, scrollX, _, _, _ ->
+            val pageWidth = phoneAppPager.width.coerceAtLeast(1)
+            val page = ((scrollX + pageWidth / 2) / pageWidth)
+                .coerceIn(0, PHONE_HOME_PAGE_COUNT - 1)
+            updatePhoneAppPageIndicator(page)
+        }
+
+        phoneAppPager.setOnTouchListener { _, event ->
+            if (event.actionMasked == android.view.MotionEvent.ACTION_UP ||
+                event.actionMasked == android.view.MotionEvent.ACTION_CANCEL
+            ) {
+                phoneAppPager.post { snapPhoneAppPagerToNearestPage() }
+            }
+            false
+        }
+
+        renderPhoneAppPages()
+    }
+
+    private fun renderPhoneAppPages() {
+        phoneAppPager.post {
+            val pageWidth = phoneAppPager.width
+            if (pageWidth <= 0) return@post
+
+            val apps = WebAppManager.getEnabledApps(this)
+                .take(PHONE_HOME_PAGE_COUNT * PHONE_HOME_APPS_PER_PAGE)
+
+            phoneAppPages.removeAllViews()
+
+            repeat(PHONE_HOME_PAGE_COUNT) { pageIndex ->
+                val grid = GridLayout(this).apply {
+                    columnCount = 3
+                    rowCount = 3
+                    alignmentMode = GridLayout.ALIGN_BOUNDS
+                    useDefaultMargins = false
+                    layoutParams = LinearLayout.LayoutParams(
+                        pageWidth,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
+                    setPadding(dp(1), dp(2), dp(1), dp(2))
+                }
+
+                val pageApps = apps.drop(pageIndex * PHONE_HOME_APPS_PER_PAGE)
+                    .take(PHONE_HOME_APPS_PER_PAGE)
+
+                pageApps.forEachIndexed { cellIndex, app ->
+                    val row = cellIndex / 3
+                    val col = cellIndex % 3
+                    grid.addView(createPhoneAppTile(app), GridLayout.LayoutParams(
+                        GridLayout.spec(row, 1f),
+                        GridLayout.spec(col, 1f)
+                    ).apply {
+                        width = 0
+                        height = dp(88)
+                        setMargins(dp(4), dp(4), dp(4), dp(4))
+                    })
+                }
+
+                phoneAppPages.addView(grid)
+            }
+
+            updatePhoneAppPageIndicator(
+                ((phoneAppPager.scrollX + pageWidth / 2) / pageWidth)
+                    .coerceIn(0, PHONE_HOME_PAGE_COUNT - 1)
+            )
+        }
+    }
+
+    private fun createPhoneAppTile(app: WebAppItem): View {
+        val tile = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(6), dp(7), dp(6), dp(6))
+            setBackgroundResource(R.drawable.bg_card_frosted_phone)
+            isClickable = true
+            isFocusable = true
+            contentDescription = app.name
+            enableTouchBounce(0.96f)
+            setOnClickListener { openPhoneHomeApp(app) }
+        }
+
+        val iconHolder = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
+            background = createCircleBg(
+                try {
+                    Color.parseColor(app.colorHex)
+                } catch (_: Throwable) {
+                    activeAccentColor
+                }
+            )
+        }
+
+        val icon = ImageView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER)
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            val customIcon = app.iconPath?.takeIf { it.isNotBlank() }?.let {
+                try { BitmapFactory.decodeFile(it) } catch (_: Throwable) { null }
+            }
+            if (customIcon != null) {
+                setImageBitmap(customIcon)
+            } else {
+                setImageResource(app.iconRes)
+            }
+        }
+        iconHolder.addView(icon)
+        tile.addView(iconHolder)
+
+        tile.addView(TextView(this).apply {
+            text = app.name
+            textSize = 10.5f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor("#F8FAFC"))
+            gravity = Gravity.CENTER
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dp(5)
+            }
+        })
+
+        return tile
+    }
+
+    private fun openPhoneHomeApp(app: WebAppItem) {
+        when (app.id) {
+            "youtube" -> {
+                switchTab(TAB_YOUTUBE)
+                initYoutubeWebView()
+                youtubeWeb?.loadUrl(app.url)
+            }
+            "iptv" -> switchTab(TAB_IPTV)
+            else -> {
+                // The phone browser shares the existing WebView surface used by the YouTube tab.
+                switchTab(TAB_YOUTUBE)
+                initYoutubeWebView()
+                youtubeWeb?.loadUrl(app.url)
+            }
+        }
+    }
+
+    private fun snapPhoneAppPagerToNearestPage() {
+        val pageWidth = phoneAppPager.width
+        if (pageWidth <= 0) return
+        val page = ((phoneAppPager.scrollX + pageWidth / 2) / pageWidth)
+            .coerceIn(0, PHONE_HOME_PAGE_COUNT - 1)
+        phoneAppPager.smoothScrollTo(page * pageWidth, 0)
+        updatePhoneAppPageIndicator(page)
+    }
+
+    private fun updatePhoneAppPageIndicator(page: Int) {
+        val dots = (0 until PHONE_HOME_PAGE_COUNT).joinToString(" ") {
+            if (it == page) "●" else "○"
+        }
+        phoneAppPageIndicator.text =
+            "$dots   Vuốt ngang để chuyển • Trang ${page + 1} / $PHONE_HOME_PAGE_COUNT"
     }
 
     private fun loadSavedFavorites() {
@@ -2131,6 +2308,9 @@ class MainActivity : AppCompatActivity() {
         youtubeWeb?.resumeTimers()
         iptvWeb?.resumeTimers()
         updatePermissionStatusDisplay()
+        if (::phoneAppPager.isInitialized) {
+            renderPhoneAppPages()
+        }
         val imported = prefs.getLong(SettingsBackupManager.IMPORT_REVISION, 0L)
         if (imported != appliedSettingsImport) {
             appliedSettingsImport = imported
