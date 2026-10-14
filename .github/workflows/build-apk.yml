@@ -114,27 +114,10 @@ jobs:
           python ci/apply_v163.py
           grep -E 'applicationId|version(Code|Name)' app/build.gradle.kts | head -3
 
-      - name: Apply T Tube v1.0.64 targeted patch
+      - name: Apply T Tube v1.0.64 targeted fixes
         shell: bash
         run: |
-          tr -d '\n\r' < ci/v164_patch.gz.b64 | base64 -d | gzip -dc > /tmp/v164.raw.patch
-          python - <<'PY'
-          from pathlib import Path
-          s = Path('/tmp/v164.raw.patch').read_text()
-          s = s.replace('TTube_v1.0.63_src/TTube_v1.0.63/', 'a/')
-          s = s.replace('TTube_v1.0.64_work/TTube_v1.0.64/', 'b/')
-          chunks = s.split('diff -ruN ')
-          out = []
-          for chunk in chunks:
-              if not chunk.strip():
-                  continue
-              first = chunk.splitlines()[0]
-              if 'a/.github/workflows/' in first:
-                  continue
-              out.append('diff -ruN ' + chunk)
-          Path('/tmp/v164.patch').write_text(''.join(out))
-          PY
-          patch -p1 < /tmp/v164.patch
+          python ci/apply_v164.py
           grep -E 'applicationId|version(Code|Name)' app/build.gradle.kts | head -3
           test -f tests/v164-theme-transition-tiktok.test.cjs
 
