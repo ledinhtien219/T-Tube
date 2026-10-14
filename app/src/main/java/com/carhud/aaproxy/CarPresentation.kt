@@ -94,6 +94,8 @@ class CarPresentation(
     private var dashboardView: CarDashboardView? = null
     private var isDashboardShowing = true
     private var currentActiveAppId: String = "youtube"
+    // WebView restoreState/loadUrl is asynchronous; current URL may still belong to the previous app.
+    private var pendingSessionRestoreAppId: String? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
     // Prevent repeated play/resume commands when Android Auto recreates the surface
@@ -313,6 +315,15 @@ class CarPresentation(
                 currentActiveAppId == "iptv" -> {
                     playTvChannel(query)
                 }
+                currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(web.url) -> {
+                    currentActiveAppId = "tiktok"
+                    CarMediaManager.activeAppId = "tiktok"
+                    val target = TikTokWebPolicy.searchUrl(query)
+                    TikTokWebPolicy.configure(web, target)
+                    if (isDashboardShowing) showWebFullscreen()
+                    web.loadUrl(target)
+                    hideSearchOverlay(notifyPhone = false)
+                }
                 isBrowserApp() -> {
                     navigateBrowser(query)
                 }
@@ -515,6 +526,11 @@ class CarPresentation(
             }
 
             @android.webkit.JavascriptInterface
+            fun isDayTheme(): Boolean {
+                return isDayMode()
+            }
+
+            @android.webkit.JavascriptInterface
             fun saveCustomUrl(newUrl: String) {
                 mainHandler.post {
                     IptvManager.setM3uUrl(context, newUrl)
@@ -565,6 +581,7 @@ class CarPresentation(
                     target.contains("play.google.com/store")) {
                     return true // Block app redirect, stay in webview
                 }
+                if (request.isForMainFrame && view != null) TikTokWebPolicy.configure(view, target)
                 return false
             }
 
@@ -581,6 +598,7 @@ class CarPresentation(
                     target.contains("play.google.com/store")) {
                     return true
                 }
+                if (view != null) TikTokWebPolicy.configure(view, target)
                 return false
             }
 
@@ -596,16 +614,37 @@ class CarPresentation(
 
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                val pending = pendingSessionRestoreAppId
+                if (pending != null) {
+                    val matches = when (pending) {
+                        "youtube" -> url.contains("youtube.com", true) || url.contains("youtu.be", true)
+                        "tiktok" -> url.contains("tiktok.com", true)
+                        "iptv" -> url.contains("iptv_player.html", true)
+                        "web" -> !(url.contains("youtube.com", true) || url.contains("youtu.be", true) || url.contains("tiktok.com", true) || url.contains("iptv_player.html", true))
+                        else -> true
+                    }
+                    if (matches) pendingSessionRestoreAppId = null
+                }
                 browserLoading = true
                 updateBrowserToolbar(url)
-                val isDay = isDayMode()
-                applyUniversalWebTheme(view, isDay)
+                applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
                 applyWebScaleForUrl(url)
+                TikTokWebPolicy.fitLayout(view, url)
             }
 
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                 super.doUpdateVisitedHistory(view, url, isReload)
                 updateBrowserToolbar(url)
+                if (view != null) {
+                    applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
+                    TikTokWebPolicy.fitLayout(view, url)
+                }
+            }
+
+            override fun onPageCommitVisible(view: WebView, url: String) {
+                super.onPageCommitVisible(view, url)
+                applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
+                TikTokWebPolicy.fitLayout(view, url)
             }
 
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
@@ -629,7 +668,8 @@ class CarPresentation(
                 YouTubeAdBlocker.onPageFinished(view, url)
                 applyWebScaleForUrl(url)
                 val isDay = isDayMode()
-                applyUniversalWebTheme(view, isDay)
+                applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
+                TikTokWebPolicy.fitLayout(view, url)
                 val isYouTube = currentActiveAppId == "youtube" && (url.contains("youtube.com") || url.contains("youtu.be"))
                 if (isYouTube) {
                     YouTubePlayerHelper.inject(view, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
@@ -656,13 +696,13 @@ class CarPresentation(
                     if (CarMediaManager.userWantsPlayback) {
                         CarMediaManager.ensureAudioFocus()
                         CarMediaManager.acquireWakeLock(context)
-                        scheduleSafeResume(view, 700L)
+                        scheduleSafeResume(view, 150L)
                     }
                 }
             }
         }
 
-        web.setBackgroundColor(Color.BLACK)
+        web.setBackgroundColor(if (effectiveWebThemeIsDay(web.url)) Color.WHITE else Color.BLACK)
         web.visibility = View.VISIBLE
 
         var customView: View? = null
@@ -751,7 +791,7 @@ class CarPresentation(
                 CarMediaManager.userWantsPlayback = true
                 CarMediaManager.ensureAudioFocus()
                 CarMediaManager.acquireWakeLock(context)
-                val targetUrl = lastUrl!!
+                val targetUrl = lastUrl.orEmpty()
                 val alreadyLoading = (CarMediaManager.currentLoadingUrl == targetUrl)
                 if (!alreadyLoading && (currentUrl.isNullOrBlank() || currentUrl == "about:blank" || !currentUrl.contains("watch"))) {
                     CarMediaManager.currentLoadingUrl = targetUrl
@@ -807,7 +847,7 @@ class CarPresentation(
         }
         web.setOnTouchListener { _, event ->
             if (event.actionMasked == MotionEvent.ACTION_DOWN && systemVoiceSearchPending) cancelSystemVoiceRequest()
-            onUserInteraction()
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) onUserInteraction()
             if (event.actionMasked == MotionEvent.ACTION_UP) {
                 openFocusedWebInput(event.x, event.y)
             }
@@ -1028,14 +1068,28 @@ class CarPresentation(
 
     private var lastAppliedScale = -1
     fun applyWebScaleForUrl(url: String?) {
+        if (TikTokWebPolicy.isTikTok(url)) {
+            if (lastAppliedScale == -2) return
+            lastAppliedScale = -2
+            web.settings.useWideViewPort = true
+            web.settings.loadWithOverviewMode = false
+            web.settings.textZoom = 100
+            web.setInitialScale(100)
+            return
+        }
         val effectivePhoneDpi = if (phoneDpi > 0f) phoneDpi else 440f
         val effectiveCarDpi = if (carDpi > 0) carDpi.toFloat() else 160f
-        val scalePercent = if (currentActiveAppId == "web") 0 else ((effectiveCarDpi / effectivePhoneDpi) * 100f).coerceIn(20f, 200f).toInt()
-        if (scalePercent != lastAppliedScale) {
+        val isBrowser = currentActiveAppId == "web" || currentActiveAppId == "tiktok"
+        val scalePercent = if (isBrowser) {
+            100
+        } else {
+            ((effectiveCarDpi / effectivePhoneDpi) * 100f).coerceIn(20f, 200f).toInt()
+        }
+        if (scalePercent != lastAppliedScale || currentActiveAppId == "web") {
             lastAppliedScale = scalePercent
             web.setInitialScale(scalePercent)
             web.settings.useWideViewPort = true
-            web.settings.loadWithOverviewMode = true
+            web.settings.loadWithOverviewMode = !isBrowser
             web.settings.textZoom = 100
         }
     }
@@ -1090,7 +1144,7 @@ class CarPresentation(
 
     fun updateVideoProgress(currentSec: Int, totalSec: Int, formattedTime: String) {
         val showTime = prefs.getBoolean(SettingsActivity.KEY_SHOW_TIME_PILL, true)
-        if (showTime && totalSec > 0 && formattedTime.isNotEmpty() && !isDashboardShowing) {
+        if (showTime && currentActiveAppId != "tiktok" && totalSec > 0 && formattedTime.isNotEmpty() && !isDashboardShowing) {
             videoTimePill?.apply {
                 text = "⏱ $formattedTime"
                 if (visibility != View.VISIBLE) {
@@ -1132,13 +1186,52 @@ class CarPresentation(
             return
         }
 
+        if (currentActiveAppId == "tiktok") {
+            // Persistent TikTok rail at the far-left edge; Back never exits TikTok.
+            val isDay = isDayMode()
+            val tiktokIconSizeDp = ((58 * scale) / 100).coerceIn(52, 72)
+            val controls = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                background = if (isDay) {
+                    rounded(Color.parseColor("#F7F8FAFC"), 20f, Color.parseColor("#802D9CDB"), 1)
+                } else {
+                    rounded(Color.parseColor("#EE0B1324"), 20f, Color.parseColor("#8038BDF8"), 1)
+                }
+                setPadding(dp(4), dp(5), dp(4), dp(5))
+                addView(createBarIcon(R.drawable.ic_bar_back, tiktokIconSizeDp) { goBackWithinTikTok() })
+                addView(createDivider(tiktokIconSizeDp, false))
+                addView(createBarIcon(R.drawable.ic_bar_home, tiktokIconSizeDp) { showDashboard() })
+                addView(createDivider(tiktokIconSizeDp, false))
+                addView(createBarIcon(R.drawable.ic_bar_search, tiktokIconSizeDp) { showSearchOverlay() })
+                elevation = dp(18).toFloat()
+            }
+            val wrapper = FrameLayout(context).apply {
+                isClickable = false
+                addView(controls)
+            }
+            sidebarView = controls
+            sidebarContainer = wrapper
+            videoTimePill = null
+            root.addView(wrapper, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.START or Gravity.CENTER_VERTICAL).apply {
+                    leftMargin = dp(3)
+                    topMargin = dp(6)
+                    bottomMargin = dp(6)
+                })
+            root.bringChildToFront(wrapper)
+            autoHideHandler.removeCallbacks(hideBarsRunnable)
+            return
+        }
+
         val iconSizeDp = ((56 * scale) / 100).coerceIn(38, 84)
         val pillThicknessDp = iconSizeDp + 10
 
         val showBack = prefs.getBoolean(SettingsActivity.KEY_SHOW_BACK, true)
         val showHome = prefs.getBoolean(SettingsActivity.KEY_SHOW_HOME, true)
         val showTv = prefs.getBoolean(SettingsActivity.KEY_SHOW_TV, true)
-        val showDayNight = prefs.getBoolean(SettingsActivity.KEY_SHOW_DAY_NIGHT, true)
+        // Theme selection is owned by the phone app.
+        val showDayNight = false
         val showSearch = isBrowserApp() && prefs.getBoolean(SettingsActivity.KEY_SHOW_KEYBOARD_SEARCH, true)
         val showMic = prefs.getBoolean(SettingsActivity.KEY_SHOW_VOICE_SEARCH, true)
         val showPlayPause = false
@@ -1354,34 +1447,31 @@ class CarPresentation(
     }
 
     private fun buildYouTubeMediaToolbar(scale: Int) {
-        val btnWidth = ((74 * scale) / 100).coerceIn(56, 108)
-        val btnHeight = ((64 * scale) / 100).coerceIn(50, 94)
-        val iconSize = ((26 * scale) / 100).coerceIn(20, 38)
-        val textSizeSp = (10.5f * scale / 100f).coerceIn(8.5f, 15f)
         val isDay = isDayMode()
+        val btnWidth = ((64 * scale) / 100).coerceIn(52, 82)
+        val btnHeight = ((52 * scale) / 100).coerceIn(46, 68)
+        val iconSize = ((23 * scale) / 100).coerceIn(19, 30)
+        val textSizeSp = (9.2f * scale / 100f).coerceIn(8f, 12f)
 
         fun toolButton(iconRes: Int, label: String, onClick: (LinearLayout) -> Unit): LinearLayout {
             return LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 background = rounded(
-                    if (isDay) Color.parseColor("#F1F5F9") else Color.parseColor("#EC111827"),
+                    if (isDay) Color.parseColor("#F7F8FAFC") else Color.parseColor("#D91A2430"),
                     12f,
-                    if (isDay) Color.parseColor("#CBD5E1") else Color.parseColor("#334155"),
+                    if (isDay) Color.parseColor("#CBD5E1") else Color.parseColor("#33485C70"),
                     1
                 )
-                setPadding(dp(4), dp(5), dp(4), dp(4))
+                setPadding(dp(3), dp(4), dp(3), dp(3))
                 layoutParams = LinearLayout.LayoutParams(dp(btnWidth), dp(btnHeight)).apply {
-                    topMargin = dp(2); bottomMargin = dp(2)
+                    topMargin = dp(2)
+                    bottomMargin = dp(2)
                 }
                 val icon = ImageView(context).apply {
                     setImageResource(iconRes)
                     scaleType = ImageView.ScaleType.CENTER_INSIDE
-                    if (isDay) {
-                        setColorFilter(Color.parseColor(if (iconRes == R.drawable.ic_bar_home) "#1D4ED8" else "#1E293B"))
-                    } else {
-                        clearColorFilter()
-                    }
+                    if (isDay) setColorFilter(Color.parseColor("#0F172A")) else setColorFilter(Color.WHITE)
                 }
                 addView(icon, LinearLayout.LayoutParams(dp(iconSize), dp(iconSize)))
                 addView(TextView(context).apply {
@@ -1389,9 +1479,10 @@ class CarPresentation(
                     textSize = textSizeSp
                     gravity = Gravity.CENTER
                     maxLines = 1
-                    setTextColor(if (isDay) Color.parseColor("#334155") else Color.parseColor("#E5E7EB"))
+                    includeFontPadding = false
+                    setTextColor(if (isDay) Color.parseColor("#0F172A") else Color.parseColor("#EAF2F8"))
                 }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    topMargin = dp(2)
+                    topMargin = dp(1)
                 })
                 enableTouchBounce()
                 setOnClickListener { onClick(this) }
@@ -1402,13 +1493,13 @@ class CarPresentation(
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             background = rounded(
-                if (isDay) Color.parseColor("#F6FFFFFF") else Color.parseColor("#F20B1220"),
-                16f,
-                if (isDay) Color.parseColor("#CBD5E1") else Color.parseColor("#334155"),
+                if (isDay) Color.parseColor("#F7FFFFFF") else Color.parseColor("#E60B1118"),
+                18f,
+                if (isDay) Color.parseColor("#94A3B8") else Color.parseColor("#506B8299"),
                 1
             )
             setPadding(dp(5), dp(5), dp(5), dp(5))
-            elevation = 60f
+            elevation = dp(18).toFloat()
 
             addView(toolButton(R.drawable.ic_bar_home, "Trang chủ") { showDashboard() })
 
@@ -1431,14 +1522,15 @@ class CarPresentation(
 
         sidebarView = panel
         val wrapper = FrameLayout(context).apply {
+            isClickable = false
             addView(panel)
         }
         sidebarContainer = wrapper
         val params = FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             gravity = Gravity.START or Gravity.CENTER_VERTICAL
-            leftMargin = dp(6)
-            topMargin = dp(6)
-            bottomMargin = dp(6)
+            leftMargin = dp(8)
+            topMargin = dp(8)
+            bottomMargin = dp(8)
         }
         root.addView(wrapper, params)
         root.bringChildToFront(wrapper)
@@ -1482,7 +1574,9 @@ class CarPresentation(
     }
 
     fun hideBars() {
-        if (currentActiveAppId == "web" && !isDashboardShowing) return
+        // Browser chrome and TikTok Back/Home controls are persistent controls.
+        // Never auto-hide them while their app is visible.
+        if ((currentActiveAppId == "web" || currentActiveAppId == "tiktok") && !isDashboardShowing) return
         sidebarContainer?.let { sidebar ->
             if (sidebar.visibility == View.VISIBLE) {
                 sidebar.animate().alpha(0f).setDuration(200).withEndAction {
@@ -1504,8 +1598,8 @@ class CarPresentation(
 
     fun resetAutoHideTimer() {
         autoHideHandler.removeCallbacks(hideBarsRunnable)
-        if (currentActiveAppId == "web") return
-        autoHideHandler.postDelayed(hideBarsRunnable, 10000L) // 10s auto-hide
+        if (currentActiveAppId == "web" || currentActiveAppId == "tiktok") return
+        autoHideHandler.postDelayed(hideBarsRunnable, 10000L)
     }
 
     fun onUserInteraction() {
@@ -1516,7 +1610,7 @@ class CarPresentation(
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        onUserInteraction()
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) onUserInteraction()
         return super.dispatchTouchEvent(ev)
     }
 
@@ -1531,28 +1625,38 @@ class CarPresentation(
         updateBrowserViewport()
         if (currentActiveAppId != "web" || isDashboardShowing) return
 
-        val day = isDayMode()
-        val ink = if (day) Color.parseColor("#202124") else Color.parseColor("#E8EAED")
+        // Browser chrome is always light, independent from the media theme.
+        val day = true
+        val ink = Color.parseColor("#172033")
+        val mutedInk = if (day) Color.parseColor("#64748B") else Color.parseColor("#94A3B8")
+        val shell = if (day) Color.parseColor("#F7FFFFFF") else Color.parseColor("#F20B1324")
+        val field = if (day) Color.parseColor("#EEF2F7") else Color.parseColor("#182235")
+        val border = if (day) Color.parseColor("#6638BDF8") else Color.parseColor("#995EEBFF")
+
+        val wrapper = FrameLayout(context).apply {
+            isClickable = true
+            elevation = dp(18).toFloat()
+        }
         val toolbar = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(if (day) Color.WHITE else Color.parseColor("#202124"))
-            elevation = dp(150).toFloat()
+            background = rounded(shell, 22f, border, 1)
+            elevation = dp(18).toFloat()
             isClickable = true
         }
         val row = LinearLayout(context).apply {
             gravity = Gravity.CENTER_VERTICAL
-            // NavigationTemplate draws its own back action in the upper-right corner.
-            setPadding(dp(4), dp(4), dp(76), dp(4))
+            setPadding(dp(6), dp(5), dp(6), dp(5))
         }
         fun button(label: String, description: String, action: () -> Unit): TextView {
             return TextView(context).apply {
                 text = label
                 contentDescription = description
-                textSize = 23f
+                textSize = 22f
                 gravity = Gravity.CENTER
                 setTextColor(ink)
+                background = rounded(Color.TRANSPARENT, 16f, Color.TRANSPARENT, 0)
                 setOnClickListener { action() }
-                row.addView(this, LinearLayout.LayoutParams(dp(40), ViewGroup.LayoutParams.MATCH_PARENT))
+                row.addView(this, LinearLayout.LayoutParams(dp(42), dp(44)))
             }
         }
         button("⌂", "Về màn hình chính", ::goHome)
@@ -1570,29 +1674,55 @@ class CarPresentation(
             gravity = Gravity.CENTER_VERTICAL
             setSingleLine(true)
             ellipsize = android.text.TextUtils.TruncateAt.END
-            setPadding(dp(12), 0, dp(10), 0)
+            setPadding(dp(14), 0, dp(12), 0)
             setTextColor(ink)
-            background = rounded(if (day) Color.parseColor("#F1F3F4") else Color.parseColor("#303134"), 22f, Color.TRANSPARENT, 0)
+            setHintTextColor(mutedInk)
+            background = rounded(field, 19f, if (day) Color.parseColor("#D7E2EE") else Color.parseColor("#31425D"), 1)
             contentDescription = "Tìm kiếm Google hoặc nhập địa chỉ web"
             setOnClickListener { showBrowserAddressOverlay() }
-            row.addView(this, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+            row.addView(this, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+                leftMargin = dp(4)
+                rightMargin = dp(4)
+            })
         }
         button("🎙", "Tìm kiếm web bằng giọng nói", ::startVoiceSearch)
-        toolbar.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)))
+        toolbar.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)))
         browserProgress = ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
-            progressTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#4285F4"))
-            toolbar.addView(this, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(2)))
+            progressTintList = android.content.res.ColorStateList.valueOf(if (day) Color.parseColor("#0284C7") else Color.parseColor("#22D3EE"))
+            toolbar.addView(this, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(2)).apply {
+                leftMargin = dp(16)
+                rightMargin = dp(16)
+            })
         }
-        topToolbarContainer = toolbar
-        root.addView(toolbar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(58), Gravity.TOP))
+        wrapper.addView(toolbar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(58)))
+        topToolbarContainer = wrapper
+        root.addView(wrapper, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(58), Gravity.TOP).apply {
+            leftMargin = dp(10)
+            rightMargin = dp(10)
+            topMargin = dp(8)
+        })
+        root.bringChildToFront(wrapper)
         updateBrowserToolbar()
     }
 
     private fun updateBrowserViewport() {
         (web.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
-            params.topMargin = if (currentActiveAppId == "web" && !isDashboardShowing) dp(58) else 0
+            params.width = ViewGroup.LayoutParams.MATCH_PARENT
+            params.height = ViewGroup.LayoutParams.MATCH_PARENT
+            params.leftMargin = 0
+            params.rightMargin = 0
+            params.bottomMargin = 0
+            params.topMargin = if (currentActiveAppId == "web" && !isDashboardShowing) dp(74) else 0
             web.layoutParams = params
+            web.minimumWidth = 0
+            web.minimumHeight = 0
+            if (currentActiveAppId == "web") {
+                web.settings.useWideViewPort = true
+                web.settings.loadWithOverviewMode = false
+                web.setInitialScale(100)
+            }
+            web.requestLayout()
         }
     }
 
@@ -1746,9 +1876,9 @@ class CarPresentation(
                 val target = try { org.json.JSONTokener(result ?: "null").nextValue() as? String } catch (_: Exception) { null }
                 val uri = target?.let { android.net.Uri.parse(it) }
                 val host = uri?.host.orEmpty()
-                if (uri?.scheme == "https" && (host == "youtube.com" || host.endsWith(".youtube.com")) && uri.path == "/watch" && !uri.getQueryParameter("v").isNullOrBlank()) {
+                if (target != null && uri?.scheme == "https" && (host == "youtube.com" || host.endsWith(".youtube.com")) && uri.path == "/watch" && !uri.getQueryParameter("v").isNullOrBlank()) {
                     systemVoiceSearchPending = false
-                    web.loadUrl(target!!)
+                    web.loadUrl(target)
                     SystemVoiceModule.report(context, "Đã chọn kết quả nhạc cho: $query")
                 } else if (attempt < 99) {
                     pollSystemVoiceMusic(query, token, attempt + 1)
@@ -1762,6 +1892,17 @@ class CarPresentation(
 
     private fun handleVoiceQuery(query: String) {
         cancelSystemVoiceRequest()
+
+        if ((currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(web.url)) && !isDashboardShowing) {
+            YouTubePlayerHelper.setDuckingVolume(web, 1.0f)
+            currentActiveAppId = "tiktok"
+            CarMediaManager.activeAppId = "tiktok"
+            val target = TikTokWebPolicy.searchUrl(query)
+            TikTokWebPolicy.configure(web, target)
+            web.loadUrl(target)
+            hideSearchOverlay()
+            return
+        }
 
         // Browser voice input stays literal: a spoken URL/search phrase should not
         // be rewritten as a music command.
@@ -1855,18 +1996,39 @@ class CarPresentation(
         }
     }
 
+    private fun effectiveWebThemeIsDay(url: String? = web.url): Boolean {
+        val current = url.orEmpty()
+        val specialized =
+            current.contains("youtube.com", true) ||
+            current.contains("youtu.be", true) ||
+            current.contains("tiktok.com", true) ||
+            current.contains("iptv_player.html", true)
+
+        // The standalone browser is intentionally always light for readability.
+        // YouTube/IPTV/TikTok continue to follow Day/Night/Auto.
+        return if (currentActiveAppId == "web" || (!specialized && current.isNotBlank() && current != "about:blank")) {
+            true
+        } else {
+            isDayMode()
+        }
+    }
+
     private fun isBrowserApp(): Boolean {
+        val url = web.url.orEmpty()
+
+        // TikTok has its own search/back/navigation contract. Do not classify it
+        // as the generic browser merely because both are rendered by WebView.
+        if (currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(url)) return false
         if (currentActiveAppId != "youtube" && currentActiveAppId != "iptv") return true
 
         // The persistent WebView can outlive/recreate the Presentation. During
         // that handoff the stored app id can briefly be stale. Trust the actual
         // page too, so a visible Google/browser page can never be treated as
         // YouTube just because currentActiveAppId still says "youtube".
-        val url = web.url.orEmpty()
         if (url.isBlank() || url == "about:blank") return false
         val isYoutubePage = url.contains("youtube.com", true) || url.contains("youtu.be", true)
         val isIptvPage = url.contains("iptv_player.html", true)
-        return !isYoutubePage && !isIptvPage
+        return !isYoutubePage && !isIptvPage && !TikTokWebPolicy.isTikTok(url)
     }
 
     fun switchWebApp(app: WebAppItem, embedded: Boolean = false, startUrl: String? = null) {
@@ -1897,12 +2059,22 @@ class CarPresentation(
         CarMediaManager.lastEmbeddedApp = app
         CarMediaManager.isEmbeddedAppShowing = false
 
-        val isDesktop = WebAppManager.isAppDesktop(context, app.id)
+        // Generic browser is always light; media apps follow the selected theme.
+        // Apply before navigation so there is no dark flash while a page starts.
+        applyUniversalWebTheme(web, effectiveWebThemeIsDay(startUrl ?: app.url))
+
+        // YouTube's desktop shell is substantially heavier on projected WebViews.
+        // Keep the phone preference intact, but always use the mobile site on the
+        // Android Auto presentation for faster startup and more reliable searches.
+        val isDesktop = if (app.id == "youtube") false else WebAppManager.isAppDesktop(context, app.id)
         if (app.id == "tiktok" || app.url.contains("tiktok.com")) {
-            web.settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            TikTokWebPolicy.configure(web, startUrl ?: app.url)
             web.settings.domStorageEnabled = true
             web.settings.databaseEnabled = true
             web.settings.mediaPlaybackRequiresUserGesture = false
+            web.settings.useWideViewPort = true
+            web.settings.loadWithOverviewMode = false
+            web.settings.javaScriptCanOpenWindowsAutomatically = false
             try {
                 CookieManager.getInstance().setAcceptCookie(true)
                 CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
@@ -1930,13 +2102,47 @@ class CarPresentation(
             app.url
         }
 
+        // Hide dashboard/wallpaper before any restore/load can paint.
+        prepareFullscreenTransition()
+
         val restoredSession = if (canRestoreSession) {
             CarMediaManager.restoreWebAppSession(app.id, web)
         } else {
             false
         }
+        if (restoredSession) {
+            pendingSessionRestoreAppId = app.id
+            web.postDelayed({
+                if (pendingSessionRestoreAppId != app.id || currentActiveAppId != app.id) return@postDelayed
+                val current = web.url.orEmpty()
+                val matches = when (app.id) {
+                    "youtube" -> current.contains("youtube.com", true) || current.contains("youtu.be", true)
+                    "tiktok" -> current.contains("tiktok.com", true)
+                    "iptv" -> current.contains("iptv_player.html", true)
+                    "web" -> !(current.contains("youtube.com", true) || current.contains("youtu.be", true) || current.contains("tiktok.com", true) || current.contains("iptv_player.html", true))
+                    else -> current.isNotBlank() && current != "about:blank"
+                }
+                if (matches) {
+                    pendingSessionRestoreAppId = null
+                } else if (app.id == "youtube") {
+                    val resume = CarMediaManager.lastPlayedUrl
+                        ?: prefs.getString(SettingsActivity.KEY_LAST_PLAYED_URL, null)
+                    val target = resume?.takeIf { it.contains("youtube.com/watch", true) || it.contains("youtu.be/", true) }
+                        ?: "https://m.youtube.com"
+                    pendingSessionRestoreAppId = null
+                    web.loadUrl(target)
+                } else {
+                    pendingSessionRestoreAppId = null
+                }
+            }, 3200L)
+        }
 
-        if (!restoredSession && (!isAlreadyLoaded || startUrl != null)) {
+        val shouldNavigateFresh = startUrl != null ||
+            (isChangingApp && !restoredSession) ||
+            (!isChangingApp && !isAlreadyLoaded)
+        if (shouldNavigateFresh) {
+            pendingSessionRestoreAppId = null
+            TikTokWebPolicy.configure(web, homeUrl)
             web.loadUrl(homeUrl)
         }
 
@@ -1948,6 +2154,41 @@ class CarPresentation(
 
     val isShowingDashboard: Boolean
         get() = isDashboardShowing
+
+    private fun ensureCorrectFullscreenAppPage() {
+        val currentUrl = web.url.orEmpty()
+        if (pendingSessionRestoreAppId == currentActiveAppId) {
+            return
+        }
+        when (currentActiveAppId) {
+            "youtube" -> {
+                val isYoutubePage = currentUrl.contains("youtube.com", true) || currentUrl.contains("youtu.be", true)
+                if (!isYoutubePage) {
+                    browserNeedsHistoryReset = false
+                    web.stopLoading()
+                    web.loadUrl("https://m.youtube.com")
+                }
+            }
+            "web" -> {
+                if (currentUrl.contains("youtube.com", true) || currentUrl.contains("youtu.be", true)) {
+                    browserNeedsHistoryReset = true
+                    web.loadUrl("https://www.google.com")
+                }
+            }
+        }
+    }
+
+    private fun prepareFullscreenTransition() {
+        isDashboardShowing = false
+        CarMediaManager.isWebShowingFullscreen = true
+        CarMediaManager.isEmbeddedAppShowing = false
+        dashboardView?.detachEmbeddedWeb()
+        dashboardView?.visibility = View.GONE
+        web.setBackgroundColor(if (isDayMode()) Color.WHITE else Color.BLACK)
+        web.visibility = View.VISIBLE
+        web.alpha = 1f
+        web.bringToFront()
+    }
 
     fun showWebFullscreen(app: WebAppItem? = null) {
         isDashboardShowing = false
@@ -1963,8 +2204,9 @@ class CarPresentation(
         // Disable dashboard mode so YouTube script knows it's fullscreen
         web.evaluateJavascript("window.isDashboardMode = false;", null)
         
-        applyWebScaleForUrl(app?.url ?: web.url)
-        YouTubePlayerHelper.applyTheme(web, isDayMode())
+        ensureCorrectFullscreenAppPage()
+        applyWebScaleForUrl(web.url ?: app?.url)
+        applyUniversalWebTheme(web, effectiveWebThemeIsDay(web.url ?: app?.url))
         dashboardView?.detachEmbeddedWeb()
         dashboardView?.visibility = View.GONE
         web.visibility = View.VISIBLE
@@ -2087,12 +2329,24 @@ class CarPresentation(
         dashboardView?.applyDayNightMode(isDay)
         rebuildSidebar()
         rebuildTopToolbar()
-        YouTubePlayerHelper.applyUniversalWebTheme(web, isDay)
-        if (currentActiveAppId == "iptv") {
-            try {
-                web.evaluateJavascript("if (typeof window.setIptvTheme === 'function') window.setIptvTheme(${if (isDay) "true" else "false"});", null)
-            } catch (_: Throwable) {}
+
+        fun syncWebTheme() {
+            val pageIsDay = if (currentActiveAppId == "web") true else isDay
+            applyUniversalWebTheme(web, pageIsDay)
+            if (currentActiveAppId == "iptv" || web.url?.contains("iptv_player.html") == true) {
+                try {
+                    web.evaluateJavascript("if (typeof window.setIptvTheme === 'function') window.setIptvTheme(${if (isDay) "true" else "false"});", null)
+                } catch (_: Throwable) {}
+            }
         }
+
+        // Apply immediately and again after SPA/framework rerenders. Several web apps
+        // repaint their root node after navigation, which used to overwrite the chosen
+        // car theme until the next full page load.
+        syncWebTheme()
+        mainHandler.postDelayed({ if (!isDashboardShowing) syncWebTheme() }, 180L)
+        mainHandler.postDelayed({ if (!isDashboardShowing) syncWebTheme() }, 650L)
+        mainHandler.postDelayed({ if (!isDashboardShowing) syncWebTheme() }, 1400L)
     }
 
     fun onCarConfigurationChanged(newConfig: android.content.res.Configuration? = null) {
@@ -2432,13 +2686,13 @@ class CarPresentation(
                 val iconBox = FrameLayout(context).apply {
                     val boxColor = try { Color.parseColor(app.colorHex) } catch(e: Exception) { Color.parseColor("#1E88E5") }
                     background = rounded(boxColor, 13f, Color.parseColor("#33FFFFFF"), 1)
-                    layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply {
+                    layoutParams = LinearLayout.LayoutParams(dp(60), dp(60)).apply {
                         gravity = Gravity.CENTER_HORIZONTAL
                         bottomMargin = dp(5)
                     }
 
                     val icon = ImageView(context).apply {
-                        scaleType = ImageView.ScaleType.CENTER_INSIDE
+                        scaleType = ImageView.ScaleType.FIT_CENTER
                         if (!app.iconPath.isNullOrBlank() && java.io.File(app.iconPath).exists()) {
                             val bmp = android.graphics.BitmapFactory.decodeFile(app.iconPath)
                             if (bmp != null) {
@@ -2469,6 +2723,7 @@ class CarPresentation(
                 }
                 addView(iconBox)
 
+                contentDescription = app.name
                 val label = TextView(context).apply {
                     text = app.name
                     textSize = 12f
@@ -2481,6 +2736,7 @@ class CarPresentation(
                 addView(label)
 
                 val catTag = TextView(context).apply {
+                    visibility = View.GONE
                     text = WebAppManager.getCategoryName(app.id)
                     textSize = 9.5f
                     setTextColor(Color.parseColor("#38BDF8"))
@@ -2873,7 +3129,30 @@ class CarPresentation(
         val q = query.trim()
         if (q.isEmpty()) return
 
-        if (currentActiveAppId != "youtube") return
+        if (searchOverlayMode == "tiktok") {
+            cancelSystemVoiceRequest()
+            currentActiveAppId = "tiktok"
+            CarMediaManager.activeAppId = "tiktok"
+            if (isDashboardShowing) showWebFullscreen()
+            val target = TikTokWebPolicy.searchUrl(q)
+            TikTokWebPolicy.configure(web, target)
+            web.loadUrl(target)
+            hideSearchOverlay()
+            return
+        }
+
+        // The overlay mode is the source of truth. Android Auto may recreate the
+        // host surface and briefly leave currentActiveAppId stale even while the
+        // persistent WebView is visibly on YouTube. Never turn the Search button
+        // into a silent no-op in that state.
+        val currentUrl = web.url.orEmpty()
+        val youtubeVisible = currentUrl.contains("youtube.com", ignoreCase = true) ||
+            currentUrl.contains("youtu.be", ignoreCase = true)
+        if (searchOverlayMode != "youtube" || (currentActiveAppId != "youtube" && !youtubeVisible)) return
+        if (youtubeVisible) {
+            currentActiveAppId = "youtube"
+            CarMediaManager.activeAppId = "youtube"
+        }
         prepareManualYouTubeSearch()
         if (isDashboardShowing) {
             showWebFullscreen()
@@ -2903,10 +3182,27 @@ class CarPresentation(
             else YouTubePlayerHelper.cancelSearchAutoPlay(web)
         }
 
+        // A captured YouTube search box is still a YouTube navigation action.
+        // Never trust the site's current DOM submit handler: on projected WebViews
+        // it can update the text field without changing route. Navigate explicitly.
+        val currentUrl = web.url.orEmpty()
+        val currentHost = try { android.net.Uri.parse(currentUrl).host.orEmpty().lowercase() } catch (_: Exception) { "" }
+        val isYouTubePage = currentHost == "youtube.com" || currentHost.endsWith(".youtube.com") || currentHost == "youtu.be"
+        if (performAction && isYouTubePage && cleanValue.isNotBlank()) {
+            webKeyboardTargetPending = false
+            web.evaluateJavascript("if(window.__thtvPageInput) window.__thtvPageInput.clear();", null)
+            currentActiveAppId = "youtube"
+            CarMediaManager.activeAppId = "youtube"
+            prepareManualYouTubeSearch()
+            hideSearchOverlay()
+            YouTubePlayerHelper.search(web, cleanValue, autoPlayFirst = false)
+            onComplete?.invoke(true)
+            return
+        }
+
         // Google changes/replaces its search field dynamically. For a captured
         // Google search box, navigate the CURRENT browser WebView directly to
         // Google results. This is deterministic and can never fall into YouTube.
-        val currentUrl = web.url.orEmpty()
         val isGooglePage = Regex("""https?://([a-z0-9-]+\.)?google\.[^/]+/""", RegexOption.IGNORE_CASE)
             .containsMatchIn(currentUrl)
         if (performAction && isGooglePage && cleanValue.isNotBlank()) {
@@ -2919,6 +3215,20 @@ class CarPresentation(
                 onComplete?.invoke(true)
                 return
             }
+        }
+
+        // TikTok mobile search is a client-side widget; native form submission can
+        // navigate to an empty shell. Use its web results route explicitly.
+        val host = currentHost
+        if (performAction && (host == "tiktok.com" || host.endsWith(".tiktok.com")) && cleanValue.isNotBlank()) {
+            webKeyboardTargetPending = false
+            web.evaluateJavascript("if(window.__thtvPageInput) window.__thtvPageInput.clear();", null)
+            hideSearchOverlay()
+            val targetUrl = TikTokWebPolicy.searchUrl(cleanValue)
+            TikTokWebPolicy.configure(web, targetUrl)
+            web.loadUrl(targetUrl)
+            onComplete?.invoke(true)
+            return
         }
 
         webInputSubmissionPending = true
@@ -3388,7 +3698,8 @@ class CarPresentation(
     }
 
     fun showSearchOverlay() {
-        if (isBrowserApp()) { showBrowserAddressOverlay(); return }
+        val tiktokActive = currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(web.url)
+        if (!tiktokActive && isBrowserApp()) { showBrowserAddressOverlay(); return }
 
         // Opening a keyboard is an explicit manual action. It cancels delayed
         // voice-search auto-play before the user submits typed text.
@@ -3397,11 +3708,11 @@ class CarPresentation(
             web.evaluateJavascript("document.getElementById('searchInput')?.click();", null)
             return
         }
-        searchOverlayMode = "youtube"
+        searchOverlayMode = if (tiktokActive) "tiktok" else "youtube"
         searchInput.error = null
         searchInput.imeOptions = EditorInfo.IME_ACTION_SEARCH
         webKeyboardTargetPending = false
-        searchInput.hint = "Nhập bài hát, ca sĩ, thể loại..."
+        searchInput.hint = if (searchOverlayMode == "tiktok") "Tìm video TikTok..." else "Nhập bài hát, ca sĩ, thể loại..."
         searchOverlayVoiceButton?.visibility = View.VISIBLE
         searchOverlaySubmitButton?.apply { visibility = View.VISIBLE; text = "🔍 Tìm" }
         searchSuggestionStrip?.visibility = View.VISIBLE
@@ -3519,9 +3830,20 @@ class CarPresentation(
                 else -> "Nhập"
             },
             onSubmit = { value, complete ->
-                if (CarMediaManager.activeAppId != owner || web.url != page) complete(false)
-                else if (mode == "web") {
-                    submitWebKeyboardText(
+                val currentPage = web.url.orEmpty()
+                val youtubeSession = mode == "youtube" && (
+                    currentPage.contains("youtube.com", ignoreCase = true) ||
+                        currentPage.contains("youtu.be", ignoreCase = true)
+                    )
+                if (CarMediaManager.activeAppId != owner && !youtubeSession) {
+                    complete(false)
+                } else if (mode == "web") {
+                    // Captured page fields are tied to a concrete DOM/page token.
+                    // YouTube/address searches are navigation actions and must not
+                    // fail just because the WebView normalized or redirected its URL
+                    // while Android Auto's native keyboard was open.
+                    if (web.url != page) complete(false)
+                    else submitWebKeyboardText(
                         value = value,
                         onComplete = complete,
                         token = token,
@@ -3532,7 +3854,8 @@ class CarPresentation(
                     // Native Android Auto submit is the final action for YouTube/address.
                     // Do not bounce back to a second in-app "Tìm" button.
                     val current = keyboardPresentation.get()?.takeIf {
-                        it.isShowing && it.web === web && it.currentActiveAppId == owner
+                        it.isShowing && it.web === web &&
+                            (it.currentActiveAppId == owner || youtubeSession)
                     }
                     if (current == null) {
                         complete(false)
@@ -3569,7 +3892,7 @@ class CarPresentation(
                 performAction = webKeyboardAction == "search"
             )
         } else {
-            // THTV keyboard Enter/Search should perform the same final action as
+            // T Tube keyboard Enter/Search should perform the same final action as
             // the visible Search/Go button, not merely hide the key rows.
             executeSearch(searchInput.text.toString(), broadcast = false)
         }
@@ -3736,7 +4059,8 @@ class CarPresentation(
             if (currentActiveAppId != "youtube" || web.url != page || videoQualityOverlay != null) return@videoQualityOptions
             val names = mapOf("highres" to "4K+", "hd2160" to "2160p (4K)", "hd1440" to "1440p", "hd1080" to "1080p", "hd720" to "720p", "large" to "480p", "medium" to "360p", "small" to "240p", "tiny" to "144p", "auto" to "Tự động")
             val levels = options?.optJSONArray("levels")
-            val ids = if (levels != null) (0 until levels.length()).map { levels.optString(it) }.filter { names.containsKey(it) }.distinct() else emptyList()
+            val pageToken = options?.optString("page").orEmpty()
+            val ids = if (levels != null && pageToken.isNotBlank()) (0 until levels.length()).map { levels.optString(it) }.filter { names.containsKey(it) }.distinct() else emptyList()
             if (ids.isEmpty()) {
                 Toast.makeText(context, "Chưa lấy được chất lượng. Hãy mở một video YouTube rồi thử lại.", Toast.LENGTH_LONG).show()
                 return@videoQualityOptions
@@ -3768,7 +4092,7 @@ class CarPresentation(
                 val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
                 pair.forEach { id ->
                     row.addView(button((if (options?.optString("current") == id) "✓ " else "") + names.getValue(id)) {
-                        YouTubePlayerHelper.selectVideoQuality(web, id, options!!.getString("page")) { accepted ->
+                        YouTubePlayerHelper.selectVideoQuality(web, id, pageToken) { accepted ->
                             hideVideoQualityMenu()
                             if (!accepted) Toast.makeText(context, "Video đã thay đổi. Mở lại bảng chất lượng.", Toast.LENGTH_LONG).show()
                         }
@@ -3790,6 +4114,32 @@ class CarPresentation(
     private fun hideVideoQualityMenu() {
         videoQualityOverlay?.let { root.removeView(it) }
         videoQualityOverlay = null
+    }
+
+    private var projectedTouchActive = false
+
+    /** Keep the receiver chosen on DOWN until UP/CANCEL, even when a key closes the overlay. */
+    fun dispatchProjectedTouch(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            val editing = ::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE
+            val tikTok = currentActiveAppId == "tiktok" && !isDashboardShowing &&
+                videoQualityOverlay == null && addAppOverlay?.visibility != View.VISIBLE &&
+                appGridOverlay?.visibility != View.VISIBLE &&
+                hudOverlay?.let { it.visibility == View.VISIBLE &&
+                    (!it.isHudLocked() || it.isTouchOnOverlay(event.x, event.y)) } != true
+            projectedTouchActive = editing || tikTok
+        }
+        if (!projectedTouchActive) return false
+        val copy = MotionEvent.obtain(event)
+        try {
+            (window?.decorView ?: root).dispatchTouchEvent(copy)
+        } finally {
+            copy.recycle()
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                projectedTouchActive = false
+            }
+        }
+        return true
     }
 
     fun dispatchTouch(x: Float, y: Float) {
@@ -3924,6 +4274,26 @@ class CarPresentation(
         web.reload()
     }
 
+    private fun goBackWithinTikTok() {
+        cancelSystemVoiceRequest()
+        val history = web.copyBackForwardList()
+        if (history.currentIndex > 0) {
+            val previous = history.getItemAtIndex(history.currentIndex - 1)?.url.orEmpty()
+            if (TikTokWebPolicy.isTikTok(previous)) {
+                TikTokWebPolicy.configure(web, previous)
+                web.goBack()
+                return
+            }
+        }
+        // Never leave TikTok through the Back button. If history is exhausted,
+        // stay inside TikTok and return to its public home/feed.
+        val home = "https://www.tiktok.com/"
+        if (web.url.orEmpty().trimEnd('/') != home.trimEnd('/')) {
+            TikTokWebPolicy.configure(web, home)
+            web.loadUrl(home)
+        }
+    }
+
     fun goBack() {
         cancelSystemVoiceRequest()
         if (videoQualityOverlay != null) { hideVideoQualityMenu(); return }
@@ -3946,6 +4316,8 @@ class CarPresentation(
             web
         }
         if (targetWeb.canGoBack()) {
+            val history = targetWeb.copyBackForwardList()
+            TikTokWebPolicy.configure(targetWeb, history.getItemAtIndex(history.currentIndex - 1)?.url)
             targetWeb.goBack()
         }
     }
@@ -3961,6 +4333,12 @@ class CarPresentation(
         }
         if (event.action == KeyEvent.ACTION_DOWN) {
             when (event.keyCode) {
+                KeyEvent.KEYCODE_BACK -> {
+                    if (currentActiveAppId == "tiktok" && !isDashboardShowing) {
+                        goBackWithinTikTok()
+                        return true
+                    }
+                }
                 KeyEvent.KEYCODE_VOICE_ASSIST,
                 KeyEvent.KEYCODE_SEARCH -> {
                     startVoiceSearch()

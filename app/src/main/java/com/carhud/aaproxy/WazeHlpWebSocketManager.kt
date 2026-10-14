@@ -358,7 +358,7 @@ object WazeHlpWebSocketManager {
     private fun buildDeviceDeclarationPayload(): String = JSONObject().apply {
         put("v", 1)
         put("t", "dev")
-        put("name", "THTV-PRO")
+        put("name", "T-TUBE")
         put("fw", "1.0")
         put("proto", JSONArray().put(1))
         put("can", JSONArray().apply {

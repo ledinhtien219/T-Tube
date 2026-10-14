@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 data class MediaTrackState(
     val title: String = "YouTube Music",
-    val artist: String = "THTV",
+    val artist: String = "T Tube",
     val isPlaying: Boolean = false,
     val currentPositionSec: Int = 0,
     val currentDurationSec: Int = 0,
@@ -70,7 +70,7 @@ object CarMediaManager {
         private set
     var currentTitle = "YouTube Music"
         private set
-    var currentArtist = "THTV"
+    var currentArtist = "T Tube"
         private set
     var currentArtworkUrl = ""
         private set
@@ -107,16 +107,28 @@ object CarMediaManager {
     )
 
     private val webAppSessions = mutableMapOf<String, WebAppSession>()
+    private fun isUrlCompatibleWithApp(appId: String, url: String): Boolean {
+        val value = url.trim()
+        if (value.isBlank() || value == "about:blank") return false
+        return when (appId) {
+            "youtube" -> value.contains("youtube.com", true) || value.contains("youtu.be", true)
+            "tiktok" -> value.contains("tiktok.com", true)
+            "iptv" -> value.contains("iptv_player.html", true)
+            "web" -> !(value.contains("youtube.com", true) || value.contains("youtu.be", true) || value.contains("tiktok.com", true) || value.contains("iptv_player.html", true))
+            else -> true
+        }
+    }
+
 
     fun hasWebAppSession(appId: String): Boolean = synchronized(webAppSessions) {
         webAppSessions.containsKey(appId)
     }
 
     fun saveWebAppSession(appId: String, web: WebView?) {
-        if (web == null || appId !in setOf("web", "youtube")) return
+        if (web == null || appId !in setOf("web", "youtube", "tiktok", "iptv")) return
         try {
             val url = web.url.orEmpty()
-            if (url.isBlank() || url == "about:blank") return
+            if (!isUrlCompatibleWithApp(appId, url)) return
 
             val state = android.os.Bundle()
             web.saveState(state)
@@ -146,8 +158,12 @@ object CarMediaManager {
     }
 
     fun restoreWebAppSession(appId: String, web: WebView?): Boolean {
-        if (web == null || appId !in setOf("web", "youtube")) return false
+        if (web == null || appId !in setOf("web", "youtube", "tiktok", "iptv")) return false
         val session = synchronized(webAppSessions) { webAppSessions[appId] } ?: return false
+        if (!isUrlCompatibleWithApp(appId, session.url)) {
+            clearWebAppSession(appId)
+            return false
+        }
 
         return try {
             web.stopLoading()
@@ -201,7 +217,7 @@ object CarMediaManager {
         }
     }
 
-    fun setCarConnectionState(connected: Boolean) {
+    fun setCarConnectionState(connected: Boolean, resumePhoneOnDisconnect: Boolean = true) {
         isCarConnected = connected
         mainHandler.post {
             try {
@@ -210,6 +226,13 @@ object CarMediaManager {
                     phoneWebView?.pauseTimers()
                 } else {
                     val phone = phoneWebView
+                    if (!resumePhoneOnDisconnect) {
+                        // Full cable/Android Auto shutdown: never wake the phone WebView
+                        // back up for background playback while the process is exiting.
+                        phone?.onPause()
+                        phone?.pauseTimers()
+                        return@post
+                    }
                     val backgroundEnabled = phone?.context
                         ?.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
                         ?.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true) ?: true
@@ -781,6 +804,12 @@ object CarMediaManager {
                     web.onResume()
                     web.resumeTimers()
                     val curUrl = web.url ?: ""
+                    // A media command while another web app owns the shared WebView
+                    // must not silently replace it with lastPlayedUrl.
+                    if (activeAppId != "youtube" && !curUrl.contains("youtube.com", true) && !curUrl.contains("youtu.be", true) && !curUrl.contains("iptv_player.html", true)) {
+                        ensureAudioFocus()
+                        return@post
+                    }
                     if (curUrl.contains("iptv_player.html")) {
                         web.evaluateJavascript("if(window.setIptvPlaying) window.setIptvPlaying(true);", null)
                     } else if (!curUrl.contains("watch")) {
@@ -1126,18 +1155,19 @@ object CarMediaManager {
     }
 
     fun requestCarNativeSearch(input: CarInputSession): Boolean {
-        if (carNativeSearchListeners.isEmpty()) return false
+        // A recreated CarHudAutoScreen can overlap the previous screen for a short
+        // time. Sending the SAME input session to every listener lets a stale screen
+        // cancel the session opened by the live screen. Dispatch to one newest host.
+        val listener = carNativeSearchListeners.lastOrNull() ?: return false
         mainHandler.post {
-            for (l in carNativeSearchListeners) {
-                try { l.invoke(input) } catch (_: Exception) { input.cancel() }
-            }
+            try { listener.invoke(input) } catch (_: Exception) { input.cancel() }
         }
         return true
     }
 
     fun launchPhoneSearchActivity(context: Context, query: String = "", input: CarInputSession? = null) {
         val id = input?.let { java.util.UUID.randomUUID().toString() }
-        if (input != null) { phoneEditor?.second?.cancel(); phoneEditor = id!! to input }
+        if (input != null && id != null) { phoneEditor?.second?.cancel(); phoneEditor = id to input }
         try {
             val intent = Intent(context, PhoneSearchActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -1159,7 +1189,7 @@ object CarMediaManager {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val channel = android.app.NotificationChannel(
                     channelId,
-                    "Nhập liệu THTV từ điện thoại",
+                    "Nhập liệu T Tube từ điện thoại",
                     android.app.NotificationManager.IMPORTANCE_HIGH
                 ).apply {
                     description = "Mở bàn phím điện thoại để nhập tìm kiếm cho màn hình xe"
@@ -1182,7 +1212,7 @@ object CarMediaManager {
 
             val builder = androidx.core.app.NotificationCompat.Builder(context, channelId)
                 .setSmallIcon(com.carhud.app.R.drawable.ic_bar_search)
-                .setContentTitle("⌨️ Nhập liệu cho ô tô (THTV)")
+                .setContentTitle("⌨️ Nhập liệu cho ô tô (T Tube)")
                 .setContentText("Chạm vào đây để mở bàn phím điện thoại gõ tiếng Việt có dấu")
                 .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
                 .setDefaults(androidx.core.app.NotificationCompat.DEFAULT_ALL)

@@ -134,7 +134,7 @@ object SettingsBackupManager {
             }
             groups.put(name, values)
         }
-        val root = JSONObject().put("format", "THTV-settings").put("schemaVersion", 1)
+        val root = JSONObject().put("format", "TTube-settings").put("schemaVersion", 1)
             .put("appVersion", BuildConfig.VERSION_NAME).put("createdAt", System.currentTimeMillis()).put("groups", groups)
         if (IptvManager.isUsingLocalFile(context)) {
             val file = File(context.filesDir, IptvManager.LOCAL_M3U_FILE)
@@ -150,7 +150,7 @@ object SettingsBackupManager {
     fun parse(text: String): Backup {
         require(text.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "File cấu hình vượt quá 4 MB." }
         val root = JSONObject(text)
-        require(root.optString("format") == "THTV-settings" && root.optInt("schemaVersion") == 1) { "File không phải cấu hình THTV được hỗ trợ." }
+        require(root.optString("format") == "TTube-settings" && root.optInt("schemaVersion") == 1) { "File không phải cấu hình T Tube được hỗ trợ." }
         val source = root.getJSONObject("groups")
         val groups = linkedMapOf<String, Map<String, Any>>()
         for (name in source.keys()) {
@@ -190,7 +190,7 @@ object SettingsBackupManager {
         val playlist = if (root.has("localPlaylist")) root.getString("localPlaylist").also {
             require(it.toByteArray(Charsets.UTF_8).size <= 1024 * 1024 && it.trimStart().startsWith("#EXTM3U")) { "Danh sách M3U kèm theo không hợp lệ." }
         } else null
-        require(groups.isNotEmpty()) { "File không có nhóm cài đặt THTV để nạp." }
+        require(groups.isNotEmpty()) { "File không có nhóm cài đặt T Tube để nạp." }
         require(groups[SettingsActivity.PREFS]?.get(IptvManager.PREF_IPTV_IS_FILE) != true || playlist != null) { "File thiếu danh sách M3U đã lưu." }
         return Backup(groups, playlist)
     }

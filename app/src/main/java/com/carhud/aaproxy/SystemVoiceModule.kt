@@ -16,8 +16,8 @@ internal object SystemVoiceModule {
 
     enum class Result(val message: String) {
         ACCEPTED("Đã nhận lệnh; xem kết quả trên Android Auto."),
-        DISABLED("Mic hệ thống cho THTV đang tắt trong Cài đặt."),
-        NOT_READY("Mở THTV trên Android Auto trước, rồi nói lại lệnh.")
+        DISABLED("Mic hệ thống cho T Tube đang tắt trong Cài đặt."),
+        NOT_READY("Mở T Tube trên Android Auto trước, rồi nói lại lệnh.")
     }
 
     fun isEnabled(context: Context): Boolean = context.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
@@ -71,7 +71,7 @@ internal object SystemVoiceModule {
     fun diagnostics(context: Context): String {
         val prefs = context.getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE)
         val at = prefs.getLong("received_at", 0L)
-        if (at == 0L) return "Chưa nhận lệnh nào từ mic hệ thống.\nMở THTV trên Android Auto, bấm mic hệ thống rồi nói: Phát VTV1 trên THTV Media."
+        if (at == 0L) return "Chưa nhận lệnh nào từ mic hệ thống.\nMở T Tube trên Android Auto, bấm mic hệ thống rồi nói: Phát VTV1 trên T Tube Media."
         val time = java.text.DateFormat.getDateTimeInstance().format(java.util.Date(at))
         return "Lúc: $time\nNguồn: ${prefs.getString("source", "")}\nLệnh: ${prefs.getString("query", "")}\nXử lý: ${prefs.getString("target", "")}\nTrạng thái: ${prefs.getString("status", "")}"
     }

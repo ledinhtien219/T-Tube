@@ -10,10 +10,17 @@ import androidx.car.app.model.Template
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 
-class CarSearchScreen(carContext: CarContext, private val input: CarInputSession) : Screen(carContext) {
+class CarSearchScreen(
+    carContext: CarContext,
+    private val input: CarInputSession,
+    private val onClosed: () -> Unit = {}
+) : Screen(carContext) {
     init {
         lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onDestroy(owner: LifecycleOwner) = input.cancel()
+            override fun onDestroy(owner: LifecycleOwner) {
+                input.cancel()
+                onClosed()
+            }
         })
     }
 

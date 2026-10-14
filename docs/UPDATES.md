@@ -1,4 +1,4 @@
-# Thông báo cập nhật THTV
+# Thông báo cập nhật T Tube
 
 Từ v1.0.29 (Build 202), app đọc `update.json` từ GitHub raw khi mở MainActivity, sau khi đóng nhật ký bản vừa cài. Popup tiếng Việt hiển thị version, changelog, Để sau và Cập nhật. Mỗi versionCode chỉ tự hiện một lần trong dữ liệu app; xóa dữ liệu/gỡ app sẽ xóa trạng thái này. Cài đặt trên điện thoại và Cài đặt nâng cao có Kiểm tra cập nhật để hiện lại bản đã bỏ qua. Khi offline, kiểm tra tự động im lặng và kiểm tra thủ công báo thử lại.
 

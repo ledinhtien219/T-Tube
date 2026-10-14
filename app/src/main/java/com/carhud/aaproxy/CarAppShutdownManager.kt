@@ -28,9 +28,11 @@ object CarAppShutdownManager {
         try {
             // 1. Stop Audio Playback and Release WakeLocks
             try {
+                CarMediaManager.userWantsPlayback = false
+                CarMediaManager.currentLoadingUrl = null
                 CarMediaManager.pausePlayback()
                 CarMediaManager.releaseWakeLock()
-                CarMediaManager.setCarConnectionState(false)
+                CarMediaManager.setCarConnectionState(false, resumePhoneOnDisconnect = false)
             } catch (e: Exception) {
                 Log.e(TAG, "Error stopping CarMediaManager", e)
             }
@@ -44,7 +46,13 @@ object CarAppShutdownManager {
                 Log.e(TAG, "Error stopping background tasks", e)
             }
 
-            // 3. Stop MediaBrowserService
+            // 3. Stop projection + media services so no foreground/background
+            // component can restart playback while the phone task is closing.
+            try {
+                context.stopService(Intent(context, CarHudProjectionService::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Error stopping CarHudProjectionService", e)
+            }
             try {
                 val mediaIntent = Intent(context, CarMediaBrowserService::class.java)
                 context.stopService(mediaIntent)
@@ -52,7 +60,17 @@ object CarAppShutdownManager {
                 Log.e(TAG, "Error stopping CarMediaBrowserService", e)
             }
 
-            // 4. Send Broadcast to finish all active Activities
+            // Persist the disconnected state before the process is terminated.
+            try {
+                context.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
+                    .edit()
+                    .putBoolean("car_screen_connected", false)
+                    .apply()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error persisting disconnected state", e)
+            }
+
+            // 4. Send Broadcast to finish/remove the phone task immediately
             try {
                 val exitIntent = Intent(ACTION_FULL_EXIT).apply {
                     setPackage(context.packageName)

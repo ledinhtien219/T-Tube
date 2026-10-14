@@ -1,4 +1,4 @@
-# THTV v1.0.31 (Build 204)
+# T Tube v1.0.31 (Build 204)
 
 Giọng nói: partial chỉ dùng để xem trước, chờ onResults mới thực thi. Bỏ auto-commit 250 ms và các extra silence 280/400 ms, dùng ngắt câu tự nhiên của dịch vụ; cố định vi-VN. Mỗi phiên có token, không nhận kết quả cũ sau stop/restart; mic bận chỉ thử lại một lần, timeout khôi phục UI/âm lượng. TvVoiceHelper hiểu số kênh bằng tiếng Việt và ưu tiên kênh cụ thể khi câu chứa “truyền hình”.
 

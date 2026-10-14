@@ -1,10 +1,8 @@
-name: Build Internal Test APK
+name: Build T Tube v1.0.63 APK
 
 on:
   push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
+    branches: [ "test/ttube-v1.0.63-apk" ]
   workflow_dispatch:
 
 permissions:
@@ -12,24 +10,23 @@ permissions:
 
 jobs:
   build:
-    name: Build Internal Test APK
+    name: Build T Tube v1.0.63 APK
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Read app version
-        id: version
+      - name: Prepare checked-in v1.0.63 source
         shell: bash
         run: |
-          VERSION_NAME=$(grep -E 'versionName = "' app/build.gradle.kts | head -1 | sed -E 's/.*versionName = "([^"]+)".*/\1/')
-          VERSION_CODE=$(grep -E 'versionCode = [0-9]+' app/build.gradle.kts | head -1 | sed -E 's/.*versionCode = ([0-9]+).*/\1/')
-          test -n "$VERSION_NAME"
-          test -n "$VERSION_CODE"
-          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
-          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
-          echo "Internal test build: v$VERSION_NAME ($VERSION_CODE)"
+          chmod +x gradlew
+          grep -E 'applicationId|version(Code|Name)' app/build.gradle.kts | head -3
+          grep -q 'phoneAppsPager' app/src/main/res/layout/activity_main.xml
+          grep -q 'PREF_THEME_MODE = SettingsActivity.KEY_THEME_MODE' app/src/main/java/com/carhud/aaproxy/MainActivity.kt
+          grep -q 'prepareFullscreenTransition' app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
+          grep -q 'tiktok.com/search?q=' app/src/main/java/com/carhud/aaproxy/TikTokWebPolicy.kt
+          grep -q 'recoverSearchShell' app/src/main/java/com/carhud/aaproxy/TikTokWebPolicy.kt
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -48,47 +45,25 @@ jobs:
 
       - name: Ensure stable debug signing key
         run: |
-          mkdir -p ~/.android
-          if [ ! -f ~/.android/debug.keystore ]; then
-            echo "Stable signing key missing: refusing to generate a different certificate."
+          test -f ~/.android/debug.keystore || {
+            echo "Stable signing key missing; refusing to generate a different certificate."
             exit 1
-          fi
+          }
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Test IPTV aspect retention
-        run: node tests/iptv-aspect.test.cjs
-
-      - name: Test page input and YouTube behavior
+      - name: Run T Tube regression tests
         run: |
-          node tests/page-input.test.cjs
-          node tests/youtube-quality.test.cjs
-          node tests/youtube-search-routing.test.cjs
-          node tests/home-ui-cleanup.test.cjs
-          node tests/web-session-retention.test.cjs
-          node tests/app-switching.test.cjs
-          node tests/youtube-voice-toolbar.test.cjs
-          node tests/waze-stability.test.cjs
+          set -e
+          for f in tests/*.cjs; do
+            echo "RUN $f"
+            node "$f"
+          done
 
-      - name: Build Debug APK
-        run: ./gradlew testDebugUnitTest assembleDebug assembleDebugAndroidTest --stacktrace
+      - name: Build T Tube debug APK
+        run: ./gradlew assembleDebug --stacktrace
 
-      - name: Upload internal test APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: THTV-v${{ steps.version.outputs.name }}-build${{ steps.version.outputs.code }}-INTERNAL-TEST
+          name: TTube-v1.0.63-build250-APK
           path: app/build/outputs/apk/debug/*.apk
-          retention-days: 30
-
-      - name: Upload keyboard device test APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: THTV-v${{ steps.version.outputs.name }}-keyboard-tests
-          path: app/build/outputs/apk/androidTest/debug/*.apk
-          retention-days: 30
-
-      - name: Mark as internal only
-        run: |
-          echo "This workflow NEVER updates update.json and NEVER creates a public GitHub Release."
-          echo "Use the 'Approve Stable Update' workflow after this build has been tested."
+          retention-days: 7

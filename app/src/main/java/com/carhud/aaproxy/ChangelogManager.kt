@@ -31,11 +31,7 @@ object ChangelogManager {
             versionName = BuildConfig.VERSION_NAME,
             releaseDate = "Hiện tại",
             features = listOf(
-                "🧪 Bản TEST NỘI BỘ — stable công khai vẫn giữ ở v1.0.37.",
-                "⌨️ Sửa bàn phím Android Auto: gõ YouTube rồi bấm Tìm chỉ mở danh sách kết quả, không tự chạy video đầu tiên.",
-                "🧹 Mọi thao tác tìm bằng bàn phím sẽ hủy cờ/timer auto-play còn sót từ lệnh giọng nói trước đó.",
-                "🛑 Khi Android Auto dựng lại Presentation sau bàn phím native, trang /results được giữ nguyên, không tự chọn video.",
-                "🎙️ Chỉ lệnh giọng nói hiện tại mới được phép auto-play kết quả đầu tiên."
+                "- Bug fix"
             )
         )
     )
@@ -84,7 +80,7 @@ object ChangelogManager {
             val textCol = LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
                 val title = TextView(activity).apply {
-                    text = "NHẬT KÝ CẬP NHẬT THTV PRO"
+                    text = "NHẬT KÝ CẬP NHẬT T TUBE"
                     textSize = 15f
                     typeface = Typeface.DEFAULT_BOLD
                     setTextColor(Color.WHITE)

@@ -1,20 +1,19 @@
-# 🚘 THTV PRO - Android Auto Multimedia Dashboard & Waze/Vietmap HUD
+# 🚘 T Tube - Android Auto Multimedia Dashboard & Waze/Vietmap HUD
 
-[![Build Internal Test APK](https://github.com/ledinhtien219/THTV/actions/workflows/build-apk.yml/badge.svg)](https://github.com/ledinhtien219/THTV/actions/workflows/build-apk.yml)
-[![GitHub Release](https://img.shields.io/github/v/release/ledinhtien219/THTV?color=blue)](https://github.com/ledinhtien219/THTV/releases)
+[![Build Internal Test APK](https://github.com/ledinhtien219/TTube/actions/workflows/build-apk.yml/badge.svg)](https://github.com/ledinhtien219/TTube/actions/workflows/build-apk.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/ledinhtien219/THTV?color=blue)](https://github.com/ledinhtien219/TTube/releases)
 [![Android SDK](https://img.shields.io/badge/Android%20SDK-29%2B-brightgreen)](https://developer.android.com)
 
-**THTV PRO** là ứng dụng dashboard đa phương tiện dành cho **Android Auto / màn hình xe**, kết hợp YouTube, IPTV, trình duyệt WebApp, điều khiển giọng nói và HUD cảnh báo giao thông từ Waze/Vietmap.
+**T Tube** là ứng dụng dashboard đa phương tiện dành cho **Android Auto / màn hình xe**, kết hợp YouTube, IPTV, trình duyệt WebApp, điều khiển giọng nói và HUD cảnh báo giao thông từ Waze/Vietmap.
 
-## ✅ Phiên bản stable hiện tại trong source
+## ✅ Phiên bản hiện tại trong source
 
-- **Version:** `v1.0.39`
-- **Build:** `226`
+- **Source/Internal test:** `v1.0.50` / Build `237`
+- **Public stable OTA:** `v1.0.45` / Build `232`
 - **Branch:** `main`
 - **Application ID:** `com.tcar.auto`
 - **Min SDK:** Android 10 / API 29
 - **Target SDK:** API 35
-- **Stable source merge:** `ee453b286c24823ae5109e23454290938bbaf13c`
 
 > Lưu ý: source trên `main` và bản public OTA/Release là hai bước tách biệt. Bản public chỉ được đổi sau khi chạy workflow **Approve Stable Update**, workflow này sẽ xác minh đúng commit/version đã test trước khi cập nhật `update.json`.
 
@@ -29,7 +28,7 @@
 | 🖥️ Dashboard buồng lái | 🚗 Hiển thị thực tế trên xe |
 | :---: | :---: |
 | <img src="docs/images/thtv_aa_dashboard.png" width="450" alt="Android Auto Dashboard" /> | <img src="docs/images/thtv_aa_real_car.jpg" width="450" alt="Real Car Screen" /> |
-| *Dashboard đa phương tiện, GPS speed, YouTube, IPTV, WebApp, HUD cảnh báo* | *THTV chạy trên Android Auto / Screen Projection* |
+| *Dashboard đa phương tiện, GPS speed, YouTube, IPTV, WebApp, HUD cảnh báo* | *T Tube chạy trên Android Auto / Screen Projection* |
 
 </div>
 
@@ -110,7 +109,7 @@
 
 - `AppCrashHandler.kt` lưu crash report theo version/build để kiểm tra lỗi cũ và mới.
 - Android Auto NavigationTemplate đã được sửa các lỗi runtime từng xuất hiện ở Build 216/219.
-- Session Browser/YouTube được snapshot khi Android Auto đưa THTV xuống nền.
+- Session Browser/YouTube được snapshot khi Android Auto đưa T Tube xuống nền.
 - Stable signing dùng cùng debug certificate trong CI để tránh lỗi cài đè giữa các build nội bộ.
 
 ---
@@ -118,12 +117,12 @@
 ## 📂 Cấu trúc chính
 
 ```text
-THTV/
+TTube/
 ├── .github/workflows/
 │   ├── build-apk.yml                  # Build nội bộ + regression/unit/androidTest compile
 │   └── approve-stable-update.yml      # Promote đúng bản đã test thành public stable
 ├── app/
-│   ├── build.gradle.kts               # v1.0.39 / Build 226 trên main
+│   ├── build.gradle.kts               # v1.0.50 / Build 237 trong source này
 │   └── src/main/
 │       ├── AndroidManifest.xml
 │       ├── assets/                    # IPTV player, web assets...
@@ -175,7 +174,7 @@ Yêu cầu: **JDK 17**.
 APK:
 
 ```text
-app/build/outputs/apk/debug/THTV_v1.0.39_debug.apk
+app/build/outputs/apk/debug/TTube_v1.0.54_debug.apk
 ```
 
 ### Release
@@ -187,13 +186,13 @@ app/build/outputs/apk/debug/THTV_v1.0.39_debug.apk
 APK:
 
 ```text
-app/build/outputs/apk/release/THTV_v1.0.39_release.apk
+app/build/outputs/apk/release/TTube_v1.0.54_release.apk
 ```
 
 ### Cài qua ADB
 
 ```bash
-adb install -r app/build/outputs/apk/debug/THTV_v1.0.39_debug.apk
+adb install -r app/build/outputs/apk/debug/TTube_v1.0.54_debug.apk
 ```
 
 ---
@@ -244,7 +243,7 @@ Workflow sẽ:
 
 Bản phát hành public:
 
-https://github.com/ledinhtien219/THTV/releases
+https://github.com/ledinhtien219/TTube/releases
 
 Manifest OTA stable:
 

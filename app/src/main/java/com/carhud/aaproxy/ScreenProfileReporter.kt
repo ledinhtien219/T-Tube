@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
  * Captures the real Android Auto/head-unit display geometry and synchronizes it
  * to the same Google Apps Script used by the license system.
  *
- * Privacy: only the public THTV machine code is sent. Raw Widevine/ANDROID_ID
+ * Privacy: only the public T Tube machine code is sent. Raw Widevine/ANDROID_ID
  * values are never included in the payload.
  */
 object ScreenProfileReporter {

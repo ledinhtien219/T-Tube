@@ -69,14 +69,7 @@ object YouTubePlayerHelper {
             var keyboard = add(row, 'input', 'flex:1;min-width:0;height:48px;border:0;border-radius:28px;padding:0 18px;background:var(--carhud-home-chip,#272727);color:var(--carhud-home-muted,#aaa);font:inherit;font-size:17px;text-align:left', 'Tìm trên YouTube');
             keyboard.id = 'carhud-home-keyboard'; keyboard.type = 'search';
             keyboard.placeholder = 'Tìm trên YouTube';
-            var searchGo = add(row, 'button', 'height:48px;padding:0 14px;border:0;border-radius:12px;background:#0284c7;color:white', 'Tìm');
-            searchGo.type = 'button';
-            searchGo.addEventListener('click', function() {
-                var query = keyboard.value.trim();
-                if (!query) return;
-                sessionStorage.removeItem('carhud_auto_play');
-                location.assign('/results?search_query=' + encodeURIComponent(query));
-            });
+            // Submission is owned by the keyboard; keep the home row uncluttered.
             var voice = add(row, 'button', 'width:48px;height:48px;flex-shrink:0;border:0;border-radius:50%;background:var(--carhud-home-chip,#272727);color:inherit');
             voice.id = 'carhud-home-voice'; voice.type = 'button'; voice.setAttribute('aria-label', 'Micro');
             svg(voice, 24, 24, '0 0 24 24', [{tag:'path',attrs:{d:'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3ZM5 11v1a7 7 0 0 0 14 0v-1M12 19v3M8 22h8',fill:'none',stroke:'currentColor','stroke-width':2,'stroke-linecap':'round'}}]);
@@ -161,7 +154,16 @@ object YouTubePlayerHelper {
                 if (visible) layoutHome();
             };
             window.__carhudSearchHomeRefresh();
-            setInterval(window.__carhudSearchHomeRefresh, 500);
+            // Avoid walking the whole YouTube DOM every 500 ms. That polling was
+            // expensive on Android Auto. Refresh only when YouTube/History navigates.
+            var refreshHome = function() {
+                setTimeout(function() {
+                    if (window.__carhudSearchHomeRefresh) window.__carhudSearchHomeRefresh();
+                }, 80);
+            };
+            document.addEventListener('yt-navigate-finish', refreshHome, true);
+            window.addEventListener('popstate', refreshHome, true);
+            window.addEventListener('hashchange', refreshHome, true);
         })();
     """.trimIndent()
 
@@ -759,7 +761,7 @@ object YouTubePlayerHelper {
                         video.play().catch(function() {});
                     } catch(e) {}
                 }
-            }, 350);
+            }, 80);
         }
 
         // Hook SPA Navigation (pushState, replaceState, popstate)
@@ -1246,7 +1248,7 @@ object YouTubePlayerHelper {
                 killYouTubeAds();
                 ensureAudio();
                 extractMetadata();
-            }, 750);
+            }, 120);
         }
 
         scanVideos();
@@ -1403,39 +1405,158 @@ object YouTubePlayerHelper {
         val effectiveIsDay = isDay ?: SettingsActivity.resolveIsDay(view.context)
         view.post {
             try {
+                // Keep the platform WebView darkening state in sync with the user setting.
+                // forceDark is retained as a compatibility fallback because many DHU builds
+                // ship a WebView implementation whose behavior does not exactly match its API.
+                @Suppress("DEPRECATION")
+                try {
+                    view.settings.forceDark = if (effectiveIsDay) WebSettings.FORCE_DARK_OFF else WebSettings.FORCE_DARK_ON
+                } catch (_: Exception) {}
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     try {
                         view.settings.isAlgorithmicDarkeningAllowed = !effectiveIsDay
-                    } catch (e: Exception) {}
-                } else {
-                    @Suppress("DEPRECATION")
-                    try {
-                        view.settings.forceDark = if (effectiveIsDay) WebSettings.FORCE_DARK_OFF else WebSettings.FORCE_DARK_ON
-                    } catch (e: Exception) {}
+                    } catch (_: Exception) {}
                 }
                 view.setBackgroundColor(if (effectiveIsDay) Color.WHITE else Color.BLACK)
 
                 val js = """
                     (function() {
                         try {
-                            window.__carhudCurrentIsDay = $effectiveIsDay;
+                            var isDay = $effectiveIsDay;
+                            window.__carhudCurrentIsDay = isDay;
+                            var root = document.documentElement;
+                            var body = document.body;
+                            if (!root) return;
+
+                            root.style.setProperty('color-scheme', isDay ? 'light' : 'dark', 'important');
+                            if (body) body.style.setProperty('color-scheme', isDay ? 'light' : 'dark', 'important');
+
                             var style = document.getElementById('carhud-universal-theme');
                             if (!style) {
                                 style = document.createElement('style');
                                 style.id = 'carhud-universal-theme';
-                                (document.head || document.documentElement).appendChild(style);
+                                (document.head || root).appendChild(style);
                             }
-                            style.textContent = ':root, html, body { color-scheme: ${if (effectiveIsDay) "light" else "dark"} !important; }';
+                            style.textContent =
+                                ':root, html, body { color-scheme: ' + (isDay ? 'light' : 'dark') + ' !important; } ' +
+                                'input, textarea, select, button { color-scheme: ' + (isDay ? 'light' : 'dark') + ' !important; } ' +
+                                'html.carhud-theme-invert { filter: invert(1) hue-rotate(180deg) !important; } ' +
+                                'html.carhud-theme-invert img, html.carhud-theme-invert video, html.carhud-theme-invert picture, ' +
+                                'html.carhud-theme-invert canvas, html.carhud-theme-invert svg, html.carhud-theme-invert iframe { ' +
+                                'filter: invert(1) hue-rotate(180deg) !important; }';
+
+                            function rgb(color) {
+                                var m = String(color || '').match(/rgba?\(\s*(\d+)[, ]+\s*(\d+)[, ]+\s*(\d+)(?:[, /]+\s*([\d.]+))?/i);
+                                if (!m) return null;
+                                return { r:+m[1], g:+m[2], b:+m[3], a:m[4] == null ? 1 : +m[4] };
+                            }
+                            function luminance(c) {
+                                if (!c) return null;
+                                return (0.2126*c.r + 0.7152*c.g + 0.0722*c.b) / 255;
+                            }
+                            function backgroundLuminanceFor(node) {
+                                var cur = node;
+                                for (var depth = 0; cur && depth < 8; depth++, cur = cur.parentElement) {
+                                    try {
+                                        var c = rgb(getComputedStyle(cur).backgroundColor);
+                                        if (c && c.a > 0.08) return luminance(c);
+                                    } catch (_) {}
+                                }
+                                return null;
+                            }
+                            function pageLuminance() {
+                                var values = [];
+                                var w = Math.max(1, window.innerWidth || root.clientWidth || 1);
+                                var h = Math.max(1, window.innerHeight || root.clientHeight || 1);
+                                var points = [
+                                    [w * 0.50, h * 0.50],
+                                    [w * 0.25, h * 0.35],
+                                    [w * 0.75, h * 0.35],
+                                    [w * 0.25, h * 0.75],
+                                    [w * 0.75, h * 0.75]
+                                ];
+                                for (var p = 0; p < points.length; p++) {
+                                    try {
+                                        var hit = document.elementFromPoint(points[p][0], points[p][1]);
+                                        var hl = backgroundLuminanceFor(hit);
+                                        if (hl != null) values.push(hl);
+                                    } catch (_) {}
+                                }
+                                [body, root].filter(Boolean).forEach(function(node) {
+                                    var l = backgroundLuminanceFor(node);
+                                    if (l != null) values.push(l);
+                                });
+                                if (!values.length) return isDay ? 1 : 0;
+                                values.sort(function(a,b){ return a-b; });
+                                return values[Math.floor(values.length / 2)];
+                            }
+                            function applyMismatchFix() {
+                                try {
+                                    var host = (location.hostname || '').toLowerCase();
+                                    var path = location.pathname || '';
+                                    var youtube = host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com');
+                                    var tiktok = host === 'tiktok.com' || host.endsWith('.tiktok.com');
+                                    var iptv = location.href.indexOf('iptv_player.html') >= 0;
+                                    // YouTube, TikTok and IPTV have specialized layout/theme handling.
+                                    // Never run the generic inversion observer on TikTok: its SPA mutates
+                                    // the DOM continuously and this causes visible jank on Android Auto.
+                                    if (youtube || tiktok || iptv) {
+                                        root.classList.remove('carhud-theme-invert');
+                                        return;
+                                    }
+                                    var lum = pageLuminance();
+                                    var mismatch = isDay ? lum < 0.38 : lum > 0.62;
+                                    root.classList.toggle('carhud-theme-invert', !!mismatch);
+
+                                    // The CSS filter inverts the root itself too. When a page
+                                    // needs inversion, seed the pre-filter background with the
+                                    // opposite color so the rendered result matches the chosen
+                                    // day/night mode instead of flipping back to the wrong tone.
+                                    var renderedBg = mismatch
+                                        ? (isDay ? '#000000' : '#ffffff')
+                                        : (isDay ? '#ffffff' : '#0b0f14');
+                                    root.style.setProperty('background-color', renderedBg, 'important');
+                                    if (body) body.style.setProperty('background-color', renderedBg, 'important');
+                                } catch (_) {}
+                            }
+
+                            var currentHost = (location.hostname || '').toLowerCase();
+                            var specialized = currentHost === 'youtu.be' || currentHost === 'youtube.com' ||
+                                currentHost.endsWith('.youtube.com') || currentHost === 'tiktok.com' ||
+                                currentHost.endsWith('.tiktok.com') || location.href.indexOf('iptv_player.html') >= 0;
+                            applyMismatchFix();
+                            clearTimeout(window.__carhudThemeTimer);
+                            if (!specialized) {
+                                window.__carhudThemeTimer = setTimeout(applyMismatchFix, 120);
+                                if (!window.__carhudThemeObserverInstalled) {
+                                    window.__carhudThemeObserverInstalled = true;
+                                    try {
+                                        window.__carhudThemeObserver = new MutationObserver(function() {
+                                            clearTimeout(window.__carhudThemeMutationTimer);
+                                            window.__carhudThemeMutationTimer = setTimeout(applyMismatchFix, 90);
+                                        });
+                                        window.__carhudThemeObserver.observe(root, { childList:true, subtree:true, attributes:true, attributeFilter:['class','style'] });
+                                    } catch (_) {}
+                                }
+                            } else if (window.__carhudThemeObserver) {
+                                try { window.__carhudThemeObserver.disconnect(); } catch (_) {}
+                                window.__carhudThemeObserver = null;
+                                window.__carhudThemeObserverInstalled = false;
+                            }
+
+                            if (location.href.indexOf('iptv_player.html') >= 0 && typeof window.setIptvTheme === 'function') {
+                                window.setIptvTheme(isDay);
+                            }
                         } catch (e) {}
                     })();
                 """.trimIndent()
                 view.evaluateJavascript(js, null)
 
                 val url = view.url ?: ""
-                if (url.contains("youtube.com") || url.contains("youtu.be")) {
+                if (url.contains("youtube.com", true) || url.contains("youtu.be", true)) {
                     applyTheme(view, effectiveIsDay)
                 }
-            } catch (e: Exception) {}
+            } catch (_: Exception) {}
         }
     }
 
@@ -1472,8 +1593,9 @@ object YouTubePlayerHelper {
                                 themeStyle = document.createElement('style');
                                 themeStyle.id = 'carhud-theme';
                                 (document.head || document.documentElement).appendChild(themeStyle);
-                            var isAutoScreen = document.documentElement.classList.contains('carhud-auto-screen');
-                            if (isDay && !isAutoScreen) {
+                            }
+                            // Android Auto follows the selected Day/Night/Auto mode too.
+                            if (isDay) {
                                 document.documentElement.classList.remove('dark');
                                 document.documentElement.setAttribute('dark', 'false');
                                 if (document.body) {
@@ -1491,9 +1613,9 @@ object YouTubePlayerHelper {
                                     'ytm-mobile-topbar-renderer, .mobile-topbar-header { background: #ffffff !important; background-color: #ffffff !important; border-bottom: 1px solid #e5e5e5 !important; } ' +
                                     '.compact-media-item-headline, .media-item-headline, .video-title, h3, h3.title, h4, .c3-headline, [class*="media-item-headline"], [class*="video-title"], .details h3, .compact-media-item-metadata-content h3, .compact-media-item-metadata-content, .compact-media-item-headline *, .media-item-headline *, .video-title *, h3 *, [class*="media-item-headline"] *, .c3-headline *, ytm-media-item h3, ytm-compact-video-renderer h3 { color: #0f0f0f !important; -webkit-text-fill-color: #0f0f0f !important; } ' +
                                     '.compact-media-item-byline, .media-item-byline, .small-text, [class*="byline"], [class*="channel-name"], [class*="metadata"], .subhead, .compact-media-item-byline *, .media-item-byline *, [class*="byline"] *, [class*="channel-name"] *, [class*="metadata"] *, ytm-badge-and-byline-renderer * { color: #606060 !important; -webkit-text-fill-color: #606060 !important; } ' +
-                                    '.carhud-auto-screen, .carhud-auto-screen body, .carhud-auto-screen #app, .carhud-auto-screen ytm-app { background: #000000 !important; color: #ffffff !important; } ' +
-                                    '.carhud-auto-screen .compact-media-item-headline, .carhud-auto-screen .media-item-headline, .carhud-auto-screen .video-title, .carhud-auto-screen h3, .carhud-auto-screen h4 { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; } ' +
-                                    '.carhud-auto-screen .compact-media-item-byline, .carhud-auto-screen .media-item-byline, .carhud-auto-screen .small-text { color: #94A3B8 !important; -webkit-text-fill-color: #94A3B8 !important; } ' +
+                                    '.carhud-auto-screen, .carhud-auto-screen body, .carhud-auto-screen #app, .carhud-auto-screen ytm-app { background: #ffffff !important; background-color: #ffffff !important; color: #0f0f0f !important; } ' +
+                                    '.carhud-auto-screen .compact-media-item-headline, .carhud-auto-screen .media-item-headline, .carhud-auto-screen .video-title, .carhud-auto-screen h3, .carhud-auto-screen h4 { color: #0f0f0f !important; -webkit-text-fill-color: #0f0f0f !important; } ' +
+                                    '.carhud-auto-screen .compact-media-item-byline, .carhud-auto-screen .media-item-byline, .carhud-auto-screen .small-text { color: #606060 !important; -webkit-text-fill-color: #606060 !important; } ' +
                                     'ytm-searchbox input, input.search-input { color: #0f0f0f !important; -webkit-text-fill-color: #0f0f0f !important; background: #f2f2f2 !important; border: 1px solid #ccc !important; } ' +
                                     '.chip-cloud-chip-renderer, ytm-chip-cloud-chip-renderer { background: #f2f2f2 !important; color: #0f0f0f !important; } ' +
                                     '.chip-cloud-chip-renderer[selected], ytm-chip-cloud-chip-renderer[selected] { background: #0f0f0f !important; color: #ffffff !important; } ' +
@@ -1502,8 +1624,8 @@ object YouTubePlayerHelper {
                                     'ytm-pivot-bar-item-renderer[aria-selected="true"] { color: #0f0f0f !important; } ' +
                                     'c3-icon, ytm-icon-button, [class*="icon-button"] { color: #0f0f0f !important; fill: #0f0f0f !important; } ' +
                                     'ytm-feed-nudge-renderer, .feed-nudge, ytm-rich-item-renderer, ytm-video-with-context-renderer, ytm-compact-video-renderer, ytm-item-section-renderer { background: transparent !important; } ' +
-                                    '.feed-nudge, ytm-feed-nudge-renderer { background: #f8f8f8 !important; border: 1px solid #e5e5e5 !important; border-radius: 12px !important; } ' +
-                                    '.feed-nudge *, ytm-feed-nudge-renderer * { color: #0f0f0f !important; -webkit-text-fill-color: #0f0f0f !important; } ' +
+                                    '.feed-nudge, [class*="feed-nudge"], ytm-feed-nudge-renderer, ytm-message-renderer, ytm-empty-state-renderer, ytm-background-promo-renderer { background: #f8f8f8 !important; background-color: #f8f8f8 !important; border: 1px solid #e5e5e5 !important; border-radius: 12px !important; color: #0f0f0f !important; } ' +
+                                    '.feed-nudge *, [class*="feed-nudge"] *, ytm-feed-nudge-renderer *, ytm-message-renderer *, ytm-empty-state-renderer *, ytm-background-promo-renderer * { color: #0f0f0f !important; -webkit-text-fill-color: #0f0f0f !important; } ' +
                                     'ytm-search-suggestion, .search-suggestion { background: #ffffff !important; color: #0f0f0f !important; }';
                             } else {
                                 document.documentElement.classList.add('dark');
@@ -1531,8 +1653,8 @@ object YouTubePlayerHelper {
                                     'ytm-pivot-bar-item-renderer[aria-selected="true"] { color: #ffffff !important; } ' +
                                     'c3-icon, ytm-icon-button, [class*="icon-button"] { color: #ffffff !important; fill: #ffffff !important; } ' +
                                     'ytm-feed-nudge-renderer, .feed-nudge, ytm-rich-item-renderer, ytm-video-with-context-renderer, ytm-compact-video-renderer, ytm-item-section-renderer { background: transparent !important; } ' +
-                                    '.feed-nudge, ytm-feed-nudge-renderer { background: #181818 !important; border: 1px solid #282828 !important; border-radius: 12px !important; } ' +
-                                    '.feed-nudge *, ytm-feed-nudge-renderer * { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; } ' +
+                                    '.feed-nudge, [class*="feed-nudge"], ytm-feed-nudge-renderer, ytm-message-renderer, ytm-empty-state-renderer, ytm-background-promo-renderer { background: #181818 !important; background-color: #181818 !important; border: 1px solid #282828 !important; border-radius: 12px !important; color: #ffffff !important; } ' +
+                                    '.feed-nudge *, [class*="feed-nudge"] *, ytm-feed-nudge-renderer *, ytm-message-renderer *, ytm-empty-state-renderer *, ytm-background-promo-renderer * { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; } ' +
                                     'ytm-search-suggestion, .search-suggestion { background: #000000 !important; color: #ffffff !important; }';
                             }
                         } catch(e) {}
@@ -1646,6 +1768,10 @@ object YouTubePlayerHelper {
                 })();
                 """.trimIndent(), null
             )
+
+            // screenInitJs adds carhud-auto-screen after the first theme pass.
+            // Re-apply at the end so projected YouTube cannot restore a stale dark palette.
+            applyTheme(view, isDay)
         } catch (e: Exception) {}
     }
 
@@ -2048,7 +2174,14 @@ object YouTubePlayerHelper {
         view.post {
             try {
                 val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
-                val host = if (view.url?.contains("www.youtube.com") == true) "https://www.youtube.com" else "https://m.youtube.com"
+                // Android Auto works more reliably with YouTube's mobile route. In
+                // particular, avoid relying on desktop SPA form state after the car
+                // keyboard closes: an explicit /results URL is the source of truth.
+                val host = if (autoPlayFirst && view.url?.contains("www.youtube.com") == true) {
+                    "https://www.youtube.com"
+                } else {
+                    "https://m.youtube.com"
+                }
                 val targetUrl = "$host/results?search_query=$encoded"
 
                 val curUrl = view.url.orEmpty()
@@ -2073,10 +2206,37 @@ object YouTubePlayerHelper {
                     } catch (_: Exception) {}
                 }
 
-                // Always navigate to the explicit results URL. Submitting YouTube's
-                // live search form can trigger stale SPA selection/voice handlers and
-                // jump directly to /watch before manual-search cancellation settles.
+                // Always navigate to the explicit results URL. Before leaving the
+                // custom empty-home surface, hide it immediately so it cannot visually
+                // mask the results page while WebView is committing the navigation.
+                try {
+                    view.evaluateJavascript(
+                        "try { var p=document.getElementById('carhud-search-home'); if(p) p.style.display='none'; if(window.__carhudSearchHomeRefresh) window.__carhudSearchHomeRefresh=function(){}; } catch(e) {}",
+                        null
+                    )
+                } catch (_: Exception) {}
+                // Do not call stopLoading() here. On DHU/slow connections the old
+                // URL can remain visible for over a second while the new request is
+                // already in flight; stopping it at 350/1100 ms cancelled the search.
                 view.loadUrl(targetUrl)
+
+                // One conservative fallback is enough. Retry only after the WebView
+                // has effectively finished and is still sitting on the YouTube home
+                // page. Never interrupt an in-flight results navigation.
+                view.postDelayed({
+                    if (searchGeneration.get() != generation) return@postDelayed
+                    val now = view.url.orEmpty()
+                    val onResults = now.contains("/results", true) && now.contains("search_query=", true)
+                    val onWatch = now.contains("/watch", true)
+                    val stillHome = try {
+                        val uri = android.net.Uri.parse(now)
+                        (uri.path.isNullOrBlank() || uri.path == "/" || uri.path == "/feed/what_to_watch") &&
+                            uri.host.orEmpty().contains("youtube.com", true)
+                    } catch (_: Exception) { false }
+                    if (!onResults && !(autoPlayFirst && onWatch) && stillHome && view.progress >= 95) {
+                        view.loadUrl(targetUrl)
+                    }
+                }, 3000L)
 
                 if (autoPlayFirst) {
                     scheduleAutoPlayFirstSearchResult(view, generation)

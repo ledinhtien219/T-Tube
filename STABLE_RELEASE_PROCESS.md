@@ -1,4 +1,4 @@
-# THTV — quy trình Test → Duyệt Stable
+# T Tube — quy trình Test → Duyệt Stable
 
 ## Nguyên tắc
 

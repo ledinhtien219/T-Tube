@@ -355,6 +355,7 @@
       flex: 1;
       min-width: 0;
     }
+    #currentTitle, .channel-name, .channel-group { display: none; }
     .channel-name {
       font-size: 14px;
       font-weight: 700;
@@ -387,13 +388,17 @@
       --iptv-shadow: rgba(0, 0, 0, 0.72);
     }
     body.iptv-day {
-      --iptv-dock-bg: rgba(8, 18, 30, 0.95);
-      --iptv-dock-border: rgba(255, 255, 255, 0.44);
-      --iptv-btn-bg: rgba(255, 255, 255, 0.075);
-      --iptv-btn-border: rgba(255, 255, 255, 0.18);
-      --iptv-icon-color: #FFFFFF;
-      --iptv-label-color: #F8FAFC;
-      --iptv-shadow: rgba(0, 0, 0, 0.82);
+      --iptv-dock-bg: rgba(248, 250, 252, 0.96);
+      --iptv-dock-border: rgba(100, 116, 139, 0.52);
+      --iptv-dock-highlight: rgba(2, 132, 199, 0.14);
+      --iptv-btn-bg: rgba(226, 232, 240, 0.84);
+      --iptv-btn-border: rgba(100, 116, 139, 0.30);
+      --iptv-icon-color: #0F172A;
+      --iptv-label-color: #0F172A;
+      --iptv-active: #0369A1;
+      --iptv-active-bg: rgba(2, 132, 199, 0.16);
+      --iptv-active-border: rgba(2, 132, 199, 0.72);
+      --iptv-shadow: rgba(15, 23, 42, 0.28);
     }
     body.iptv-night {
       --iptv-dock-bg: rgba(5, 13, 23, 0.88);
@@ -494,7 +499,7 @@
     }
     .iptv-btn:hover .iptv-label,
     .iptv-btn:active .iptv-label,
-    .iptv-btn.is-active .iptv-label { color: #EFFFFD; }
+    .iptv-btn.is-active .iptv-label { color: var(--iptv-active); }
     #btnIptvPlayPause.is-playing {
       background: var(--iptv-active-bg);
       border-color: var(--iptv-active-border);
@@ -532,7 +537,7 @@
       border-radius: 10px;
       border: 1px solid var(--iptv-btn-border);
       background: var(--iptv-btn-bg);
-      color: #F8FAFC;
+      color: var(--iptv-label-color);
       font-size: 11px;
       font-weight: 700;
       text-align: left;
@@ -542,7 +547,7 @@
     }
     .iptv-quick-action:active,
     .iptv-quick-action:hover {
-      color: #DFFFFA;
+      color: var(--iptv-active);
       border-color: var(--iptv-active-border);
       background: var(--iptv-active-bg);
     }
@@ -720,6 +725,10 @@
         display: none !important;
       }
     }
+
+    /* T Tube v1.0.62: simplify projected player chrome. Channel controls live in the left dock/settings. */
+    .player-controls-right, .btn-show-channels { display: none !important; }
+    .player-info { pointer-events: none !important; }
   </style>
 </head>
 <body>
@@ -729,13 +738,13 @@
     <div class="player-section" id="playerSection">
       <div class="player-info" id="playerInfo">
         <div class="current-title" id="currentTitle">Chọn kênh để xem trực tiếp</div>
-        <div class="player-controls-right">
+        <div class="player-controls-right" aria-hidden="true">
           <div class="badge-live" id="liveBadge" style="display:none;">● LIVE</div>
-          <button class="btn-fs" id="btnToggleFit" onclick="toggleVideoFit(event)" title="Đổi tỉ lệ (Vừa khung / Tràn viền)">⤢</button>
-          <button class="btn-fs" id="btnToggleFs" onclick="toggleChannels(event)" title="Ẩn/Hiện danh sách kênh">&#x26F6;</button>
+          <button class="btn-fs" id="btnToggleFit" onclick="toggleVideoFit(event)" tabindex="-1">⤢</button>
+          <button class="btn-fs" id="btnToggleFs" onclick="toggleChannels(event)" tabindex="-1">&#x26F6;</button>
         </div>
       </div>
-      <div class="btn-show-channels" id="btnShowChannels" onclick="toggleChannels(event)" title="Mở danh sách kênh">
+      <div class="btn-show-channels" id="btnShowChannels" onclick="toggleChannels(event)" aria-hidden="true" tabindex="-1">
         <span>📺 Kênh</span>
       </div>
       <div class="video-container">
@@ -867,12 +876,22 @@
 
     window.setIptvTheme = function(isDay) {
       try {
+        window.__carhudIptvIsDay = !!isDay;
+        document.documentElement.style.colorScheme = isDay ? 'light' : 'dark';
         document.body.classList.toggle('iptv-day', !!isDay);
         document.body.classList.toggle('iptv-night', !isDay);
       } catch(e) {}
     };
+    // Read the explicit T Tube phone/car preference first so the toolbar
+    // is correct on its first usable paint.
     try {
-      window.setIptvTheme(!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches));
+      if (window.AndroidIptv && typeof window.AndroidIptv.isDayTheme === 'function') {
+        window.setIptvTheme(!!window.AndroidIptv.isDayTheme());
+      } else if (typeof window.__carhudCurrentIsDay === 'boolean') {
+        window.setIptvTheme(window.__carhudCurrentIsDay);
+      } else {
+        window.setIptvTheme(!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches));
+      }
     } catch(e) { window.setIptvTheme(false); }
 
     function closeIptvQuickSettings() {
@@ -1483,6 +1502,7 @@
       filtered.forEach(ch => {
         const item = document.createElement('div');
         item.className = 'channel-item';
+        item.setAttribute('aria-label', ch.name);
         const isSport = (ch.groupTitle && (ch.groupTitle.toLowerCase().includes('thể thao') || ch.groupTitle.toLowerCase().includes('sport'))) || ch.name.toLowerCase().includes('sport') || ch.name.toLowerCase().includes('vs');
         const icon = isSport ? '⚽' : '📺';
         const logoHtml = ch.logoUrl ? `<img src="${ch.logoUrl}" onerror="this.outerHTML='<span>${icon}</span>'">` : `<span>${icon}</span>`;
@@ -1669,7 +1689,6 @@
       titleEl.textContent = channel.name;
       liveBadge.style.display = 'inline-flex';
 
-      showToast('📺 Đang phát: ' + channel.name);
 
       if (!window.isDashboardMode) {
         showControlsOnly();

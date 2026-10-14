@@ -1,0 +1,18 @@
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const gradle = fs.readFileSync('app/build.gradle.kts','utf8');
+const presentation = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarPresentation.kt','utf8');
+const tiktok = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/TikTokWebPolicy.kt','utf8');
+const versionCode = Number(gradle.match(/versionCode = (\d+)/)?.[1] || 0);
+const versionName = gradle.match(/versionName = "([^"]+)"/)?.[1] || '';
+assert.ok(versionCode >= 248);
+assert.ok(/^1\.0\./.test(versionName));
+assert.match(presentation,/if \(\(currentActiveAppId == "web" \|\| currentActiveAppId == "tiktok"\) && !isDashboardShowing\) return/);
+assert.match(presentation,/if \(currentActiveAppId == "web" \|\| currentActiveAppId == "tiktok"\) return/);
+assert.match(presentation,/Gravity\.START or Gravity\.CENTER_VERTICAL/);
+assert.match(presentation,/leftMargin = dp\(3\)/);
+assert.match(presentation,/params\.topMargin = if \(currentActiveAppId == "web" && !isDashboardShowing\) dp\(74\) else 0/);
+assert.match(tiktok,/fun searchUrl\(query: String\)/);
+assert.match(tiktok,/installFastSearchResultClicks/);
+assert.match(tiktok,/setTimeout\(applyAll, 72\)/);
+console.log('PASS browser chrome + persistent TikTok controls + lighter search policy');

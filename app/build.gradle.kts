@@ -12,8 +12,8 @@ android {
         applicationId = "com.tcar.auto"
         minSdk = 29
         targetSdk = 35
-        versionCode = 226
-        versionName = "1.0.39"
+        versionCode = 250
+        versionName = "1.0.63"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -22,7 +22,7 @@ android {
         val variant = this
         outputs.all {
             (this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl)?.outputFileName =
-                "THTV_v${variant.versionName}_${variant.buildType.name}.apk"
+                "TTube_v${variant.versionName}_${variant.buildType.name}.apk"
         }
     }
 
@@ -94,6 +94,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
     implementation("androidx.media:media:1.7.0")
+    implementation(files("libs/aauto.aar"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)

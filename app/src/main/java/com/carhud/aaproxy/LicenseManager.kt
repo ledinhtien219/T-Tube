@@ -26,6 +26,7 @@ object LicenseManager {
     private const val KEY_SIGNATURE = "license_signature"
     private const val KEY_LAST_VERIFIED = "license_last_verified"
     private const val KEY_DEVICE_ID_SCHEME = "device_id_scheme"
+    private const val KEY_STABLE_DEVICE_ID = "stable_device_id"
     private const val DEVICE_ID_SCHEME_HARDWARE_V2 = "hardware_v2"
     private const val SECRET_SALT = "TCar_Pro_Auto_2026_Secure_Key_!@#"
 
@@ -57,12 +58,23 @@ object LicenseManager {
     fun getDeviceId(context: Context): String {
         cachedDeviceId?.let { return it }
 
+        val prefs = getPrefs(context)
+        val saved = prefs.getString(KEY_STABLE_DEVICE_ID, null)?.trim().orEmpty()
+        if (saved.startsWith("TTUBE-") && saved.length >= 13) {
+            cachedDeviceId = saved
+            return saved
+        }
+
+        // Freeze the first hardware-derived code into app storage. Android keeps
+        // SharedPreferences during an in-place APK upgrade, so v1.0.62+ will never
+        // change the machine code merely because WebView/DRM/OS details changed.
         val stableMaterial = getStableHardwareMaterial(context)
         val id = formatDeviceId(stableMaterial)
+        prefs.edit()
+            .putString(KEY_STABLE_DEVICE_ID, id)
+            .putString(KEY_DEVICE_ID_SCHEME, DEVICE_ID_SCHEME_HARDWARE_V2)
+            .apply()
         cachedDeviceId = id
-
-        // Marker only; the id itself remains deterministic and survives reinstall.
-        getPrefs(context).edit().putString(KEY_DEVICE_ID_SCHEME, DEVICE_ID_SCHEME_HARDWARE_V2).apply()
         return id
     }
 
@@ -118,7 +130,7 @@ object LicenseManager {
     private fun formatDeviceId(raw: ByteArray): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(raw)
         val hex = digest.joinToString("") { "%02X".format(it) }
-        return "THTV-${hex.substring(0, 4)}-${hex.substring(4, 8)}"
+        return "TTUBE-${hex.substring(0, 4)}-${hex.substring(4, 8)}"
     }
 
     fun getDeviceModel(): String {

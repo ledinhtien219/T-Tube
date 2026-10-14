@@ -1,0 +1,56 @@
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+
+const presentation = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/CarPresentation.kt',
+  'utf8'
+);
+const tiktok = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/TikTokWebPolicy.kt',
+  'utf8'
+);
+const helper = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/YouTubePlayerHelper.kt',
+  'utf8'
+);
+const main = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/MainActivity.kt',
+  'utf8'
+);
+const layout = fs.readFileSync(
+  'app/src/main/res/layout/activity_main.xml',
+  'utf8'
+);
+
+// TikTok owns its toolbar search instead of being classified as the generic browser.
+assert.match(presentation, /currentActiveAppId == "tiktok" \|\| TikTokWebPolicy\.isTikTok\(url\)/);
+assert.match(presentation, /val tiktokActive = currentActiveAppId == "tiktok" \|\| TikTokWebPolicy\.isTikTok\(web\.url\)/);
+assert.match(presentation, /searchOverlayMode = if \(tiktokActive\) "tiktok" else "youtube"/);
+
+// A TikTok search result is normalized to its public video route and only enters
+// video-only mode once real media metadata exists.
+assert.match(tiktok, /searchClickHandlerVersion === VERSION/);
+assert.match(tiktok, /location\.assign\(canonical\)/);
+assert.match(tiktok, /video\.readyState >= 1 && \(video\.videoWidth > 0 \|\| video\.videoHeight > 0\)/);
+
+// Generic browser day/night inversion must seed the pre-filter background with
+// the opposite tone so the rendered result lands on the requested theme.
+assert.match(helper, /var renderedBg = mismatch/);
+assert.match(helper, /\? \(isDay \? '#000000' : '#ffffff'\)/);
+assert.match(helper, /document\.elementFromPoint/);
+
+// Phone day mode uses stable card IDs; legacy quick-card toggles are no longer shown.
+assert.match(layout, /android:id="@\+id\/phoneDisplayToggleCard"/);
+assert.match(layout, /android:id="@\+id\/phoneThemeCard"/);
+for (const id of ['switchShowCardYoutube','switchShowCardIptv','switchShowCardM3u','switchShowCardBrowser']) {
+  const pos = layout.indexOf('android:id="@+id/' + id + '"');
+  assert.ok(pos >= 0, id + ' missing');
+  const rowStart = layout.lastIndexOf('<LinearLayout', pos);
+  const rowOpenEnd = layout.indexOf('>', rowStart);
+  assert.match(layout.slice(rowStart, rowOpenEnd + 1), /android:visibility="gone"/, id + ' row should be hidden');
+}
+assert.match(main, /R\.id\.phoneDisplayToggleCard/);
+assert.match(main, /R\.id\.phoneThemeCard/);
+assert.match(main, /stylePhoneDynamicCard\(itemView\)/);
+
+console.log('PASS browser theme + TikTok search playback + phone day-mode regressions');

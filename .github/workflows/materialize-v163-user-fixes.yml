@@ -1,0 +1,44 @@
+name: Diagnose requested v1.0.63 UI patch
+
+on:
+  push:
+    branches: [ "test/ttube-v1.0.63-apk" ]
+    paths:
+      - ".github/workflows/materialize-v163-user-fixes.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test/ttube-v1.0.63-apk
+
+      - name: Apply app-only patch with fuzz and report rejects
+        shell: bash
+        run: |
+          set -u
+          cat ci/user_fixes_v163.patch.gz.b64.part* | tr -d '\n\r' | base64 -d | gzip -dc > /tmp/user.patch
+          python - <<'PY'
+          from pathlib import Path
+          s = Path('/tmp/user.patch').read_text()
+          chunks = s.split('diff --git ')
+          out = []
+          for chunk in chunks:
+              if not chunk.strip():
+                  continue
+              first = chunk.splitlines()[0]
+              if first.startswith('a/app/'):
+                  out.append('diff --git ' + chunk)
+          Path('/tmp/app.patch').write_text(''.join(out))
+          print('app patch bytes', Path('/tmp/app.patch').stat().st_size)
+          PY
+          patch -p1 -l -F 5 --batch --forward < /tmp/app.patch || true
+          echo "===== REJECTS ====="
+          find app -name '*.rej' -print -exec sh -c 'echo "--- $1"; cat "$1"' sh {} \;
+          echo "===== STATUS ====="
+          git status --short

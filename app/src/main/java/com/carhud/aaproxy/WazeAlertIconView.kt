@@ -12,7 +12,7 @@ import android.view.View
 import kotlin.math.min
 
 /**
- * Compact traffic-alert icon set drawn locally for the THTV HUD.
+ * Compact traffic-alert icon set drawn locally for the T Tube HUD.
  *
  * The visual language follows the approved Waze-like preview: bold dark outline,
  * bright circular badge, high contrast and no emoji dependency. Everything is

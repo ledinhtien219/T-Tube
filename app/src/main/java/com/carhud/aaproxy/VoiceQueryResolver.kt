@@ -96,7 +96,8 @@ internal object VoiceQueryResolver {
             if (text.length <= 1) score -= 25f
 
             val candidate = Resolved(text, score, confidence, index)
-            if (best == null || candidate.score > best!!.score) best = candidate
+            val currentBest = best
+            if (currentBest == null || candidate.score > currentBest.score) best = candidate
         }
 
         return best
