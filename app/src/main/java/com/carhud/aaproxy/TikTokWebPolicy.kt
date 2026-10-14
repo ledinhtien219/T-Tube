@@ -15,7 +15,7 @@ import android.webkit.WebView
  * when the web feed itself becomes login-gated.
  */
 internal object TikTokWebPolicy {
-    private const val POLICY_VERSION = 8
+    private const val POLICY_VERSION = 9
 
     fun isTikTok(url: String?): Boolean {
         val host = runCatching { Uri.parse(url.orEmpty()).host.orEmpty().lowercase() }.getOrDefault("")
@@ -27,7 +27,7 @@ internal object TikTokWebPolicy {
             .let { it == "/search" || it.startsWith("/search/") }
 
     fun searchUrl(query: String): String =
-        "https://www.tiktok.com/search?q=" + Uri.encode(query.trim())
+        "https://www.tiktok.com/search/video?q=" + Uri.encode(query.trim())
 
     fun userAgent(defaultUa: String): String {
         // Keep Android/Chrome identity internally consistent. Pretending to be
@@ -210,6 +210,37 @@ internal object TikTokWebPolicy {
                         });
                     }
 
+                    function recoverSearchShell() {
+                        if (!isSearchRoute()) return;
+                        clearVideoMode();
+                        try {
+                            document.documentElement.classList.remove('ttube-tiktok-video-only');
+                            [document.documentElement, document.body].forEach(function(el) {
+                                if (!el) return;
+                                el.style.setProperty('visibility', 'visible', 'important');
+                                el.style.setProperty('opacity', '1', 'important');
+                                el.style.setProperty('min-height', '100%', 'important');
+                                el.style.setProperty('overflow-y', 'auto', 'important');
+                                el.style.removeProperty('pointer-events');
+                            });
+                            ['#app', '#root', '[data-e2e="app-root"]', 'main'].forEach(function(sel) {
+                                var el = document.querySelector(sel);
+                                if (!el) return;
+                                el.removeAttribute('inert');
+                                if (el.getAttribute('aria-hidden') === 'true') el.removeAttribute('aria-hidden');
+                                el.style.setProperty('display', '', 'important');
+                                el.style.setProperty('visibility', 'visible', 'important');
+                                el.style.setProperty('opacity', '1', 'important');
+                                el.style.removeProperty('pointer-events');
+                            });
+                            document.querySelectorAll('[data-ttube-login-backdrop="1"]').forEach(function(el) {
+                                if (el.querySelector('main, [data-e2e*="search"], a[href*="/video/"]')) {
+                                    el.removeAttribute('data-ttube-login-backdrop');
+                                }
+                            });
+                        } catch (_) {}
+                    }
+
                     function primaryVideo() {
                         var videos = Array.prototype.slice.call(document.querySelectorAll('video'));
                         if (!videos.length) return null;
@@ -363,7 +394,8 @@ internal object TikTokWebPolicy {
                             for (var depth = 0; node && depth < 3; depth++, node = node.parentElement) {
                                 if (node === document.body || node === document.documentElement) break;
                                 if (isLargeFixedOverlay(node)) {
-                                    node.setAttribute('data-ttube-login-backdrop', '1');
+                                    var containsContent = !!node.querySelector('main, [data-e2e*="search"], a[href*="/video/"]');
+                                    if (!containsContent) node.setAttribute('data-ttube-login-backdrop', '1');
                                     break;
                                 }
                             }
@@ -486,6 +518,7 @@ internal object TikTokWebPolicy {
                             if (current && state.guestQueue.indexOf(current) < 0) state.guestQueue.push(current);
                         }
                         dismissLoginWalls(false);
+                        recoverSearchShell();
                         installGuestGestures();
                         installFastSearchResultClicks();
                         applyVideoMode();
@@ -495,7 +528,7 @@ internal object TikTokWebPolicy {
                     function schedule() {
                         if (state.pending) return;
                         state.pending = true;
-                        var run = function() { setTimeout(applyAll, 120); };
+                        var run = function() { setTimeout(applyAll, 72); };
                         if (window.requestAnimationFrame) requestAnimationFrame(run); else run();
                     }
 
