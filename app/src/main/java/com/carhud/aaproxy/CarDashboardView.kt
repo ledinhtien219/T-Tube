@@ -227,6 +227,7 @@ class CarDashboardView(
         btnNotification = findViewById(R.id.btnNotification)
         ivDayNightToggle = findViewById(R.id.ivDayNightToggle) ?: (btnNotification.getChildAt(0) as? ImageView)
         btnSettings = findViewById(R.id.btnSettings)
+        btnSettings.visibility = View.GONE
 
         weatherCard = findViewById(R.id.weatherCard)
         weatherIcon = findViewById(R.id.weatherIcon)
