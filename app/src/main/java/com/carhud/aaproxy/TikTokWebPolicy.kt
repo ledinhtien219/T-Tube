@@ -15,7 +15,7 @@ import android.webkit.WebView
  * when the web feed itself becomes login-gated.
  */
 internal object TikTokWebPolicy {
-    private const val POLICY_VERSION = 11
+    private const val POLICY_VERSION = 12
 
     fun isTikTok(url: String?): Boolean {
         val host = runCatching { Uri.parse(url.orEmpty()).host.orEmpty().lowercase() }.getOrDefault("")
@@ -27,7 +27,9 @@ internal object TikTokWebPolicy {
             .let { it == "/search" || it.startsWith("/search/") }
 
     fun searchUrl(query: String): String =
-        "https://www.tiktok.com/search/video?q=" + Uri.encode(query.trim())
+        // /search?q= is the stable public web route. /search/video?q= can render
+        // an empty mobile shell inside projected Android WebView sessions.
+        "https://www.tiktok.com/search?q=" + Uri.encode(query.trim())
 
     fun userAgent(defaultUa: String): String {
         // Keep Android/Chrome identity internally consistent. Pretending to be
@@ -132,20 +134,20 @@ internal object TikTokWebPolicy {
 
                             /* T Tube owns navigation/search on Android Auto. Hide
                                TikTok desktop rails/action columns that waste space. */
-                            [data-e2e="browse-sidebar"],
-                            [data-e2e="left-nav"],
-                            [class*="SideNavContainer"],
-                            [class*="DivSideNav"],
-                            [class*="DivMainNavContainer"],
-                            [class*="DivActionItemContainer"],
-                            [class*="ActionItemContainer"],
-                            [class*="DivVideoActionContainer"],
-                            [data-e2e="browse-like"],
-                            [data-e2e="browse-comment"],
-                            [data-e2e="browse-share"],
-                            [data-e2e="browse-save"],
-                            [data-e2e="top-login-button"],
-                            [class*="DivHeaderRightContainer"] {
+                            html:not(.ttube-tiktok-search) [data-e2e="browse-sidebar"],
+                            html:not(.ttube-tiktok-search) [data-e2e="left-nav"],
+                            html:not(.ttube-tiktok-search) [class*="SideNavContainer"],
+                            html:not(.ttube-tiktok-search) [class*="DivSideNav"],
+                            html:not(.ttube-tiktok-search) [class*="DivMainNavContainer"],
+                            html:not(.ttube-tiktok-search) [class*="DivActionItemContainer"],
+                            html:not(.ttube-tiktok-search) [class*="ActionItemContainer"],
+                            html:not(.ttube-tiktok-search) [class*="DivVideoActionContainer"],
+                            html:not(.ttube-tiktok-search) [data-e2e="browse-like"],
+                            html:not(.ttube-tiktok-search) [data-e2e="browse-comment"],
+                            html:not(.ttube-tiktok-search) [data-e2e="browse-share"],
+                            html:not(.ttube-tiktok-search) [data-e2e="browse-save"],
+                            html:not(.ttube-tiktok-search) [data-e2e="top-login-button"],
+                            html:not(.ttube-tiktok-search) [class*="DivHeaderRightContainer"] {
                                 display: none !important;
                                 visibility: hidden !important;
                                 pointer-events: none !important;
@@ -212,6 +214,7 @@ internal object TikTokWebPolicy {
 
                     function recoverSearchShell() {
                         if (!isSearchRoute()) return;
+                        document.documentElement.classList.add('ttube-tiktok-search');
                         clearVideoMode();
                         try {
                             document.documentElement.classList.remove('ttube-tiktok-video-only');
@@ -622,6 +625,7 @@ internal object TikTokWebPolicy {
                         state.pending = false;
                         ensureViewport();
                         ensureStyle();
+                        document.documentElement.classList.toggle('ttube-tiktok-search', isSearchRoute());
                         if (recoverLegacyPlayerRoute()) return;
                         if (!isVideoRoute()) collectPublicVideos(document);
                         else {
