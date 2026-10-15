@@ -27,11 +27,12 @@ assert.match(presentation, /currentActiveAppId == "tiktok" \|\| TikTokWebPolicy\
 assert.match(presentation, /val tiktokActive = currentActiveAppId == "tiktok" \|\| TikTokWebPolicy\.isTikTok\(web\.url\)/);
 assert.match(presentation, /searchOverlayMode = if \(tiktokActive\) "tiktok" else "youtube"/);
 
-// A TikTok search result is normalized to its public video route and only enters
-// video-only mode once real media metadata exists.
-assert.match(tiktok, /searchClickHandlerVersion === VERSION/);
-assert.match(tiktok, /location\.assign\(canonical\)/);
-assert.match(tiktok, /video\.readyState >= 1 && \(video\.videoWidth > 0 \|\| video\.videoHeight > 0\)/);
+// TikTok search is left to the real desktop website.
+assert.match(tiktok, /"https:\/\/www\.tiktok\.com\/search\?q=" \+ Uri\.encode/);
+assert.match(tiktok, /DESKTOP_UA/);
+assert.doesNotMatch(tiktok, /searchClickHandlerVersion/);
+assert.doesNotMatch(tiktok, /location\.assign\(canonical\)/);
+assert.doesNotMatch(tiktok, /ttube-tiktok-video-only/);
 
 // Generic browser day/night inversion must seed the pre-filter background with
 // the opposite tone so the rendered result lands on the requested theme.
@@ -53,4 +54,4 @@ assert.match(main, /R\.id\.phoneDisplayToggleCard/);
 assert.match(main, /R\.id\.phoneThemeCard/);
 assert.match(main, /stylePhoneDynamicCard\(itemView\)/);
 
-console.log('PASS browser theme + TikTok search playback + phone day-mode regressions');
+console.log('PASS browser theme + TikTok native search + phone day-mode regressions');
