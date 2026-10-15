@@ -1,15 +1,16 @@
 {
   "channel": "stable",
   "approved": true,
-  "versionCode": 258,
-  "versionName": "1.0.67",
-  "downloadUrl": "https://github.com/ledinhtien219/THTV/releases/download/v1.0.67/TTube_v1.0.67_debug.apk",
-  "approvedCommit": "9d5970c7a7af8dde6dbad2eba8d1dbff7dfde531",
-  "approvedAt": "2026-10-15T14:52:16+00:00",
+  "versionCode": 259,
+  "versionName": "1.0.68",
+  "downloadUrl": "https://github.com/ledinhtien219/THTV/releases/download/v1.0.68/TTube_v1.0.68_debug.apk",
+  "approvedCommit": "81882b6d3b33c134db123428e4cb11af1640d7cc",
+  "approvedAt": "2026-10-15T23:45:58+00:00",
   "changelog": [
-    "Sửa triệt để rút cáp Android Auto và đóng hoàn toàn media session.",
-    "Sửa giao diện YouTube/IPTV/Browser trên màn xe bị co nhỏ; tự dùng native scale theo màn.",
-    "Giữ watchdog Android Auto hoạt động kể cả khi projection service bị teardown/recreate.",
-    "TikTok tiếp tục dùng tiktok.com trực tiếp, fit màn và web-only."
+    "Thêm mục Zalo T Tube trong Cài đặt/Hỗ trợ, mở nhóm cộng đồng chính thức.",
+    "Sửa WakeLock để giảm hao pin khi app ở nền nhưng media không phát.",
+    "Cải thiện nhận diện rút cáp Android Auto ngay cả khi điện thoại còn nguồn sạc khác.",
+    "Khóa Waze HLP WebSocket về localhost và gỡ Developer bypass khỏi bản public.",
+    "CI chạy đầy đủ JVM unit tests cùng regression/runtime test trước khi phát hành."
   ]
 }
