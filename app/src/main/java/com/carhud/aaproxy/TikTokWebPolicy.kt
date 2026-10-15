@@ -5,6 +5,8 @@ import android.os.Build
 import android.webkit.CookieManager
 import android.webkit.WebSettings
 import android.webkit.WebView
+import android.view.View
+import java.util.WeakHashMap
 
 /**
  * TikTok-specific WebView policy for Android Auto.
@@ -15,7 +17,10 @@ import android.webkit.WebView
  * continue when TikTok temporarily guest-gates the feed.
  */
 internal object TikTokWebPolicy {
-    private const val POLICY_VERSION = 13
+    private const val POLICY_VERSION = 14
+
+    private val searchRecoveryAttempts = WeakHashMap<WebView, Int>()
+    private val searchRecoveryQueries = WeakHashMap<WebView, String>()
 
     fun isTikTok(url: String?): Boolean {
         val host = runCatching { Uri.parse(url.orEmpty()).host.orEmpty().lowercase() }.getOrDefault("")
@@ -27,9 +32,102 @@ internal object TikTokWebPolicy {
             .let { it == "/search" || it.startsWith("/search/") }
 
     fun searchUrl(query: String): String =
-        // The plain public search route is stable in projected Android WebView.
-        // The old video-specific route can render an empty mobile shell.
+        // Prefer TikTok's video results route. The generic /search SPA can
+        // occasionally paint a black shell on Android System WebView.
+        "https://www.tiktok.com/search/video?q=" + Uri.encode(query.trim())
+
+    private fun alternateSearchUrl(query: String): String =
         "https://www.tiktok.com/search?q=" + Uri.encode(query.trim())
+
+    private fun externalFallbackSearchUrl(query: String): String =
+        "https://www.google.com/search?q=" +
+            Uri.encode("site:tiktok.com/video TikTok " + query.trim())
+
+    fun isAppRedirect(url: String?): Boolean {
+        val raw = url.orEmpty().trim()
+        val lower = raw.lowercase()
+        if (lower.startsWith("intent:") ||
+            lower.startsWith("snssdk") ||
+            lower.startsWith("tiktok:") ||
+            lower.startsWith("tiktoklite:") ||
+            lower.startsWith("market:") ||
+            lower.contains("play.google.com/store")
+        ) return true
+
+        if (!isTikTok(raw)) return false
+        val path = runCatching { Uri.parse(raw).path.orEmpty().lowercase() }.getOrDefault("")
+        return path.startsWith("/download") || path.startsWith("/open-app")
+    }
+
+    fun applyRenderingPolicy(view: WebView, url: String?) {
+        val desiredLayer = if (isSearch(url)) View.LAYER_TYPE_SOFTWARE else View.LAYER_TYPE_HARDWARE
+        if (view.layerType != desiredLayer) {
+            runCatching { view.setLayerType(desiredLayer, null) }
+        }
+    }
+
+    fun recoverSearchIfBlank(view: WebView, url: String?) {
+        if (!isSearch(url)) return
+        val query = runCatching {
+            Uri.parse(url.orEmpty()).getQueryParameter("q").orEmpty().trim()
+        }.getOrDefault("")
+        if (query.isBlank()) return
+
+        synchronized(searchRecoveryAttempts) {
+            if (searchRecoveryQueries[view] != query) {
+                searchRecoveryQueries[view] = query
+                searchRecoveryAttempts[view] = 0
+            }
+        }
+
+        view.postDelayed({
+            val liveUrl = view.url
+            if (!isSearch(liveUrl)) return@postDelayed
+            view.evaluateJavascript(
+                """
+                (function() {
+                    try {
+                        var body = document.body;
+                        if (!body) return false;
+                        var text = ((body.innerText || body.textContent || '') + '').trim();
+                        var videoLinks = document.querySelectorAll('a[href*="/video/"]').length;
+                        var videos = document.querySelectorAll('video').length;
+                        var searchNodes = document.querySelectorAll(
+                            '[data-e2e*="search"], [class*="Search"], [class*="search"]'
+                        ).length;
+                        var main = document.querySelector('main, #app, #root, [data-e2e="app-root"]');
+                        var box = main && main.getBoundingClientRect ? main.getBoundingClientRect() : null;
+                        var hasSizedRoot = !!(box && box.width > 80 && box.height > 80);
+                        return videoLinks > 0 || videos > 0 || searchNodes > 1 ||
+                            (hasSizedRoot && text.length > 120);
+                    } catch (_) { return false; }
+                })();
+                """.trimIndent()
+            ) { result ->
+                val healthy = result == "true" || result == "\"true\""
+                if (healthy) {
+                    synchronized(searchRecoveryAttempts) { searchRecoveryAttempts[view] = 0 }
+                    return@evaluateJavascript
+                }
+
+                val attempt = synchronized(searchRecoveryAttempts) {
+                    val current = searchRecoveryAttempts[view] ?: 0
+                    searchRecoveryAttempts[view] = current + 1
+                    current
+                }
+                val target = when (attempt) {
+                    0 -> {
+                        val currentPath = runCatching { Uri.parse(liveUrl.orEmpty()).path.orEmpty() }.getOrDefault("")
+                        if (currentPath.startsWith("/search/video")) alternateSearchUrl(query) else searchUrl(query)
+                    }
+                    1 -> externalFallbackSearchUrl(query)
+                    else -> return@evaluateJavascript
+                }
+                applyRenderingPolicy(view, target)
+                view.loadUrl(target)
+            }
+        }, 1800L)
+    }
 
     fun userAgent(defaultUa: String): String {
         // Keep Android/Chrome identity internally consistent. Pretending to be
@@ -42,6 +140,7 @@ internal object TikTokWebPolicy {
 
     /** Apply stable settings once before TikTok navigation. */
     fun configure(view: WebView, url: String?) {
+        applyRenderingPolicy(view, url)
         if (!isTikTok(url)) return
 
         val ua = userAgent(WebSettings.getDefaultUserAgent(view.context))
@@ -405,8 +504,22 @@ internal object TikTokWebPolicy {
                                 text.indexOf('faster, smoother experience') >= 0
                             );
 
-                        var asksOpenApp = tiktokLitePromo ||
+                        var appOnlyChallenge =
+                            (
+                                text.indexOf("confirm you're not a bot") >= 0 ||
+                                text.indexOf('confirm you are not a bot') >= 0 ||
+                                text.indexOf('xác nhận bạn không phải') >= 0
+                            ) &&
+                            (
+                                text.indexOf('tiktok app') >= 0 ||
+                                text.indexOf('ứng dụng tiktok') >= 0
+                            );
+
+                        var asksOpenApp = tiktokLitePromo || appOnlyChallenge ||
                             text.indexOf('mở tiktok') >= 0 || text.indexOf('open tiktok') >= 0 ||
+                            text.indexOf('continue with tiktok app') >= 0 ||
+                            text.indexOf('continue in tiktok app') >= 0 ||
+                            text.indexOf('tiếp tục với ứng dụng tiktok') >= 0 ||
                             text.indexOf('open app') >= 0 || text.indexOf('mở ứng dụng') >= 0 ||
                             text.indexOf('trải nghiệm đầy đủ trong ứng dụng') >= 0 ||
                             text.indexOf('full experience in the app') >= 0 ||
@@ -481,6 +594,10 @@ internal object TikTokWebPolicy {
                             var text = ((clickable.innerText || clickable.textContent || '') + '')
                                 .toLowerCase().replace(/\s+/g, ' ').trim();
 
+                            if (text.indexOf('tiktok app') >= 0 ||
+                                text.indexOf('ứng dụng tiktok') >= 0 ||
+                                text.indexOf('open tiktok') >= 0) return;
+
                             var loginIntent =
                                 marker.indexOf('login') >= 0 || marker.indexOf('sign-in') >= 0 ||
                                 text === 'log in' || text === 'login' || text.indexOf('đăng nhập') >= 0 ||
@@ -526,7 +643,10 @@ internal object TikTokWebPolicy {
                             if (
                                 triggerText.indexOf('open tiktok lite') < 0 &&
                                 triggerText.indexOf('tiktok lite') < 0 &&
-                                triggerText.indexOf('open tiktok') < 0
+                                triggerText.indexOf('open tiktok') < 0 &&
+                                triggerText.indexOf('continue with tiktok app') < 0 &&
+                                triggerText.indexOf('continue in tiktok app') < 0 &&
+                                triggerText.indexOf("confirm you're not a bot") < 0
                             ) continue;
 
                             var node = trigger;
@@ -543,7 +663,18 @@ internal object TikTokWebPolicy {
                         var allowLogin = isLoginRoute() ||
                             (state.loginRequestedAt && now - state.loginRequestedAt < 180000);
                         candidateList.forEach(function(el) {
+                            // App-only walls always lose, even during an explicit web
+                            // login session. Real web login forms remain available.
+                            var appPromo = looksLikeAppPromoWall(el);
                             var loginWall = looksLikeLoginWall(el);
+
+                            if (appPromo) {
+                                hidden = true;
+                                el.setAttribute('data-ttube-app-promo-wall', '1');
+                                markBackdropNear(el);
+                                return;
+                            }
+
                             if (loginWall && allowLogin) {
                                 el.removeAttribute('data-ttube-login-wall');
                                 document.querySelectorAll('[data-ttube-login-backdrop="1"]').forEach(function(bg) {
@@ -552,12 +683,9 @@ internal object TikTokWebPolicy {
                                 return;
                             }
 
-                            var appPromo = !loginWall && looksLikeAppPromoWall(el);
-                            if (!loginWall && !appPromo) return;
+                            if (!loginWall) return;
                             hidden = true;
-                            el.setAttribute(appPromo ? 'data-ttube-app-promo-wall' : 'data-ttube-login-wall', '1');
-                            // Automatic gates can still use guest fallback. A login
-                            // explicitly opened by the user is never hidden.
+                            el.setAttribute('data-ttube-login-wall', '1');
                             markBackdropNear(el);
                         });
                         if (hidden) {
