@@ -29,13 +29,13 @@ assert.match(projectionHost, /CarPresentation\(this, vd\.display, persistentWeb\
 assert.match(projectionHost, /hideAppHeader\(\)/);
 assert.match(projectionHost, /hideMenuButton\(\)/);
 
-// Browser uses the full projected viewport at normal CSS scale.
-assert.match(presentation, /val isBrowser = currentActiveAppId == "web"/);
-assert.match(presentation, /val scalePercent = if \(isBrowser\) \{\s*100/);
-assert.match(presentation, /web\.settings\.loadWithOverviewMode = !isBrowser/);
+// Projected WebViews use the full car surface at native 100% scale.
+assert.match(presentation, /web\.setInitialScale\(100\)/);
+assert.match(presentation, /web\.settings\.loadWithOverviewMode = false/);
 assert.match(presentation, /params\.width = ViewGroup\.LayoutParams\.MATCH_PARENT/);
 assert.match(presentation, /params\.rightMargin = 0/);
-assert.match(presentation, /web\.setInitialScale\(100\)/);
+assert.doesNotMatch(presentation, /effectiveCarDpi[\s\S]*?effectivePhoneDpi[\s\S]*?scalePercent/);
+assert.doesNotMatch(presentation, /effectiveCarDpi \/ effectivePhoneDpi/);
 
 // TikTok uses a consistent desktop identity, but build 253 deliberately
 // avoids restoring stale TikTok WebView state. Cookies still keep login.
