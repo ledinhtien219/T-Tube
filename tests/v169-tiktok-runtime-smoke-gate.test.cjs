@@ -32,7 +32,7 @@ assert.ok(uploadPos > smokePos, 'APK upload must happen after smoke test');
 assert.match(workflow, /ReactiveCircus\/android-emulator-runner@v2/);
 assert.match(workflow, /connectedDebugAndroidTest/);
 assert.match(workflow, /build255-smoke-evidence/);
-assert.match(workflow, /grep TTUBE_SMOKE/);
+assert.match(workflow, /grep -E "TTUBE_SMOKE\|CarDisconnectWatchdog\|CarAppShutdownManager"/);
 assert.match(workflow, /final-screen\.png/);
 
 console.log('PASS build 255: live Android TikTok smoke test gates APK upload');
