@@ -22,8 +22,8 @@ assert.match(presentation, /web\.setBackgroundColor\(if \(effectiveWebThemeIsDay
 
 // TikTok search uses the public results route known to render in Android WebView,
 // and the aggressive feed chrome cleanup is disabled on search pages.
+assert.match(tiktok, /"https:\/\/www\.tiktok\.com\/search\/video\?q=" \+ Uri\.encode/);
 assert.match(tiktok, /"https:\/\/www\.tiktok\.com\/search\?q=" \+ Uri\.encode/);
-assert.doesNotMatch(tiktok, /search\/video\?q=/);
 assert.match(tiktok, /ttube-tiktok-search/);
 assert.match(tiktok, /html:not\(\.ttube-tiktok-search\) \[class\*="DivMainNavContainer"\]/);
 assert.match(tiktok, /classList\.toggle\('ttube-tiktok-search', isSearchRoute\(\)\)/);
