@@ -25,10 +25,10 @@ assert.match(
 );
 
 // Delayed TikTok Lite promo overlays must be found even when mounted via anonymous portals.
-assert.match(tiktok, /try out more features/);
+assert.match(tiktok, /continue with tiktok app/);
 assert.match(tiktok, /open tiktok lite/);
-assert.match(tiktok, /watch your favorite videos with less data/);
-assert.match(tiktok, /candidateList/);
+assert.match(tiktok, /function isAppOnlyWall/);
+assert.match(tiktok, /candidates/);
 assert.match(tiktok, /button, a, \[role="button"\]/);
 assert.match(tiktok, /\{ childList: true, subtree: true \}/);
 assert.doesNotMatch(tiktok, /attributeFilter/);
