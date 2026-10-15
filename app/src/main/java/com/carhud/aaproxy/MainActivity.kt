@@ -842,7 +842,7 @@ class MainActivity : AppCompatActivity() {
                     val current = target.url.orEmpty()
                     val sameTarget = when (app.id) {
                         "youtube" -> current.contains("youtube.com", true) || current.contains("youtu.be", true)
-                        "tiktok" -> TikTokWebPolicy.isTikTok(current)
+                        "tiktok" -> current.trimEnd('/') == "https://www.tiktok.com"
                         else -> runCatching { Uri.parse(current).host == Uri.parse(app.url).host }.getOrDefault(false)
                     }
                     if (!sameTarget) target.loadUrl(app.url)
