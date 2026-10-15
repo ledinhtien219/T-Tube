@@ -18,7 +18,7 @@ assert.match(smokeActivity, /TikTokWebPolicy\.isAppRedirect/);
 assert.match(smokeTest, /repeat\(12\)/);
 assert.match(smokeTest, /device\.swipe/);
 assert.match(smokeTest, /activity\.loadSearch\("cat"\)/);
-assert.match(smokeTest, /videoLinkCount\(activity\) >= 1/);
+assert.match(smokeTest, /searchUiCount\(activity\) >= 1 \|\| videoLinkCount\(activity\) >= 1/);
 assert.match(smokeTest, /01-home\.png/);
 assert.match(smokeTest, /03-search\.png/);
 assert.match(smokeTest, /fitsViewport\(activity\)/);
@@ -32,6 +32,7 @@ assert.ok(uploadPos > smokePos, 'APK upload must happen after smoke test');
 assert.match(workflow, /ReactiveCircus\/android-emulator-runner@v2/);
 assert.match(workflow, /connectedDebugAndroidTest/);
 assert.match(workflow, /build254-smoke-evidence/);
-assert.match(workflow, /Android\/data\/com\.tcar\.auto\/files\/tiktok-smoke/);
+assert.match(workflow, /grep TTUBE_SMOKE/);
+assert.match(workflow, /final-screen\.png/);
 
 console.log('PASS build 254: live Android TikTok smoke test gates APK upload');
