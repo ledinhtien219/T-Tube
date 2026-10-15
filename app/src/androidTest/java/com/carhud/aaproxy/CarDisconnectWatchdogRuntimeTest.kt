@@ -69,6 +69,65 @@ class CarDisconnectWatchdogRuntimeTest {
     }
 
     @Test
+    fun serviceTeardownWhilePoweredThenLaterUnplugStillShutsDown() {
+        val shutdown = CountDownLatch(1)
+        val reason = AtomicReference("")
+
+        try {
+            CarDisconnectWatchdog.resetForTests()
+            device.executeShellCommand("dumpsys battery unplug")
+            device.executeShellCommand("dumpsys battery set ac 0")
+            device.executeShellCommand("dumpsys battery set wireless 0")
+            device.executeShellCommand("dumpsys battery set usb 1")
+
+            assertTrue(
+                "Emulator did not report USB power connected",
+                waitUntil(4_000) {
+                    CarDisconnectWatchdog.isExternalPowerConnectedForTests(context)
+                }
+            )
+
+            CarDisconnectWatchdog.shutdownOverrideForTests = { _, why ->
+                reason.set(why)
+                shutdown.countDown()
+            }
+
+            CarDisconnectWatchdog.onProjectionServiceCreated(context)
+            CarDisconnectWatchdog.onProjectionConnected(context)
+            assertTrue(
+                "Projection session was not latched before service teardown",
+                CarDisconnectWatchdog.hasSeenProjectionSession()
+            )
+
+            // OEM/AA may tear down the projection service while USB power remains.
+            CarDisconnectWatchdog.onProjectionServiceDestroyed(context)
+
+            assertTrue(
+                "Projection session was incorrectly forgotten after service teardown",
+                CarDisconnectWatchdog.hasSeenProjectionSession()
+            )
+            assertTrue(
+                "Service teardown while still powered incorrectly shut the app down",
+                shutdown.count == 1L
+            )
+
+            // Physical cable unplug happens later, without USB detach broadcast.
+            device.executeShellCommand("dumpsys battery set usb 0")
+
+            assertTrue(
+                "Watchdog missed unplug after projection service teardown",
+                shutdown.await(6, TimeUnit.SECONDS)
+            )
+            assertTrue(
+                "Unexpected disconnect reason after service teardown: " + reason.get(),
+                reason.get().contains("power", ignoreCase = true)
+            )
+        } finally {
+            CarDisconnectWatchdog.resetForTests()
+            runCatching { device.executeShellCommand("dumpsys battery reset") }
+        }
+    }
+    @Test
     fun projectionLifecycleEndWhileStillPoweredDoesNotShutdown() {
         val shutdown = CountDownLatch(1)
 
