@@ -1,15 +1,15 @@
 {
   "channel": "stable",
   "approved": true,
-  "versionCode": 256,
-  "versionName": "1.0.65",
-  "downloadUrl": "https://github.com/ledinhtien219/THTV/releases/download/v1.0.65/TTube_v1.0.65_debug.apk",
-  "approvedCommit": "9fc586eebc8c8ccc766e008cb196e089173bae9c",
-  "approvedAt": "2026-10-15T07:32:49+00:00",
+  "versionCode": 258,
+  "versionName": "1.0.67",
+  "downloadUrl": "https://github.com/ledinhtien219/THTV/releases/download/v1.0.67/TTube_v1.0.67_debug.apk",
+  "approvedCommit": "9d5970c7a7af8dde6dbad2eba8d1dbff7dfde531",
+  "approvedAt": "2026-10-15T14:52:16+00:00",
   "changelog": [
-    "Sửa rút cáp Android Auto: dừng audio và đóng ứng dụng.",
-    "TikTok dùng tiktok.com trực tiếp, cải thiện đăng nhập, tìm kiếm và cuộn feed.",
-    "Tự fit giao diện TikTok theo màn hình.",
-    "Cải thiện giao diện tối và độ mượt WebView."
+    "Sửa triệt để rút cáp Android Auto và đóng hoàn toàn media session.",
+    "Sửa giao diện YouTube/IPTV/Browser trên màn xe bị co nhỏ; tự dùng native scale theo màn.",
+    "Giữ watchdog Android Auto hoạt động kể cả khi projection service bị teardown/recreate.",
+    "TikTok tiếp tục dùng tiktok.com trực tiếp, fit màn và web-only."
   ]
 }
