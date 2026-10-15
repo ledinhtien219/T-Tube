@@ -2037,6 +2037,7 @@ class CarPresentation(
             CarMediaManager.saveWebAppSession(previousAppId, web)
         }
         val canRestoreSession = isChangingApp &&
+            app.id != "tiktok" &&
             startUrl == null &&
             CarMediaManager.hasWebAppSession(app.id)
         if (isChangingApp) {
