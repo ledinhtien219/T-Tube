@@ -28,7 +28,8 @@ assert.match(presentation, /currentActiveAppId == "tiktok"/);
 assert.match(presentation, /Gravity\.START or Gravity\.CENTER_VERTICAL/);
 assert.match(presentation, /pendingSessionRestoreAppId/);
 
-assert.match(tiktok, /dismissLoginWalls/);
-assert.match(tiktok, /login-modal/);
+assert.match(tiktok, /function isAppOnlyWall/);
+assert.match(tiktok, /data-ttube-app-promo-wall/);
+assert.doesNotMatch(tiktok, /data-ttube-login-wall/);
 
-console.log('PASS v1.0.51: dashboard defaults + TikTok guest mode + YouTube/web session separation');
+console.log('PASS v1.0.51: dashboard defaults + TikTok web-only mode + YouTube/web session separation');
