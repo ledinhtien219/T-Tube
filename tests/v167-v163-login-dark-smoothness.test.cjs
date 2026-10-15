@@ -16,10 +16,11 @@ assert.match(main, /initIptvWebView[\s\S]*?YouTubePlayerHelper\.applyUltraPerfor
 
 // Wired Android Auto detach fully closes the phone task/process, but unrelated
 // power changes are ignored when no projection is active.
-assert.match(projection, /if \(!CarMediaManager\.isCarConnected\)[\s\S]*?Ignoring detach without active projection/);
-assert.match(projection, /CarAppShutdownManager\.shutdownCompletely/);
+assert.match(projection, /CarDisconnectWatchdog\.shouldHandleCableDetach\(\)/);
+assert.match(projection, /CarDisconnectWatchdog\.onCableDetachBroadcast/);
 assert.match(shutdown, /ACTION_FULL_EXIT/);
 assert.match(shutdown, /resumePhoneOnDisconnect = false/);
+assert.match(shutdown, /pauseAllPlaybackForShutdown\(\)/);
 
 // TikTok uses the real desktop website: web login/cookies remain enabled,
 // app-only redirects are blocked, and only native-app promotion walls are hidden.
