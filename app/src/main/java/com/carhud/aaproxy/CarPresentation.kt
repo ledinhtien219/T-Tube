@@ -575,11 +575,8 @@ class CarPresentation(
                     goHome()
                     return true
                 }
-                if (target.startsWith("intent:") || 
-                    target.startsWith("snssdk") || 
-                    target.startsWith("market:") || 
-                    target.contains("play.google.com/store")) {
-                    return true // Block app redirect, stay in webview
+                if (TikTokWebPolicy.isAppRedirect(target)) {
+                    return true // Web-only TikTok: never leave for the native app/store.
                 }
                 if (request.isForMainFrame && view != null) TikTokWebPolicy.configure(view, target)
                 return false
@@ -592,10 +589,7 @@ class CarPresentation(
                     goHome()
                     return true
                 }
-                if (target.startsWith("intent:") || 
-                    target.startsWith("snssdk") || 
-                    target.startsWith("market:") || 
-                    target.contains("play.google.com/store")) {
+                if (TikTokWebPolicy.isAppRedirect(target)) {
                     return true
                 }
                 if (view != null) TikTokWebPolicy.configure(view, target)
@@ -614,6 +608,7 @@ class CarPresentation(
 
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                TikTokWebPolicy.applyRenderingPolicy(view, url)
                 val pending = pendingSessionRestoreAppId
                 if (pending != null) {
                     val matches = when (pending) {
@@ -670,6 +665,7 @@ class CarPresentation(
                 val isDay = isDayMode()
                 applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
                 TikTokWebPolicy.fitLayout(view, url)
+                TikTokWebPolicy.recoverSearchIfBlank(view, url)
                 val isYouTube = currentActiveAppId == "youtube" && (url.contains("youtube.com") || url.contains("youtu.be"))
                 if (isYouTube) {
                     YouTubePlayerHelper.inject(view, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
@@ -1072,7 +1068,9 @@ class CarPresentation(
             if (lastAppliedScale == -2) return
             lastAppliedScale = -2
             web.settings.useWideViewPort = true
-            web.settings.loadWithOverviewMode = false
+            // Match the phone WebView: fit the native desktop TikTok site to the
+            // available projected viewport instead of clipping the right edge.
+            web.settings.loadWithOverviewMode = true
             web.settings.textZoom = 100
             web.setInitialScale(100)
             return
@@ -2041,6 +2039,7 @@ class CarPresentation(
             CarMediaManager.saveWebAppSession(previousAppId, web)
         }
         val canRestoreSession = isChangingApp &&
+            app.id != "tiktok" &&
             startUrl == null &&
             CarMediaManager.hasWebAppSession(app.id)
         if (isChangingApp) {

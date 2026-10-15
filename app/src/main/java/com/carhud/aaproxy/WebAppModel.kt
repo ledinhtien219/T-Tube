@@ -224,9 +224,9 @@ object WebAppManager {
         WebAppItem(
             id = "tiktok",
             name = "TikTok",
-            url = "https://www.tiktok.com",
+            url = "https://www.tiktok.com/",
             iconRes = R.drawable.ic_app_tiktok,
-            isDesktop = false,
+            isDesktop = true,
             isBuiltIn = true,
             colorHex = "#111827"
         ),

@@ -434,6 +434,15 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         registerFullExitReceiver()
 
+        // v1.0.63 build 251: phone UI starts in Night mode on first launch.
+        // Existing users keep their explicit Day/Night/Auto choice.
+        if (!prefs.contains(PREF_THEME_MODE)) {
+            prefs.edit()
+                .putString(PREF_THEME_MODE, SettingsActivity.THEME_NIGHT)
+                .putBoolean("carhud_day_mode", false)
+                .apply()
+        }
+
         // Reset một lần ở bản 0.9.1 để người dùng kiểm duyệt luồng kích hoạt
         val auditKey = "audit_activation_check_v171"
         if (!prefs.getBoolean(auditKey, false)) {
@@ -833,7 +842,7 @@ class MainActivity : AppCompatActivity() {
                     val current = target.url.orEmpty()
                     val sameTarget = when (app.id) {
                         "youtube" -> current.contains("youtube.com", true) || current.contains("youtu.be", true)
-                        "tiktok" -> TikTokWebPolicy.isTikTok(current)
+                        "tiktok" -> current.trimEnd('/') == "https://www.tiktok.com"
                         else -> runCatching { Uri.parse(current).host == Uri.parse(app.url).host }.getOrDefault(false)
                     }
                     if (!sameTarget) target.loadUrl(app.url)
@@ -1627,7 +1636,7 @@ class MainActivity : AppCompatActivity() {
                     switchTab(TAB_HOME)
                     return true
                 }
-                if (target.startsWith("intent:") || target.startsWith("snssdk") || target.startsWith("market:") || target.contains("play.google.com/store")) {
+                if (TikTokWebPolicy.isAppRedirect(target)) {
                     return true
                 }
                 if (view != null && request.isForMainFrame && TikTokWebPolicy.isTikTok(target)) {
@@ -1638,6 +1647,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                TikTokWebPolicy.applyRenderingPolicy(view, url)
                 YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this@MainActivity))
                 if (TikTokWebPolicy.isTikTok(url)) {
                     activePhoneWebAppId = "tiktok"
@@ -1686,6 +1696,7 @@ class MainActivity : AppCompatActivity() {
                 if (TikTokWebPolicy.isTikTok(url)) {
                     activePhoneWebAppId = "tiktok"
                     TikTokWebPolicy.fitLayout(view, url)
+                    TikTokWebPolicy.recoverSearchIfBlank(view, url)
                 }
                 YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this@MainActivity))
                 android.webkit.CookieManager.getInstance().flush()
@@ -1837,6 +1848,9 @@ class MainActivity : AppCompatActivity() {
             }
             false
         }
+
+        // Keep IPTV on the same accelerated WebView path as YouTube/browser.
+        YouTubePlayerHelper.applyUltraPerformance(w)
 
         w.settings.apply {
             javaScriptEnabled = true

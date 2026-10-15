@@ -42,6 +42,7 @@ class CarHudProjectionService : CarActivityService() {
             CarTtsManager.startListeningToRepository()
             GpsSpeedManager.start(applicationContext)
             WazeHlpWebSocketManager.start()
+            CarDisconnectWatchdog.onProjectionServiceCreated(applicationContext)
 
             // This is the projection service actually declared in AndroidManifest.
             // Listen here (not only in the legacy AndroidX CarAppService) so a
@@ -54,10 +55,14 @@ class CarHudProjectionService : CarActivityService() {
             cableDisconnectReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
                     val action = intent?.action ?: return
+                    if (!CarDisconnectWatchdog.shouldHandleCableDetach()) {
+                        Log.d("CarHudProjectionService", "Ignoring detach without projection session: $action")
+                        return
+                    }
                     Log.i("CarHudProjectionService", "Projection cable disconnected: $action")
-                    CarAppShutdownManager.shutdownCompletely(
+                    CarDisconnectWatchdog.onCableDetachBroadcast(
                         (context ?: applicationContext).applicationContext,
-                        "Android Auto cable disconnected ($action)"
+                        action
                     )
                 }
             }
@@ -73,23 +78,17 @@ class CarHudProjectionService : CarActivityService() {
     }
 
     override fun onDestroy() {
-        val wasConnected = CarMediaManager.isCarConnected
         try {
             cableDisconnectReceiver?.let { unregisterReceiver(it) }
             cableDisconnectReceiver = null
         } catch (_: Exception) {}
 
-        super.onDestroy()
+        // Do this before super.onDestroy() while application state is still
+        // available. The watchdog remembers that projection was active even if
+        // Activity.onDestroy() already cleared CarMediaManager.isCarConnected.
+        CarDisconnectWatchdog.onProjectionServiceDestroyed(applicationContext)
 
-        // Fallback for hosts/devices that do not deliver a USB detach broadcast.
-        // If an active projection service is destroyed, treat it as a real car
-        // disconnect and terminate the phone/background process as requested.
-        if (wasConnected) {
-            CarAppShutdownManager.shutdownCompletely(
-                applicationContext,
-                "Android Auto projection service destroyed"
-            )
-        }
+        super.onDestroy()
     }
 }
 
@@ -190,6 +189,7 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        CarDisconnectWatchdog.onProjectionLifecycleEnded(this, "projection surface destroyed")
         try {
             virtualDisplay?.setSurface(null)
 
@@ -235,6 +235,7 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
             presentation = p
 
             CarMediaManager.setCarConnectionState(true)
+            CarDisconnectWatchdog.onProjectionConnected(this)
             CarMediaManager.carScreenWidth = width
             CarMediaManager.carScreenHeight = height
             CarMediaManager.carScreenDpi = dpi
@@ -253,7 +254,13 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
         }
     }
 
+    override fun onStop() {
+        CarDisconnectWatchdog.onProjectionLifecycleEnded(this, "projection activity stopped")
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        CarDisconnectWatchdog.onProjectionLifecycleEnded(this, "projection activity destroyed")
         try {
             presentation?.dismiss()
             presentation = null

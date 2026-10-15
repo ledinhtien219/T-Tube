@@ -11,16 +11,14 @@ const versionName = gradle.match(/versionName = "([^"]+)"/)?.[1] || '';
 assert.ok(versionCode >= 246);
 assert.ok(/^1\.0\./.test(versionName));
 
-// Guest fallback is fed only by public TikTok video anchors already present in the page.
-assert.match(tiktok, /function collectPublicVideos/);
-assert.match(tiktok, /ttube_tiktok_guest_queue/);
-assert.match(tiktok, /function guestNavigate/);
-assert.match(tiktok, /state\.guestFallback = true/);
-assert.match(tiktok, /bottom-login-entry/);
-assert.match(tiktok, /browse-login/);
-assert.match(tiktok, /unlockDocumentAfterModal/);
+// Native web mode only suppresses prompts that force the native app.
+assert.match(tiktok, /function isAppOnlyWall/);
+assert.match(tiktok, /continue with tiktok app/);
+assert.match(tiktok, /open tiktok lite/);
+assert.match(tiktok, /data-ttube-app-promo-wall/);
+assert.match(tiktok, /unlockPage/);
+assert.doesNotMatch(tiktok, /guestQueue/);
 assert.doesNotMatch(tiktok, /setInterval\s*\(/);
-assert.doesNotMatch(tiktok, /\[id\*="login"\]/);
 
 // TikTok controls use the compact vertical rail requested at the far-left edge.
 assert.match(presentation, /tiktokIconSizeDp = \(\(58 \* scale\) \/ 100\)\.coerceIn\(52, 72\)/);
@@ -33,4 +31,4 @@ assert.doesNotMatch(settings, /title = "MIC HỆ THỐNG ANDROID AUTO"/);
 assert.doesNotMatch(settings, /Nút Giao diện Sáng \/ Tối/);
 assert.doesNotMatch(settings, /Nút Bàn phím Web/);
 
-console.log('PASS TikTok guest fallback + toolbar #2 + simplified settings');
+console.log('PASS TikTok native web + toolbar #2 + simplified settings');

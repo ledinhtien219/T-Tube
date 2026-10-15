@@ -837,6 +837,48 @@ object CarMediaManager {
         }
     }
 
+    /**
+     * Hard stop used only during confirmed cable/projection shutdown.
+     *
+     * pausePlayback() intentionally targets the currently active WebView. During
+     * disconnect, however, isCarConnected can flip to false before its main-thread
+     * callback runs, causing it to pause the phone WebView while the persistent car
+     * WebView keeps playing. Stop both WebViews explicitly here.
+     */
+    fun pauseAllPlaybackForShutdown() {
+        userWantsPlayback = false
+        currentLoadingUrl = null
+
+        val action = {
+            try {
+                val targets = listOfNotNull(carWebView, phoneWebView).distinct()
+                targets.forEach { web ->
+                    try {
+                        if (web.url?.contains("iptv_player.html") == true) {
+                            web.evaluateJavascript(
+                                "try{if(window.setIptvPlaying)window.setIptvPlaying(false);" +
+                                    "document.querySelectorAll('video,audio').forEach(function(m){m.pause();});}catch(e){}",
+                                null
+                            )
+                        } else {
+                            YouTubePlayerHelper.pausePlayback(web)
+                            web.evaluateJavascript(
+                                "try{document.querySelectorAll('video,audio').forEach(function(m){m.pause();});}catch(e){}",
+                                null
+                            )
+                        }
+                        web.onPause()
+                        web.pauseTimers()
+                    } catch (_: Throwable) {}
+                }
+                setPlaybackState(false)
+            } catch (_: Throwable) {}
+        }
+
+        if (Looper.myLooper() == Looper.getMainLooper()) action()
+        else mainHandler.post(action)
+    }
+
     fun pausePlayback() {
         userWantsPlayback = false
         mainHandler.post {
