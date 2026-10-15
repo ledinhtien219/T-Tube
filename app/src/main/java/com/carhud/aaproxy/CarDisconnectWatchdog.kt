@@ -104,15 +104,33 @@ object CarDisconnectWatchdog {
         appContext = app
         projectionServiceAlive = false
 
-        if (projectionSessionSeen && externalPowerSeen && !isExternalPowerConnected(app)) {
+        if (!projectionSessionSeen || shutdownTriggered) return
+
+        val powered = isExternalPowerConnected(app)
+        if (externalPowerSeen && !powered) {
             triggerShutdown(app, "projection service destroyed after cable power loss")
             return
         }
 
-        // If the service goes away while power is still present, treat it as a
-        // normal host/app lifecycle end rather than a physical cable unplug.
-        if (isExternalPowerConnected(app)) {
-            resetSession()
+        // IMPORTANT: do NOT forget a real projection session just because the
+        // CarActivityService is destroyed/recreated while the cable is still
+        // plugged in. Some Android Auto hosts tear this service down when the
+        // projection app loses foreground. The media service can remain alive,
+        // then a later physical unplug would otherwise be missed completely.
+        //
+        // Keep the sticky session armed and continue the independent power poll
+        // until cable loss is confirmed or the process itself is shut down.
+        if (powered) {
+            externalPowerSeen = true
+            powerLossStartedAt = 0L
+            handler.removeCallbacks(pollRunnable)
+            handler.post(pollRunnable)
+            Log.i(TAG, "Projection service destroyed while cable is still powered; keeping session armed")
+        } else if (!externalPowerSeen) {
+            // No reliable power sample was ever observed. Keep polling rather
+            // than clearing the session so a later detach/power signal can win.
+            handler.removeCallbacks(pollRunnable)
+            handler.post(pollRunnable)
         }
     }
 
