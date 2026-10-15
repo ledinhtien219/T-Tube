@@ -21,6 +21,8 @@ assert.match(smokeTest, /activity\.loadSearch\("cat"\)/);
 assert.match(smokeTest, /videoLinkCount\(activity\) >= 1/);
 assert.match(smokeTest, /01-home\.png/);
 assert.match(smokeTest, /03-search\.png/);
+assert.match(smokeTest, /fitsViewport\(activity\)/);
+assert.match(smokeTest, /width <= Math\.ceil\(viewport \* 1\.12\)/);
 
 const smokePos = workflow.indexOf('Run live TikTok runtime smoke test');
 const uploadPos = workflow.indexOf('- name: Upload APK');
