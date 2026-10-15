@@ -25,7 +25,7 @@ assert.match(shutdown, /CarMediaManager\.userWantsPlayback = false/);
 assert.match(shutdown, /pauseAllPlaybackForShutdown\(\)/);
 assert.match(shutdown, /setCarConnectionState\(false, resumePhoneOnDisconnect = false\)/);
 assert.match(shutdown, /stopService\(Intent\(context, CarHudProjectionService::class\.java\)\)/);
-assert.match(shutdown, /stopService\(mediaIntent\)/);
+assert.match(shutdown, /CarMediaBrowserService\.forceShutdownForDisconnect\(context\)/);
 assert.match(media, /resumePhoneOnDisconnect: Boolean = true/);
 assert.match(media, /if \(!resumePhoneOnDisconnect\)[\s\S]*?phone\?\.pauseTimers\(\)/);
 
