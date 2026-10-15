@@ -9,7 +9,6 @@ import androidx.test.uiautomator.UiDevice
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -17,17 +16,12 @@ import java.util.concurrent.atomic.AtomicReference
 @RunWith(AndroidJUnit4::class)
 class TikTokRuntimeSmokeTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
-    private val targetContext = instrumentation.targetContext
     private val device = UiDevice.getInstance(instrumentation)
 
     @Test
     fun liveTikTokHomeScrollAndSearchStayRendered() {
-        val evidenceDir = File(targetContext.getExternalFilesDir(null), "tiktok-smoke").apply {
-            mkdirs()
-        }
-        val report = File(evidenceDir, "report.txt").apply {
-            writeText("T Tube TikTok runtime smoke\n")
-        }
+        device.executeShellCommand("rm -rf /sdcard/ttube-smoke && mkdir -p /sdcard/ttube-smoke")
+        shellAppend("T Tube TikTok runtime smoke")
 
         ActivityScenario.launch(TikTokSmokeActivity::class.java).use { scenario ->
             val holder = AtomicReference<TikTokSmokeActivity>()
@@ -40,11 +34,9 @@ class TikTokRuntimeSmokeTest {
                     "TikTok home did not render usable web content",
                     waitUntil(55_000) { isHealthy(activity) && mediaCount(activity) >= 1 }
                 )
-                appendStage(report, "home", activity, mediaCount(activity))
-                screenshot(evidenceDir, "01-home.png")
+                appendStage("home", activity, mediaCount(activity))
+                screenshot("01-home.png")
 
-                // Real swipe gestures, not JS scrollBy: this exercises the same
-                // touch path the user uses in Android WebView.
                 repeat(12) { index ->
                     val w = device.displayWidth
                     val h = device.displayHeight
@@ -53,20 +45,23 @@ class TikTokRuntimeSmokeTest {
                     assertTrue("TikTok became blank after swipe ${index + 1}", isHealthy(activity))
                 }
                 assertTrue("TikTok feed lost all video/media nodes after scrolling", mediaCount(activity) >= 1)
-                appendStage(report, "after-12-swipes", activity, mediaCount(activity))
-                screenshot(evidenceDir, "02-after-scroll.png")
+                appendStage("after-12-swipes", activity, mediaCount(activity))
+                screenshot("02-after-scroll.png")
 
                 instrumentation.runOnMainSync { activity.loadSearch("cat") }
-                assertTrue(
-                    "TikTok search route did not render video results",
-                    waitUntil(55_000) {
-                        currentUrl(activity).contains("/search") &&
-                            isHealthy(activity) &&
-                            videoLinkCount(activity) >= 1
-                    }
-                )
-                appendStage(report, "search-cat", activity, mediaCount(activity))
-                screenshot(evidenceDir, "03-search.png")
+                val searchReady = waitUntil(55_000) {
+                    currentUrl(activity).contains("/search") &&
+                        isHealthy(activity) &&
+                        videoLinkCount(activity) >= 1
+                }
+                if (!searchReady) {
+                    appendDiagnostic("search-timeout", activity)
+                    screenshot("98-search-timeout.png")
+                }
+                assertTrue("TikTok search route did not render video results", searchReady)
+
+                appendStage("search-cat", activity, mediaCount(activity))
+                screenshot("03-search.png")
 
                 repeat(4) { index ->
                     val w = device.displayWidth
@@ -76,11 +71,12 @@ class TikTokRuntimeSmokeTest {
                     assertTrue("TikTok search became blank after swipe ${index + 1}", isHealthy(activity))
                 }
                 assertTrue("TikTok search lost its video result links", videoLinkCount(activity) >= 1)
-                appendStage(report, "search-after-4-swipes", activity, mediaCount(activity))
-                screenshot(evidenceDir, "04-search-after-scroll.png")
+                appendStage("search-after-4-swipes", activity, mediaCount(activity))
+                screenshot("04-search-after-scroll.png")
             } catch (t: Throwable) {
-                appendStage(report, "FAIL: ${t.message}", activity, mediaCount(activity))
-                screenshot(evidenceDir, "99-failure.png")
+                appendStage("FAIL: ${t.message}", activity, runCatching { mediaCount(activity) }.getOrDefault(-1))
+                appendDiagnostic("failure", activity)
+                screenshot("99-failure.png")
                 throw t
             }
         }
@@ -124,6 +120,12 @@ class TikTokRuntimeSmokeTest {
     private fun evalInt(activity: TikTokSmokeActivity, script: String): Int =
         eval(activity, script).trim().trim('"').toDoubleOrNull()?.toInt() ?: 0
 
+    private fun evalString(activity: TikTokSmokeActivity, script: String): String {
+        val raw = eval(activity, script)
+        return runCatching { org.json.JSONArray("[$raw]").getString(0) }
+            .getOrDefault(raw.trim('"'))
+    }
+
     private fun eval(activity: TikTokSmokeActivity, script: String): String {
         val result = AtomicReference("null")
         val latch = CountDownLatch(1)
@@ -147,14 +149,42 @@ class TikTokRuntimeSmokeTest {
         return false
     }
 
-    private fun screenshot(dir: File, name: String) {
-        runCatching { device.takeScreenshot(File(dir, name)) }
+    private fun screenshot(name: String) {
+        runCatching {
+            device.executeShellCommand("screencap -p /sdcard/ttube-smoke/$name")
+        }
     }
 
-    private fun appendStage(report: File, stage: String, activity: TikTokSmokeActivity, media: Int) {
+    private fun appendStage(stage: String, activity: TikTokSmokeActivity, media: Int) {
         val url = runCatching { currentUrl(activity) }.getOrDefault("<unavailable>")
         val links = runCatching { videoLinkCount(activity) }.getOrDefault(-1)
-        report.appendText("$stage | url=$url | media=$media | videoLinks=$links\n")
+        shellAppend("$stage | url=$url | media=$media | videoLinks=$links")
+    }
+
+    private fun appendDiagnostic(stage: String, activity: TikTokSmokeActivity) {
+        val url = runCatching { currentUrl(activity) }.getOrDefault("<unavailable>")
+        val text = runCatching {
+            evalString(
+                activity,
+                """((document.body && (document.body.innerText || document.body.textContent)) || '').replace(/\s+/g, ' ').trim().slice(0, 1800)"""
+            )
+        }.getOrDefault("<body unavailable>")
+        val searchNodes = runCatching {
+            evalInt(
+                activity,
+                """document.querySelectorAll('[data-e2e*="search"], [class*="Search"], [class*="search"]').length"""
+            )
+        }.getOrDefault(-1)
+        val links = runCatching { videoLinkCount(activity) }.getOrDefault(-1)
+        shellAppend("$stage | url=$url | videoLinks=$links | searchNodes=$searchNodes")
+        shellAppend("BODY: $text")
+    }
+
+    private fun shellAppend(line: String) {
+        val safe = line.replace("'", "'\\''").replace("\n", " ")
+        runCatching {
+            device.executeShellCommand("printf '%s\\n' '$safe' >> /sdcard/ttube-smoke/report.txt")
+        }
     }
 
     private fun <T> android.app.Instrumentation.runOnMainSyncResult(block: () -> T): T {
