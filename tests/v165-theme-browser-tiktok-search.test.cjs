@@ -20,12 +20,11 @@ assert.match(presentation, /Browser chrome is always light[\s\S]*?val day = true
 assert.match(presentation, /applyUniversalWebTheme\(view, effectiveWebThemeIsDay\(url\)\)/);
 assert.match(presentation, /web\.setBackgroundColor\(if \(effectiveWebThemeIsDay\(web\.url\)\) Color\.WHITE else Color\.BLACK\)/);
 
-// TikTok search uses the public results route known to render in Android WebView,
-// and the aggressive feed chrome cleanup is disabled on search pages.
-assert.match(tiktok, /"https:\/\/www\.tiktok\.com\/search\/video\?q=" \+ Uri\.encode/);
+// TikTok search uses the standard desktop tiktok.com route and does not
+// inject feed/search layout rewrites.
 assert.match(tiktok, /"https:\/\/www\.tiktok\.com\/search\?q=" \+ Uri\.encode/);
-assert.match(tiktok, /ttube-tiktok-search/);
-assert.match(tiktok, /html:not\(\.ttube-tiktok-search\) \[class\*="DivMainNavContainer"\]/);
-assert.match(tiktok, /classList\.toggle\('ttube-tiktok-search', isSearchRoute\(\)\)/);
+assert.doesNotMatch(tiktok, /search\/video\?q=/);
+assert.doesNotMatch(tiktok, /ttube-tiktok-search/);
+assert.doesNotMatch(tiktok, /DivMainNavContainer/);
 
-console.log('PASS AA YouTube theme + always-light browser + TikTok search results route');
+console.log('PASS AA YouTube theme + always-light browser + TikTok native desktop search');
