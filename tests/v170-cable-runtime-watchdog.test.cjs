@@ -9,7 +9,7 @@ const media = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarMediaMana
 const runtime = fs.readFileSync('app/src/androidTest/java/com/carhud/aaproxy/CarDisconnectWatchdogRuntimeTest.kt','utf8');
 const workflow = fs.readFileSync('.github/workflows/build-apk.yml','utf8');
 
-assert.match(gradle, /versionCode = 258/);
+assert.match(gradle, /versionCode = 259/);
 
 // Do not trust the mutable CarMediaManager flag as the only disconnect signal.
 assert.match(projection, /CarDisconnectWatchdog\.onProjectionConnected\(this\)/);
@@ -24,6 +24,8 @@ assert.match(watchdog, /ACTION_BATTERY_CHANGED/);
 assert.match(watchdog, /BatteryManager\.EXTRA_PLUGGED/);
 assert.match(watchdog, /POWER_LOSS_CONFIRM_MS/);
 assert.match(watchdog, /externalPowerSeen/);
+assert.match(watchdog, /usbPowerSeen/);
+assert.match(watchdog, /BatteryManager\.BATTERY_PLUGGED_USB/);
 assert.match(watchdog, /CarAppShutdownManager\.shutdownCompletely/);
 
 // Full exit pauses both persistent WebViews before flipping connection state.
@@ -38,12 +40,14 @@ assert.match(runtime, /Watchdog did not detect cable power loss without USB deta
 assert.match(runtime, /projectionLifecycleEndWhileStillPoweredDoesNotShutdown/);
 assert.match(runtime, /serviceTeardownWhilePoweredThenLaterUnplugStillShutsDown/);
 assert.match(runtime, /Projection session was incorrectly forgotten after service teardown/);
+assert.match(runtime, /usbUnplugStillShutsDownWhileWirelessChargingRemains/);
+assert.match(runtime, /USB unplug was masked by remaining wireless charging/);
 
 // APK distribution is gated on both cable-loss runtime test and TikTok runtime test.
 assert.match(workflow, /CarDisconnectWatchdogRuntimeTest/);
 assert.match(workflow, /TikTokRuntimeSmokeTest/);
 assert.match(workflow, /cable_status/);
 assert.match(workflow, /tiktok_status/);
-assert.match(workflow, /TTube-v1\.0\.67-build258-APK/);
+assert.match(workflow, /TTube-v1\.0\.67-build259-APK/);
 
-console.log('PASS v1.0.67 build 258: wired cable loss is independently detected, hard-stopped, runtime-tested, and gates APK');
+console.log('PASS v1.0.68 build 259: wired cable loss is independently detected, hard-stopped, runtime-tested, and gates APK');
