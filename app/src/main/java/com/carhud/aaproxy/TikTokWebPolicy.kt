@@ -2,28 +2,32 @@ package com.carhud.aaproxy
 
 import android.net.Uri
 import android.os.Build
+import android.view.View
 import android.webkit.CookieManager
 import android.webkit.WebSettings
 import android.webkit.WebView
-import android.view.View
-import java.util.WeakHashMap
 
 /**
- * TikTok-specific WebView policy for Android Auto.
+ * TikTok web policy.
  *
- * The page remains TikTok's public web UI. Explicit login is allowed and kept
- * in the same WebView/cookie session. Automatic login gates may still fall back
- * to public browsing, and a small queue of public video links lets playback
- * continue when TikTok temporarily guest-gates the feed.
+ * v15 deliberately stays close to the real desktop website. Previous builds
+ * rewrote feed/video layout and maintained a synthetic guest queue; that made
+ * TikTok's SPA fragile and could leave a black/empty surface after search.
+ *
+ * We now let www.tiktok.com own feed, search, scrolling and video navigation.
+ * T Tube only keeps the signed-in cookie session, blocks native-app deep links,
+ * and hides app-only promotion/challenge overlays.
  */
 internal object TikTokWebPolicy {
-    private const val POLICY_VERSION = 14
+    private const val POLICY_VERSION = 15
 
-    private val searchRecoveryAttempts = WeakHashMap<WebView, Int>()
-    private val searchRecoveryQueries = WeakHashMap<WebView, String>()
+    private const val DESKTOP_UA =
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
     fun isTikTok(url: String?): Boolean {
-        val host = runCatching { Uri.parse(url.orEmpty()).host.orEmpty().lowercase() }.getOrDefault("")
+        val host = runCatching { Uri.parse(url.orEmpty()).host.orEmpty().lowercase() }
+            .getOrDefault("")
         return host == "tiktok.com" || host.endsWith(".tiktok.com")
     }
 
@@ -31,17 +35,12 @@ internal object TikTokWebPolicy {
         runCatching { Uri.parse(url.orEmpty()).path.orEmpty() }.getOrDefault("")
             .let { it == "/search" || it.startsWith("/search/") }
 
+    /**
+     * Use TikTok's normal desktop search route. No /search/video rewrite and
+     * no Google fallback: the user stays on tiktok.com.
+     */
     fun searchUrl(query: String): String =
-        // Prefer TikTok's video results route. The generic /search SPA can
-        // occasionally paint a black shell on Android System WebView.
-        "https://www.tiktok.com/search/video?q=" + Uri.encode(query.trim())
-
-    private fun alternateSearchUrl(query: String): String =
         "https://www.tiktok.com/search?q=" + Uri.encode(query.trim())
-
-    private fun externalFallbackSearchUrl(query: String): String =
-        "https://www.google.com/search?q=" +
-            Uri.encode("site:tiktok.com/video TikTok " + query.trim())
 
     fun isAppRedirect(url: String?): Boolean {
         val raw = url.orEmpty().trim()
@@ -59,93 +58,34 @@ internal object TikTokWebPolicy {
         return path.startsWith("/download") || path.startsWith("/open-app")
     }
 
+    /**
+     * TikTok desktop web performs best with the normal hardware compositor.
+     * Build 252 forced software rendering on search; remove that workaround.
+     */
     fun applyRenderingPolicy(view: WebView, url: String?) {
-        val desiredLayer = if (isSearch(url)) View.LAYER_TYPE_SOFTWARE else View.LAYER_TYPE_HARDWARE
-        if (view.layerType != desiredLayer) {
-            runCatching { view.setLayerType(desiredLayer, null) }
-        }
-    }
-
-    fun recoverSearchIfBlank(view: WebView, url: String?) {
-        if (!isSearch(url)) return
-        val query = runCatching {
-            Uri.parse(url.orEmpty()).getQueryParameter("q").orEmpty().trim()
-        }.getOrDefault("")
-        if (query.isBlank()) return
-
-        synchronized(searchRecoveryAttempts) {
-            if (searchRecoveryQueries[view] != query) {
-                searchRecoveryQueries[view] = query
-                searchRecoveryAttempts[view] = 0
-            }
-        }
-
-        view.postDelayed({
-            val liveUrl = view.url
-            if (!isSearch(liveUrl)) return@postDelayed
-            view.evaluateJavascript(
-                """
-                (function() {
-                    try {
-                        var body = document.body;
-                        if (!body) return false;
-                        var text = ((body.innerText || body.textContent || '') + '').trim();
-                        var videoLinks = document.querySelectorAll('a[href*="/video/"]').length;
-                        var videos = document.querySelectorAll('video').length;
-                        var searchNodes = document.querySelectorAll(
-                            '[data-e2e*="search"], [class*="Search"], [class*="search"]'
-                        ).length;
-                        var main = document.querySelector('main, #app, #root, [data-e2e="app-root"]');
-                        var box = main && main.getBoundingClientRect ? main.getBoundingClientRect() : null;
-                        var hasSizedRoot = !!(box && box.width > 80 && box.height > 80);
-                        return videoLinks > 0 || videos > 0 || searchNodes > 1 ||
-                            (hasSizedRoot && text.length > 120);
-                    } catch (_) { return false; }
-                })();
-                """.trimIndent()
-            ) { result ->
-                val healthy = result == "true" || result == "\"true\""
-                if (healthy) {
-                    synchronized(searchRecoveryAttempts) { searchRecoveryAttempts[view] = 0 }
-                    return@evaluateJavascript
-                }
-
-                val attempt = synchronized(searchRecoveryAttempts) {
-                    val current = searchRecoveryAttempts[view] ?: 0
-                    searchRecoveryAttempts[view] = current + 1
-                    current
-                }
-                val target = when (attempt) {
-                    0 -> {
-                        val currentPath = runCatching { Uri.parse(liveUrl.orEmpty()).path.orEmpty() }.getOrDefault("")
-                        if (currentPath.startsWith("/search/video")) alternateSearchUrl(query) else searchUrl(query)
-                    }
-                    1 -> externalFallbackSearchUrl(query)
-                    else -> return@evaluateJavascript
-                }
-                applyRenderingPolicy(view, target)
-                view.loadUrl(target)
-            }
-        }, 1800L)
-    }
-
-    fun userAgent(defaultUa: String): String {
-        // Keep Android/Chrome identity internally consistent. Pretending to be
-        // Linux desktop while exposing Android touch/WebView characteristics can
-        // increase TikTok risk/challenge scoring on guest sessions.
-        return defaultUa
-            .replace("; wv", "")
-            .replace(Regex("""Version/[\d.]+\s?"""), "")
-    }
-
-    /** Apply stable settings once before TikTok navigation. */
-    fun configure(view: WebView, url: String?) {
-        applyRenderingPolicy(view, url)
         if (!isTikTok(url)) return
+        if (view.layerType != View.LAYER_TYPE_HARDWARE) {
+            runCatching { view.setLayerType(View.LAYER_TYPE_HARDWARE, null) }
+        }
+    }
 
-        val ua = userAgent(WebSettings.getDefaultUserAgent(view.context))
+    /**
+     * Kept as a compatibility hook for existing page callbacks. Desktop
+     * tiktok.com owns search rendering now, so this intentionally does nothing.
+     */
+    fun recoverSearchIfBlank(view: WebView, url: String?) {
+        if (!isTikTok(url)) return
+    }
+
+    fun userAgent(defaultUa: String): String = DESKTOP_UA
+
+    /** Apply a stable, browser-like configuration before TikTok navigation. */
+    fun configure(view: WebView, url: String?) {
+        if (!isTikTok(url)) return
+        applyRenderingPolicy(view, url)
+
         view.settings.apply {
-            if (userAgentString != ua) userAgentString = ua
+            if (userAgentString != DESKTOP_UA) userAgentString = DESKTOP_UA
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
@@ -154,7 +94,6 @@ internal object TikTokWebPolicy {
             loadWithOverviewMode = false
             textZoom = 100
             cacheMode = WebSettings.LOAD_DEFAULT
-            // Keep OAuth/login links in this WebView instead of silently dropping them.
             javaScriptCanOpenWindowsAutomatically = true
             setSupportMultipleWindows(false)
             builtInZoomControls = false
@@ -163,7 +102,9 @@ internal object TikTokWebPolicy {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            runCatching { view.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false) }
+            runCatching {
+                view.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
+            }
         }
 
         runCatching {
@@ -177,11 +118,12 @@ internal object TikTokWebPolicy {
     }
 
     /**
-     * Install/update a route-aware, low-overhead layout policy.
-     * Safe to call from page-start/commit/history/finish callbacks.
+     * Do not reshape TikTok's feed or individual videos. Only suppress overlays
+     * that explicitly force the native TikTok/TikTok Lite app.
      */
     fun fitLayout(view: WebView, url: String?) {
         if (!isTikTok(url)) return
+
         view.evaluateJavascript(
             """
             (function() {
@@ -190,321 +132,72 @@ internal object TikTokWebPolicy {
                     if (!(host === 'tiktok.com' || host.endsWith('.tiktok.com'))) return;
 
                     var VERSION = $POLICY_VERSION;
-                    var state = window.__ttubeTikTokPolicy || (window.__ttubeTikTokPolicy = {});
+                    var state = window.__ttubeTikTokWebOnly ||
+                        (window.__ttubeTikTokWebOnly = {});
                     state.version = VERSION;
-                    state.guestQueue = state.guestQueue || [];
-                    state.guestVisited = state.guestVisited || {};
-                    state.guestFallback = !!state.guestFallback;
-                    state.lastGuestNavAt = state.lastGuestNavAt || 0;
-
-                    function ensureViewport() {
-                        var meta = document.querySelector('meta[name="viewport"]');
-                        if (!meta) {
-                            meta = document.createElement('meta');
-                            meta.name = 'viewport';
-                            (document.head || document.documentElement).appendChild(meta);
-                        }
-                        meta.content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';
-                    }
 
                     function ensureStyle() {
-                        var style = document.getElementById('ttube-tiktok-policy');
+                        var style = document.getElementById('ttube-tiktok-web-only');
                         if (!style) {
                             style = document.createElement('style');
-                            style.id = 'ttube-tiktok-policy';
+                            style.id = 'ttube-tiktok-web-only';
                             (document.head || document.documentElement).appendChild(style);
                         }
-                        style.textContent = `
-                            html, body {
-                                overscroll-behavior-x: none !important;
-                                overscroll-behavior-y: contain !important;
-                                -webkit-text-size-adjust: 100% !important;
-                            }
-                            body { touch-action: pan-x pan-y pinch-zoom; }
-                            video { background: #000 !important; }
-
-                            [data-ttube-login-wall="1"],
-                            [data-ttube-app-promo-wall="1"],
-                            [data-ttube-login-backdrop="1"] {
-                                display: none !important;
-                                visibility: hidden !important;
-                                opacity: 0 !important;
-                                pointer-events: none !important;
-                            }
-
-                            /* T Tube owns navigation/search on Android Auto. Hide
-                               TikTok desktop rails/action columns that waste space. */
-                            html:not(.ttube-tiktok-search) [data-e2e="browse-sidebar"],
-                            html:not(.ttube-tiktok-search) [data-e2e="left-nav"],
-                            html:not(.ttube-tiktok-search) [class*="SideNavContainer"],
-                            html:not(.ttube-tiktok-search) [class*="DivSideNav"],
-                            html:not(.ttube-tiktok-search) [class*="DivMainNavContainer"],
-                            html:not(.ttube-tiktok-search) [class*="DivActionItemContainer"],
-                            html:not(.ttube-tiktok-search) [class*="ActionItemContainer"],
-                            html:not(.ttube-tiktok-search) [class*="DivVideoActionContainer"],
-                            html:not(.ttube-tiktok-search) [data-e2e="browse-like"],
-                            html:not(.ttube-tiktok-search) [data-e2e="browse-comment"],
-                            html:not(.ttube-tiktok-search) [data-e2e="browse-share"],
-                            html:not(.ttube-tiktok-search) [data-e2e="browse-save"] {
-                                display: none !important;
-                                visibility: hidden !important;
-                                pointer-events: none !important;
-                            }
-
-                            html.ttube-tiktok-video-only,
-                            html.ttube-tiktok-video-only body {
-                                margin: 0 !important;
-                                padding: 0 !important;
-                                width: 100% !important;
-                                height: 100% !important;
-                                overflow: hidden !important;
-                                background: #000 !important;
-                            }
-                            html.ttube-tiktok-video-only [data-e2e="browse-video-desc"],
-                            html.ttube-tiktok-video-only [data-e2e="search-comment-container"],
-                            html.ttube-tiktok-video-only [data-e2e="comment-input"],
-                            html.ttube-tiktok-video-only [class*="CommentListContainer"],
-                            html.ttube-tiktok-video-only [class*="DivCommentContentContainer"],
-                            html.ttube-tiktok-video-only [class*="DivVideoInfoContainer"] {
-                                display: none !important;
-                            }
-                            html.ttube-tiktok-video-only .ttube-tiktok-video-chain {
-                                overflow: visible !important;
-                                transform: none !important;
-                                clip: auto !important;
-                                contain: none !important;
-                            }
-                            html.ttube-tiktok-video-only video[data-ttube-video-only="1"] {
-                                position: fixed !important;
-                                inset: 0 !important;
-                                width: 100vw !important;
-                                height: 100vh !important;
-                                max-width: 100vw !important;
-                                max-height: 100vh !important;
-                                min-width: 0 !important;
-                                min-height: 0 !important;
-                                margin: 0 !important;
-                                object-fit: contain !important;
-                                background: #000 !important;
-                                z-index: 2147483646 !important;
-                            }
-                        `;
+                        style.textContent = [
+                            '[data-ttube-app-promo-wall="1"],',
+                            '[data-ttube-app-promo-backdrop="1"] {',
+                            'display:none !important;',
+                            'visibility:hidden !important;',
+                            'opacity:0 !important;',
+                            'pointer-events:none !important;',
+                            '}'
+                        ].join('');
                     }
 
-                    function isVideoRoute() {
-                        return /\/video\/\d+/.test(location.pathname || '');
+                    function normalizedText(el) {
+                        return (((el && (el.innerText || el.textContent)) || '') + '')
+                            .toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 2600);
                     }
 
-                    function isSearchRoute() {
-                        var path = location.pathname || '';
-                        return path === '/search' || path.indexOf('/search/') === 0;
+                    function markerText(el) {
+                        if (!el || !el.getAttribute) return '';
+                        return (
+                            (el.getAttribute('data-e2e') || '') + ' ' +
+                            (el.getAttribute('class') || '') + ' ' +
+                            (el.getAttribute('id') || '') + ' ' +
+                            (el.getAttribute('role') || '')
+                        ).toLowerCase();
                     }
 
-                    function isLoginRoute() {
-                        var path = (location.pathname || '').toLowerCase();
-                        return path === '/login' || path.indexOf('/login/') === 0 ||
-                            path === '/signup' || path.indexOf('/signup/') === 0;
-                    }
-
-                    function clearVideoMode() {
-                        document.documentElement.classList.remove('ttube-tiktok-video-only');
-                        document.querySelectorAll('[data-ttube-video-only="1"]').forEach(function(v) {
-                            v.removeAttribute('data-ttube-video-only');
-                        });
-                        document.querySelectorAll('.ttube-tiktok-video-chain').forEach(function(n) {
-                            n.classList.remove('ttube-tiktok-video-chain');
-                        });
-                    }
-
-                    function recoverSearchShell() {
-                        if (!isSearchRoute()) return;
-                        document.documentElement.classList.add('ttube-tiktok-search');
-                        clearVideoMode();
-                        try {
-                            document.documentElement.classList.remove('ttube-tiktok-video-only');
-                            [document.documentElement, document.body].forEach(function(el) {
-                                if (!el) return;
-                                el.style.setProperty('visibility', 'visible', 'important');
-                                el.style.setProperty('opacity', '1', 'important');
-                                el.style.setProperty('min-height', '100%', 'important');
-                                el.style.setProperty('overflow-y', 'auto', 'important');
-                                el.style.removeProperty('pointer-events');
-                            });
-                            ['#app', '#root', '[data-e2e="app-root"]', 'main'].forEach(function(sel) {
-                                var el = document.querySelector(sel);
-                                if (!el) return;
-                                el.removeAttribute('inert');
-                                if (el.getAttribute('aria-hidden') === 'true') el.removeAttribute('aria-hidden');
-                                el.style.setProperty('display', '', 'important');
-                                el.style.setProperty('visibility', 'visible', 'important');
-                                el.style.setProperty('opacity', '1', 'important');
-                                el.style.removeProperty('pointer-events');
-                            });
-                            document.querySelectorAll('[data-ttube-login-backdrop="1"]').forEach(function(el) {
-                                if (el.querySelector('main, [data-e2e*="search"], a[href*="/video/"]')) {
-                                    el.removeAttribute('data-ttube-login-backdrop');
-                                }
-                            });
-                        } catch (_) {}
-                    }
-
-                    function primaryVideo() {
-                        var videos = Array.prototype.slice.call(document.querySelectorAll('video'));
-                        if (!videos.length) return null;
-                        videos.sort(function(a, b) {
-                            var ar = a.getBoundingClientRect();
-                            var br = b.getBoundingClientRect();
-                            var aa = Math.max(0, ar.width) * Math.max(0, ar.height);
-                            var ba = Math.max(0, br.width) * Math.max(0, br.height);
-                            if (!a.paused) aa += 10000000;
-                            if (!b.paused) ba += 10000000;
-                            return ba - aa;
-                        });
-                        return videos[0] || null;
-                    }
-
-                    function applyVideoMode() {
-                        clearVideoMode();
-                        if (!isVideoRoute()) return;
-                        var video = primaryVideo();
-                        if (!video) return;
-
-                        // Do not hide the entire TikTok page until the selected video
-                        // has real media metadata. The old eager fullscreen class could
-                        // leave a permanent black canvas when TikTok had only mounted
-                        // an empty <video> shell after a search-result click.
-                        var ready = video.readyState >= 1 && (video.videoWidth > 0 || video.videoHeight > 0);
-                        if (!ready) {
-                            if (!video.__ttubeReadyHook) {
-                                video.__ttubeReadyHook = true;
-                                ['loadedmetadata', 'canplay', 'playing'].forEach(function(name) {
-                                    video.addEventListener(name, schedule, { once: true, passive: true });
-                                });
-                            }
-                            return;
-                        }
-
-                        document.documentElement.classList.add('ttube-tiktok-video-only');
-                        video.setAttribute('data-ttube-video-only', '1');
-                        var node = video.parentElement;
-                        var depth = 0;
-                        while (node && node !== document.body && node !== document.documentElement && depth++ < 12) {
-                            node.classList.add('ttube-tiktok-video-chain');
-                            node = node.parentElement;
-                        }
-
-                        // Android Auto allows autoplay for this WebView. Ask the
-                        // selected result to start once it is actually playable.
-                        try {
-                            video.playsInline = true;
-                            if (video.paused) {
-                                var playPromise = video.play();
-                                if (playPromise && typeof playPromise.catch === 'function') {
-                                    playPromise.catch(function() {});
-                                }
-                            }
-                        } catch (_) {}
-                    }
-
-                    function normalizeVideoUrl(raw) {
-                        try {
-                            var u = new URL(raw || '', location.href);
-                            var h = (u.hostname || '').toLowerCase();
-                            if (!(h === 'tiktok.com' || h.endsWith('.tiktok.com'))) return '';
-                            if (!/\/@[^/]+\/video\/\d+/.test(u.pathname || '')) return '';
-                            return 'https://www.tiktok.com' + u.pathname;
-                        } catch (_) { return ''; }
-                    }
-
-                    function restoreGuestQueue() {
-                        if (state.queueRestored) return;
-                        state.queueRestored = true;
-                        try {
-                            var saved = JSON.parse(sessionStorage.getItem('ttube_tiktok_guest_queue') || '[]');
-                            if (Array.isArray(saved)) {
-                                saved.slice(-80).forEach(function(u) {
-                                    if (u && state.guestQueue.indexOf(u) < 0) state.guestQueue.push(u);
-                                });
-                            }
-                        } catch (_) {}
-                    }
-
-                    function saveGuestQueue() {
-                        try {
-                            sessionStorage.setItem('ttube_tiktok_guest_queue', JSON.stringify(state.guestQueue.slice(-80)));
-                        } catch (_) {}
-                    }
-
-                    function collectPublicVideos(root) {
-                        restoreGuestQueue();
-                        var scope = root && root.querySelectorAll ? root : document;
-                        var links = scope.querySelectorAll('a[href*="/video/"]');
-                        var limit = Math.min(links.length, 48);
-                        for (var i = 0; i < limit; i++) {
-                            var u = normalizeVideoUrl(links[i].href || links[i].getAttribute('href'));
-                            if (u && state.guestQueue.indexOf(u) < 0) state.guestQueue.push(u);
-                        }
-                        var current = normalizeVideoUrl(location.href);
-                        if (current && state.guestQueue.indexOf(current) < 0) state.guestQueue.push(current);
-                        if (state.guestQueue.length > 80) state.guestQueue = state.guestQueue.slice(-80);
-                        saveGuestQueue();
-                    }
-
-                    function isLargeFixedOverlay(el) {
+                    function isLargeOverlay(el) {
                         if (!el || !el.getBoundingClientRect) return false;
                         var r = el.getBoundingClientRect();
                         var area = Math.max(0, r.width) * Math.max(0, r.height);
                         var screen = Math.max(1, innerWidth * innerHeight);
                         var cs = getComputedStyle(el);
-                        return area > screen * 0.22 && (cs.position === 'fixed' || cs.position === 'absolute');
+                        return area > screen * 0.18 &&
+                            (cs.position === 'fixed' || cs.position === 'absolute');
                     }
 
-                    function looksLikeLoginWall(el) {
-                        if (!el || !el.querySelectorAll) return false;
-                        var marker = ((el.getAttribute && (
-                            (el.getAttribute('data-e2e') || '') + ' ' +
-                            (el.getAttribute('class') || '') + ' ' +
-                            (el.getAttribute('id') || '') + ' ' +
-                            (el.getAttribute('role') || '')
-                        )) || '').toLowerCase();
-
-                        if (marker.indexOf('login-modal') >= 0 || marker.indexOf('loginmodal') >= 0 ||
-                            marker.indexOf('login-guide') >= 0 || marker.indexOf('loginguide') >= 0 ||
-                            marker.indexOf('bottom-login-entry') >= 0 || marker.indexOf('browse-login') >= 0) return true;
-
-                        var text = ((el.innerText || el.textContent || '') + '').toLowerCase().replace(/\s+/g, ' ').slice(0, 1600);
-                        if (!text) return false;
-                        var asksLogin = text.indexOf('log in') >= 0 || text.indexOf('login') >= 0 ||
-                            text.indexOf('sign up') >= 0 || text.indexOf('đăng nhập') >= 0 ||
-                            text.indexOf('đăng ký') >= 0;
-                        if (!asksLogin) return false;
-
-                        var modalLike = marker.indexOf('dialog') >= 0 || marker.indexOf('modal') >= 0 ||
-                            marker.indexOf('logincontainer') >= 0 || isLargeFixedOverlay(el);
-                        return modalLike;
-                    }
-
-                    function looksLikeAppPromoWall(el) {
-                        if (!el || !el.querySelectorAll) return false;
-                        var marker = ((el.getAttribute && (
-                            (el.getAttribute('data-e2e') || '') + ' ' +
-                            (el.getAttribute('class') || '') + ' ' +
-                            (el.getAttribute('id') || '') + ' ' +
-                            (el.getAttribute('role') || '')
-                        )) || '').toLowerCase();
-                        var text = ((el.innerText || el.textContent || '') + '').toLowerCase().replace(/\s+/g, ' ').slice(0, 2200);
+                    function isAppOnlyWall(el) {
+                        var text = normalizedText(el);
                         if (!text) return false;
 
-                        var tiktokLitePromo =
-                            text.indexOf('tiktok lite') >= 0 &&
-                            (
-                                text.indexOf('open tiktok lite') >= 0 ||
-                                text.indexOf('try out more features') >= 0 ||
-                                text.indexOf('watch your favorite videos with less data') >= 0 ||
-                                text.indexOf('faster, smoother experience') >= 0
-                            );
+                        var appCta =
+                            text.indexOf('continue with tiktok app') >= 0 ||
+                            text.indexOf('continue in tiktok app') >= 0 ||
+                            text.indexOf('open tiktok') >= 0 ||
+                            text.indexOf('mở tiktok') >= 0 ||
+                            text.indexOf('open app') >= 0 ||
+                            text.indexOf('mở ứng dụng') >= 0 ||
+                            text.indexOf('open tiktok lite') >= 0 ||
+                            text.indexOf('tiktok lite') >= 0 ||
+                            text.indexOf('full experience in the app') >= 0 ||
+                            text.indexOf('enjoy the full experience') >= 0 ||
+                            text.indexOf('trải nghiệm đầy đủ trong ứng dụng') >= 0 ||
+                            text.indexOf('tận hưởng trải nghiệm đầy đủ') >= 0;
 
-                        var appOnlyChallenge =
+                        var appBotChallenge =
                             (
                                 text.indexOf("confirm you're not a bot") >= 0 ||
                                 text.indexOf('confirm you are not a bot') >= 0 ||
@@ -515,373 +208,112 @@ internal object TikTokWebPolicy {
                                 text.indexOf('ứng dụng tiktok') >= 0
                             );
 
-                        var asksOpenApp = tiktokLitePromo || appOnlyChallenge ||
-                            text.indexOf('mở tiktok') >= 0 || text.indexOf('open tiktok') >= 0 ||
-                            text.indexOf('continue with tiktok app') >= 0 ||
-                            text.indexOf('continue in tiktok app') >= 0 ||
-                            text.indexOf('tiếp tục với ứng dụng tiktok') >= 0 ||
-                            text.indexOf('open app') >= 0 || text.indexOf('mở ứng dụng') >= 0 ||
-                            text.indexOf('trải nghiệm đầy đủ trong ứng dụng') >= 0 ||
-                            text.indexOf('full experience in the app') >= 0 ||
-                            text.indexOf('enjoy the full experience') >= 0 ||
-                            text.indexOf('tận hưởng trải nghiệm đầy đủ') >= 0;
-                        if (!asksOpenApp) return false;
+                        if (!appCta && !appBotChallenge) return false;
 
-                        var promoMarker =
+                        var marker = markerText(el);
+                        var modalLike =
                             marker.indexOf('dialog') >= 0 ||
                             marker.indexOf('modal') >= 0 ||
                             marker.indexOf('popup') >= 0 ||
                             marker.indexOf('bottomsheet') >= 0 ||
-                            marker.indexOf('app-promo') >= 0 ||
-                            marker.indexOf('apppromo') >= 0 ||
                             marker.indexOf('download') >= 0 ||
+                            marker.indexOf('app-promo') >= 0 ||
                             marker.indexOf('lite') >= 0;
 
-                        return promoMarker || isLargeFixedOverlay(el);
-                    }
-
-                    function unlockDocumentAfterModal() {
-                        try {
-                            [document.documentElement, document.body].forEach(function(el) {
-                                if (!el) return;
-                                el.style.removeProperty('overflow');
-                                el.style.removeProperty('overflow-y');
-                                el.style.removeProperty('pointer-events');
-                                el.style.removeProperty('touch-action');
-                            });
-                            ['#app', '#root', '[data-e2e="app-root"]'].forEach(function(sel) {
-                                var el = document.querySelector(sel);
-                                if (!el) return;
-                                el.removeAttribute('inert');
-                                if (el.getAttribute('aria-hidden') === 'true') el.removeAttribute('aria-hidden');
-                            });
-                        } catch (_) {}
+                        return modalLike || isLargeOverlay(el);
                     }
 
                     function markBackdropNear(el) {
-                        try {
-                            var node = el && el.parentElement;
-                            for (var depth = 0; node && depth < 3; depth++, node = node.parentElement) {
-                                if (node === document.body || node === document.documentElement) break;
-                                if (isLargeFixedOverlay(node)) {
-                                    var containsContent = !!node.querySelector('main, [data-e2e*="search"], a[href*="/video/"]');
-                                    if (!containsContent) node.setAttribute('data-ttube-login-backdrop', '1');
-                                    break;
-                                }
+                        var node = el && el.parentElement;
+                        for (var depth = 0; node && depth < 4; depth++, node = node.parentElement) {
+                            if (node === document.body || node === document.documentElement) break;
+                            if (isLargeOverlay(node)) {
+                                node.setAttribute('data-ttube-app-promo-backdrop', '1');
+                                return;
                             }
-                        } catch (_) {}
-                    }
-
-
-                    function installLoginIntentTracking() {
-                        if (state.loginIntentHandlerVersion === VERSION && state.loginIntentHandler) return;
-                        if (state.loginIntentHandler) {
-                            try { document.removeEventListener('click', state.loginIntentHandler, true); } catch (_) {}
                         }
-                        state.loginIntentHandlerVersion = VERSION;
-                        state.loginIntentHandler = function(event) {
-                            var target = event.target;
-                            if (target && target.nodeType !== 1) target = target.parentElement;
-                            var clickable = target && target.closest ?
-                                target.closest('button, a, [role="button"], [data-e2e]') : null;
-                            if (!clickable) return;
-
-                            var marker = (
-                                (clickable.getAttribute('data-e2e') || '') + ' ' +
-                                (clickable.getAttribute('class') || '') + ' ' +
-                                (clickable.getAttribute('id') || '')
-                            ).toLowerCase();
-                            var text = ((clickable.innerText || clickable.textContent || '') + '')
-                                .toLowerCase().replace(/\s+/g, ' ').trim();
-
-                            if (text.indexOf('tiktok app') >= 0 ||
-                                text.indexOf('ứng dụng tiktok') >= 0 ||
-                                text.indexOf('open tiktok') >= 0) return;
-
-                            var loginIntent =
-                                marker.indexOf('login') >= 0 || marker.indexOf('sign-in') >= 0 ||
-                                text === 'log in' || text === 'login' || text.indexOf('đăng nhập') >= 0 ||
-                                text.indexOf('sign in') >= 0 || text.indexOf('use phone') >= 0 ||
-                                text.indexOf('use email') >= 0;
-                            if (!loginIntent) return;
-
-                            state.loginRequestedAt = Date.now();
-                            state.guestFallback = false;
-                            document.querySelectorAll(
-                                '[data-ttube-login-wall="1"], [data-ttube-login-backdrop="1"]'
-                            ).forEach(function(el) {
-                                el.removeAttribute('data-ttube-login-wall');
-                                el.removeAttribute('data-ttube-login-backdrop');
-                            });
-                        };
-                        document.addEventListener('click', state.loginIntentHandler, true);
                     }
 
-                    function dismissLoginWalls(force) {
-                        var now = Date.now();
-                        if (!force && state.lastLoginSweepAt && now - state.lastLoginSweepAt < 250) return;
-                        state.lastLoginSweepAt = now;
+                    function unlockPage() {
+                        [document.documentElement, document.body].forEach(function(el) {
+                            if (!el) return;
+                            el.style.removeProperty('overflow');
+                            el.style.removeProperty('overflow-y');
+                            el.style.removeProperty('pointer-events');
+                            el.style.removeProperty('touch-action');
+                        });
+                        ['#app', '#root', '[data-e2e="app-root"]'].forEach(function(sel) {
+                            var el = document.querySelector(sel);
+                            if (!el) return;
+                            el.removeAttribute('inert');
+                            if (el.getAttribute('aria-hidden') === 'true') {
+                                el.removeAttribute('aria-hidden');
+                            }
+                        });
+                    }
 
-                        var candidateList = Array.prototype.slice.call(document.querySelectorAll(
-                            '[data-e2e="login-modal"], [data-e2e="modal-inner-wrapper"], ' +
-                            '[data-e2e="bottom-login-entry"], [data-e2e="browse-login"], ' +
-                            '[role="dialog"], [class*="LoginModal"], [class*="login-modal"], ' +
-                            '[class*="DivLoginGuide"], [class*="login-guide"], [class*="LoginContainer"], ' +
-                            '[class*="Modal"], [class*="modal"], [class*="Popup"], [class*="popup"], ' +
-                            '[class*="BottomSheet"], [class*="bottom-sheet"], [class*="AppPromo"], ' +
-                            '[class*="app-promo"], [class*="TikTokLite"], [class*="tiktok-lite"]'
-                        ));
+                    function sweepAppWalls() {
+                        state.pending = false;
+                        ensureStyle();
 
-                        // TikTok Lite promos are sometimes rendered in an anonymous portal
-                        // without dialog/modal classes. Find their CTA text, then walk up to
-                        // the large fixed/absolute container that owns the overlay.
-                        var triggers = document.querySelectorAll('button, a, [role="button"]');
-                        for (var i = 0; i < triggers.length; i++) {
-                            var trigger = triggers[i];
-                            var triggerText = ((trigger.innerText || trigger.textContent || '') + '')
-                                .toLowerCase().replace(/\s+/g, ' ').trim();
+                        var candidates = Array.prototype.slice.call(
+                            document.querySelectorAll(
+                                '[role="dialog"], [class*="Modal"], [class*="modal"], ' +
+                                '[class*="Popup"], [class*="popup"], ' +
+                                '[class*="BottomSheet"], [class*="bottom-sheet"], ' +
+                                '[class*="AppPromo"], [class*="app-promo"], ' +
+                                '[class*="TikTokLite"], [class*="tiktok-lite"], ' +
+                                '[class*="Download"], [class*="download"]'
+                            )
+                        );
+
+                        document.querySelectorAll('button, a, [role="button"]').forEach(function(trigger) {
+                            var text = normalizedText(trigger);
                             if (
-                                triggerText.indexOf('open tiktok lite') < 0 &&
-                                triggerText.indexOf('tiktok lite') < 0 &&
-                                triggerText.indexOf('open tiktok') < 0 &&
-                                triggerText.indexOf('continue with tiktok app') < 0 &&
-                                triggerText.indexOf('continue in tiktok app') < 0 &&
-                                triggerText.indexOf("confirm you're not a bot") < 0
-                            ) continue;
+                                text.indexOf('open tiktok') < 0 &&
+                                text.indexOf('continue with tiktok app') < 0 &&
+                                text.indexOf('continue in tiktok app') < 0 &&
+                                text.indexOf('open app') < 0 &&
+                                text.indexOf('tiktok lite') < 0
+                            ) return;
 
                             var node = trigger;
                             for (var depth = 0; node && depth < 9; depth++, node = node.parentElement) {
                                 if (node === document.body || node === document.documentElement) break;
-                                if (looksLikeAppPromoWall(node) || isLargeFixedOverlay(node)) {
-                                    if (candidateList.indexOf(node) < 0) candidateList.push(node);
+                                if (isAppOnlyWall(node) || isLargeOverlay(node)) {
+                                    if (candidates.indexOf(node) < 0) candidates.push(node);
                                     break;
                                 }
                             }
-                        }
+                        });
 
                         var hidden = false;
-                        var allowLogin = isLoginRoute() ||
-                            (state.loginRequestedAt && now - state.loginRequestedAt < 180000);
-                        candidateList.forEach(function(el) {
-                            // App-only walls always lose, even during an explicit web
-                            // login session. Real web login forms remain available.
-                            var appPromo = looksLikeAppPromoWall(el);
-                            var loginWall = looksLikeLoginWall(el);
-
-                            if (appPromo) {
-                                hidden = true;
-                                el.setAttribute('data-ttube-app-promo-wall', '1');
-                                markBackdropNear(el);
-                                return;
-                            }
-
-                            if (loginWall && allowLogin) {
-                                el.removeAttribute('data-ttube-login-wall');
-                                document.querySelectorAll('[data-ttube-login-backdrop="1"]').forEach(function(bg) {
-                                    bg.removeAttribute('data-ttube-login-backdrop');
-                                });
-                                return;
-                            }
-
-                            if (!loginWall) return;
+                        candidates.forEach(function(el) {
+                            if (!isAppOnlyWall(el)) return;
                             hidden = true;
-                            el.setAttribute('data-ttube-login-wall', '1');
+                            el.setAttribute('data-ttube-app-promo-wall', '1');
                             markBackdropNear(el);
                         });
-                        if (hidden) {
-                            state.guestFallback = true;
-                            state.loginBlockedAt = Date.now();
-                            collectPublicVideos(document);
-                            unlockDocumentAfterModal();
-                        }
+
+                        if (hidden) unlockPage();
                     }
 
-                    function guestNavigate(direction) {
-                        if (!state.guestFallback) return false;
-                        var now = Date.now();
-                        if (now - state.lastGuestNavAt < 650) return false;
-                        collectPublicVideos(document);
-                        if (!state.guestQueue.length) return false;
-
-                        var current = normalizeVideoUrl(location.href);
-                        var index = current ? state.guestQueue.indexOf(current) : -1;
-                        if (index < 0) index = typeof state.guestIndex === 'number' ? state.guestIndex : -1;
-                        var targetIndex = direction > 0 ? index + 1 : index - 1;
-                        if (targetIndex < 0) targetIndex = 0;
-                        if (targetIndex >= state.guestQueue.length) targetIndex = state.guestQueue.length - 1;
-                        if (targetIndex === index || !state.guestQueue[targetIndex]) return false;
-
-                        var target = state.guestQueue[targetIndex];
-                        state.guestIndex = targetIndex;
-                        state.guestVisited[target] = 1;
-                        state.lastGuestNavAt = now;
-                        try {
-                            location.assign(target);
-                            return true;
-                        } catch (_) { return false; }
-                    }
-
-                    function installGuestGestures() {
-                        if (state.gesturePatched) return;
-                        state.gesturePatched = true;
-                        var startY = 0;
-                        document.addEventListener('touchstart', function(e) {
-                            if (e.touches && e.touches.length) startY = e.touches[0].clientY;
-                        }, {capture: true, passive: true});
-                        document.addEventListener('touchend', function(e) {
-                            if (!state.guestFallback || !e.changedTouches || !e.changedTouches.length) return;
-                            var dy = e.changedTouches[0].clientY - startY;
-                            if (Math.abs(dy) < 64) return;
-                            if (guestNavigate(dy < 0 ? 1 : -1)) {
-                                try { e.preventDefault(); } catch (_) {}
-                            }
-                        }, {capture: true, passive: false});
-                        document.addEventListener('wheel', function(e) {
-                            if (!state.guestFallback || Math.abs(e.deltaY || 0) < 70) return;
-                            if (guestNavigate(e.deltaY > 0 ? 1 : -1)) {
-                                try { e.preventDefault(); } catch (_) {}
-                            }
-                        }, {capture: true, passive: false});
-                    }
-
-                    function installFastSearchResultClicks() {
-                        if (state.searchClickHandlerVersion === VERSION && state.searchClickHandler) return;
-
-                        if (state.searchClickHandler) {
-                            try { document.removeEventListener('click', state.searchClickHandler, true); } catch (_) {}
-                        }
-
-                        state.searchClickHandlerVersion = VERSION;
-                        state.searchClickHandler = function(event) {
-                            if (!isSearchRoute()) return;
-
-                            var target = event.target;
-                            if (target && target.nodeType !== 1) target = target.parentElement;
-                            var anchor = target && target.closest ? target.closest('a[href*="/video/"]') : null;
-                            if (!anchor) return;
-
-                            var canonical = normalizeVideoUrl(anchor.href || anchor.getAttribute('href'));
-                            if (!canonical) return;
-
-                            // TikTok sometimes rewrites a result click to /player/v1/<id>
-                            // in WebView. That player shell can paint black forever.
-                            // Navigate to the canonical public /@user/video/<id> route.
-                            collectPublicVideos(document);
-                            if (state.guestQueue.indexOf(canonical) < 0) state.guestQueue.push(canonical);
-                            saveGuestQueue();
-
-                            try {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-                            } catch (_) {}
-
-                            state.lastGuestNavAt = Date.now();
-                            try { location.assign(canonical); } catch (_) { location.href = canonical; }
-                        };
-
-                        document.addEventListener('click', state.searchClickHandler, true);
-                    }
-
-                    function recoverLegacyPlayerRoute() {
-                        var m = (location.pathname || '').match(/^\/player\/v1\/(\d+)/);
-                        if (!m) return false;
-                        restoreGuestQueue();
-                        var id = m[1], target = '';
-                        for (var i = state.guestQueue.length - 1; i >= 0; i--) {
-                            if (state.guestQueue[i].indexOf('/video/' + id) >= 0) { target = state.guestQueue[i]; break; }
-                        }
-                        if (target) {
-                            try { location.replace(target); return true; } catch (_) {}
-                        }
-                        try { if (history.length > 1) { history.back(); return true; } } catch (_) {}
-                        return false;
-                    }
-
-                    function applyThemeHint() {
-                        var isDay = window.__carhudCurrentIsDay !== false;
-                        var scheme = isDay ? 'light' : 'dark';
-                        document.documentElement.style.setProperty('color-scheme', scheme, 'important');
-                        if (document.body) document.body.style.setProperty('color-scheme', scheme, 'important');
-                    }
-
-                    function applyAll() {
-                        state.pending = false;
-                        state.lastApplyAt = Date.now();
-                        ensureViewport();
-                        ensureStyle();
-                        document.documentElement.classList.toggle('ttube-tiktok-search', isSearchRoute());
-                        if (recoverLegacyPlayerRoute()) return;
-
-                        if (!isVideoRoute()) {
-                            var collectNow = Date.now();
-                            var collectGap = isSearchRoute() ? 420 : 900;
-                            if (!state.lastCollectAt || collectNow - state.lastCollectAt >= collectGap) {
-                                state.lastCollectAt = collectNow;
-                                collectPublicVideos(document);
-                            }
-                        } else {
-                            var current = normalizeVideoUrl(location.href);
-                            if (current && state.guestQueue.indexOf(current) < 0) state.guestQueue.push(current);
-                        }
-
-                        installLoginIntentTracking();
-                        dismissLoginWalls(false);
-                        recoverSearchShell();
-                        installGuestGestures();
-                        installFastSearchResultClicks();
-                        applyVideoMode();
-                        applyThemeHint();
-                    }
-
-                    function schedule() {
+                    function scheduleSweep() {
                         if (state.pending) return;
                         state.pending = true;
-                        var run = function() {
-                            if (!state.lastApplyAt) {
-                                setTimeout(applyAll, 72);
-                                return;
-                            }
-                            var elapsed = Date.now() - state.lastApplyAt;
-                            var delay = Math.max(72, 160 - elapsed);
-                            setTimeout(applyAll, delay);
-                        };
-                        if (window.requestAnimationFrame) requestAnimationFrame(run); else run();
+                        requestAnimationFrame(sweepAppWalls);
                     }
 
-                    if (!state.historyPatched) {
-                        state.historyPatched = true;
-                        ['pushState', 'replaceState'].forEach(function(name) {
-                            var original = history[name];
-                            if (typeof original !== 'function') return;
-                            history[name] = function() {
-                                var result = original.apply(this, arguments);
-                                schedule();
-                                return result;
-                            };
+                    if (!state.observerInstalled) {
+                        state.observerInstalled = true;
+                        state.observer = new MutationObserver(scheduleSweep);
+                        state.observer.observe(document.documentElement, {
+                            childList: true,
+                            subtree: true
                         });
-                        window.addEventListener('popstate', schedule, true);
-                        window.addEventListener('pageshow', schedule, true);
-                        document.addEventListener('visibilitychange', function() {
-                            if (!document.hidden) schedule();
-                        }, true);
                     }
 
-                    if (!state.observer) {
-                        try {
-                            state.observer = new MutationObserver(function(mutations) {
-                                for (var i = 0; i < mutations.length; i++) {
-                                    if (mutations[i].addedNodes && mutations[i].addedNodes.length) {
-                                        schedule();
-                                        return;
-                                    }
-                                }
-                            });
-                            state.observer.observe(document.documentElement, { childList: true, subtree: true });
-                        } catch (_) {}
-                    }
-
-                    applyAll();
+                    scheduleSweep();
                 } catch (_) {}
             })();
             """.trimIndent(),
