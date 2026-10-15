@@ -1636,7 +1636,7 @@ class MainActivity : AppCompatActivity() {
                     switchTab(TAB_HOME)
                     return true
                 }
-                if (target.startsWith("intent:") || target.startsWith("snssdk") || target.startsWith("market:") || target.contains("play.google.com/store")) {
+                if (TikTokWebPolicy.isAppRedirect(target)) {
                     return true
                 }
                 if (view != null && request.isForMainFrame && TikTokWebPolicy.isTikTok(target)) {
@@ -1647,6 +1647,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                TikTokWebPolicy.applyRenderingPolicy(view, url)
                 YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this@MainActivity))
                 if (TikTokWebPolicy.isTikTok(url)) {
                     activePhoneWebAppId = "tiktok"
@@ -1695,6 +1696,7 @@ class MainActivity : AppCompatActivity() {
                 if (TikTokWebPolicy.isTikTok(url)) {
                     activePhoneWebAppId = "tiktok"
                     TikTokWebPolicy.fitLayout(view, url)
+                    TikTokWebPolicy.recoverSearchIfBlank(view, url)
                 }
                 YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this@MainActivity))
                 android.webkit.CookieManager.getInstance().flush()
