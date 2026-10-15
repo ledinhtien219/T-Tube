@@ -5,29 +5,38 @@ const gradle = fs.readFileSync('app/build.gradle.kts','utf8');
 const tiktok = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/TikTokWebPolicy.kt','utf8');
 const main = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/MainActivity.kt','utf8');
 const car = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarPresentation.kt','utf8');
+const apps = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/WebAppModel.kt','utf8');
 
-assert.match(gradle, /versionCode = 252/);
+assert.match(gradle, /versionCode = 253/);
 
-// Black-search recovery: alternate TikTok route + software compositor + web fallback.
-assert.match(tiktok, /search\/video\?q=/);
-assert.match(tiktok, /alternateSearchUrl/);
-assert.match(tiktok, /externalFallbackSearchUrl/);
-assert.match(tiktok, /View\.LAYER_TYPE_SOFTWARE/);
-assert.match(tiktok, /fun recoverSearchIfBlank/);
-assert.match(main, /TikTokWebPolicy\.recoverSearchIfBlank\(view, url\)/);
-assert.match(car, /TikTokWebPolicy\.recoverSearchIfBlank\(view, url\)/);
+// Native tiktok.com desktop web owns feed, scrolling, video navigation and search.
+assert.match(tiktok, /POLICY_VERSION = 15/);
+assert.match(tiktok, /DESKTOP_UA/);
+assert.match(tiktok, /Chrome\/128\.0\.0\.0 Safari\/537\.36/);
+assert.match(tiktok, /"https:\/\/www\.tiktok\.com\/search\?q=" \+ Uri\.encode/);
+assert.doesNotMatch(tiktok, /search\/video\?q=/);
+assert.doesNotMatch(tiktok, /externalFallbackSearchUrl/);
+assert.doesNotMatch(tiktok, /LAYER_TYPE_SOFTWARE/);
+assert.doesNotMatch(tiktok, /guestQueue/);
+assert.doesNotMatch(tiktok, /ttube-tiktok-video-only/);
 
-// Web-only: app/store deep links never leave WebView.
+// TikTok stays inside WebView and native app/store redirects are blocked.
 assert.match(tiktok, /fun isAppRedirect/);
 assert.match(tiktok, /startsWith\("tiktok:"\)/);
 assert.match(tiktok, /startsWith\("tiktoklite:"\)/);
 assert.match(main, /TikTokWebPolicy\.isAppRedirect\(target\)/);
 assert.match(car, /TikTokWebPolicy\.isAppRedirect\(target\)/);
 
-// App-only bot wall is suppressed, while real web login remains allowed.
+// App-only prompts are suppressed without touching the real web login UI.
 assert.match(tiktok, /confirm you're not a bot/);
 assert.match(tiktok, /continue with tiktok app/);
-assert.match(tiktok, /var appPromo = looksLikeAppPromoWall\(el\);[\s\S]*?if \(appPromo\)/);
-assert.match(tiktok, /Real web login forms remain available/);
+assert.match(tiktok, /function isAppOnlyWall/);
+assert.match(tiktok, /data-ttube-app-promo-wall/);
+assert.doesNotMatch(tiktok, /data-ttube-login-wall/);
 
-console.log('PASS v1.0.63 build 252: TikTok web-only wall suppression + search recovery');
+// Opening TikTok starts from a clean tiktok.com home while cookies remain available.
+assert.match(apps, /url = "https:\/\/www\.tiktok\.com\/"[\s\S]*?isDesktop = true/);
+assert.match(main, /"tiktok" -> current\.trimEnd\('\/'\) == "https:\/\/www\.tiktok\.com"/);
+assert.match(car, /app\.id != "tiktok"[\s\S]*?CarMediaManager\.hasWebAppSession/);
+
+console.log('PASS v1.0.63 build 253: native TikTok desktop web + clean home + web-only redirects');
