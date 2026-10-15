@@ -2666,8 +2666,12 @@ class MainActivity : AppCompatActivity() {
             iptvWeb?.onResume()
             youtubeWeb?.resumeTimers()
             iptvWeb?.resumeTimers()
-            CarMediaManager.acquireWakeLock(this)
-            ensureBackgroundPlaybackActive()
+            if (CarMediaManager.isPlaying || CarMediaManager.userWantsPlayback) {
+                CarMediaManager.acquireWakeLock(this)
+                ensureBackgroundPlaybackActive()
+            } else {
+                CarMediaManager.releaseWakeLock()
+            }
         }
     }
 
@@ -2679,8 +2683,12 @@ class MainActivity : AppCompatActivity() {
             iptvWeb?.onResume()
             youtubeWeb?.resumeTimers()
             iptvWeb?.resumeTimers()
-            CarMediaManager.acquireWakeLock(this)
-            ensureBackgroundPlaybackActive()
+            if (CarMediaManager.isPlaying || CarMediaManager.userWantsPlayback) {
+                CarMediaManager.acquireWakeLock(this)
+                ensureBackgroundPlaybackActive()
+            } else {
+                CarMediaManager.releaseWakeLock()
+            }
         }
     }
 
