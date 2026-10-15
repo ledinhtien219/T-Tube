@@ -69,6 +69,50 @@ class CarDisconnectWatchdogRuntimeTest {
     }
 
     @Test
+    fun usbUnplugStillShutsDownWhileWirelessChargingRemains() {
+        val shutdown = CountDownLatch(1)
+        val reason = AtomicReference("")
+
+        try {
+            CarDisconnectWatchdog.resetForTests()
+            device.executeShellCommand("dumpsys battery unplug")
+            device.executeShellCommand("dumpsys battery set ac 0")
+            device.executeShellCommand("dumpsys battery set wireless 0")
+            device.executeShellCommand("dumpsys battery set usb 1")
+
+            assertTrue(
+                "Emulator did not report USB power connected",
+                waitUntil(4_000) {
+                    CarDisconnectWatchdog.isUsbPowerConnectedForTests(context)
+                }
+            )
+
+            CarDisconnectWatchdog.shutdownOverrideForTests = { _, why ->
+                reason.set(why)
+                shutdown.countDown()
+            }
+
+            CarDisconnectWatchdog.onProjectionServiceCreated(context)
+            CarDisconnectWatchdog.onProjectionConnected(context)
+
+            device.executeShellCommand("dumpsys battery set wireless 1")
+            device.executeShellCommand("dumpsys battery set usb 0")
+
+            assertTrue(
+                "USB unplug was masked by remaining wireless charging",
+                shutdown.await(6, TimeUnit.SECONDS)
+            )
+            assertTrue(
+                "Unexpected disconnect reason while wireless charging remained: " + reason.get(),
+                reason.get().contains("power", ignoreCase = true)
+            )
+        } finally {
+            CarDisconnectWatchdog.resetForTests()
+            runCatching { device.executeShellCommand("dumpsys battery reset") }
+        }
+    }
+
+    @Test
     fun serviceTeardownWhilePoweredThenLaterUnplugStillShutsDown() {
         val shutdown = CountDownLatch(1)
         val reason = AtomicReference("")
