@@ -86,15 +86,13 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
-          script: |
-            set +e
-            ./gradlew connectedDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.class=com.carhud.aaproxy.TikTokRuntimeSmokeTest \
-              --stacktrace
-            status=$?
-            mkdir -p smoke-artifacts
-            adb pull /sdcard/ttube-smoke smoke-artifacts/ || true
-            exit $status
+          script: >
+            bash -c 'set +e;
+            ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.carhud.aaproxy.TikTokRuntimeSmokeTest --stacktrace;
+            status=$?;
+            mkdir -p smoke-artifacts;
+            adb pull /sdcard/ttube-smoke smoke-artifacts/ || true;
+            exit $status'
 
       - name: Upload TikTok smoke evidence
         if: always()
