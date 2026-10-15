@@ -1068,28 +1068,26 @@ class CarPresentation(
             if (lastAppliedScale == -2) return
             lastAppliedScale = -2
             web.settings.useWideViewPort = true
-            // Match the phone WebView: fit the native desktop TikTok site to the
-            // available projected viewport instead of clipping the right edge.
+            // TikTok desktop web is the only projected page that needs overview
+            // fitting. Its own policy then applies a narrow-screen content fit.
             web.settings.loadWithOverviewMode = true
             web.settings.textZoom = 100
             web.setInitialScale(100)
             return
         }
-        val effectivePhoneDpi = if (phoneDpi > 0f) phoneDpi else 440f
-        val effectiveCarDpi = if (carDpi > 0) carDpi.toFloat() else 160f
-        val isBrowser = currentActiveAppId == "web" || currentActiveAppId == "tiktok"
-        val scalePercent = if (isBrowser) {
-            100
-        } else {
-            ((effectiveCarDpi / effectivePhoneDpi) * 100f).coerceIn(20f, 200f).toInt()
+
+        // Never scale projected media pages using phoneDpi/carDpi. The WebView is
+        // already attached to the Android Auto VirtualDisplay, so Chromium knows
+        // the correct display density. Applying carDpi / phoneDpi here shrinks
+        // YouTube/IPTV to ~35-45% on many head units and leaves a large black area.
+        // Keep the projected viewport at native 100% and let page CSS/layout adapt.
+        if (lastAppliedScale != 100) {
+            lastAppliedScale = 100
+            web.setInitialScale(100)
         }
-        if (scalePercent != lastAppliedScale || currentActiveAppId == "web") {
-            lastAppliedScale = scalePercent
-            web.setInitialScale(scalePercent)
-            web.settings.useWideViewPort = true
-            web.settings.loadWithOverviewMode = !isBrowser
-            web.settings.textZoom = 100
-        }
+        web.settings.useWideViewPort = true
+        web.settings.loadWithOverviewMode = false
+        web.settings.textZoom = 100
     }
 
     fun isDayMode(): Boolean = SettingsActivity.resolveIsDay(context)
