@@ -12,7 +12,7 @@ assert.ok(versionCode >= 244);
 assert.ok(/^1\.0\./.test(versionName));
 
 // TikTok uses the real desktop website with a light-touch WebView policy.
-assert.match(tiktok, /loadWithOverviewMode = false/);
+assert.match(tiktok, /loadWithOverviewMode = true/);
 assert.match(tiktok, /RENDERER_PRIORITY_IMPORTANT/);
 assert.match(tiktok, /DESKTOP_UA/);
 assert.match(tiktok, /View\.LAYER_TYPE_HARDWARE/);
