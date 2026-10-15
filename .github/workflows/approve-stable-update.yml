@@ -151,7 +151,7 @@ jobs:
           else
             gh release create "v$VERSION_NAME" app/build/outputs/apk/debug/*.apk \
               --target "$TARGET_SHA" \
-              --title "THTV v$VERSION_NAME (STABLE)" \
+              --title "T Tube v$VERSION_NAME (STABLE)" \
               --notes-file /tmp/stable-notes.txt
           fi
 
@@ -177,7 +177,7 @@ jobs:
               "approved": True,
               "versionCode": code,
               "versionName": name,
-              "downloadUrl": f"https://github.com/ledinhtien219/THTV/releases/download/v{name}/THTV_v{name}_debug.apk",
+              "downloadUrl": f"https://github.com/ledinhtien219/T-Tube/releases/download/v{name}/TTube_v{name}_debug.apk",
               "approvedCommit": sha,
               "approvedAt": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
               "changelog": notes,
