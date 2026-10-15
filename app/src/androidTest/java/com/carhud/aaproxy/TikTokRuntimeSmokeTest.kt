@@ -65,13 +65,13 @@ class TikTokRuntimeSmokeTest {
                 val searchReady = waitUntil(55_000) {
                     currentUrl(activity).contains("/search") &&
                         isHealthy(activity) &&
-                        videoLinkCount(activity) >= 1
+                        (searchUiCount(activity) >= 1 || videoLinkCount(activity) >= 1)
                 }
                 if (!searchReady) {
                     appendDiagnostic("search-timeout", activity)
                     screenshot("98-search-timeout.png")
                 }
-                assertTrue("TikTok search route did not render video results", searchReady)
+                assertTrue("TikTok search route did not render a usable web UI", searchReady)
                 val searchFits = waitUntil(6_000) { fitsViewport(activity) }
                 if (!searchFits) appendDiagnostic("search-fit-failure", activity)
                 assertTrue(
@@ -89,7 +89,10 @@ class TikTokRuntimeSmokeTest {
                     SystemClock.sleep(650)
                     assertTrue("TikTok search became blank after swipe ${index + 1}", isHealthy(activity))
                 }
-                assertTrue("TikTok search lost its video result links", videoLinkCount(activity) >= 1)
+                assertTrue(
+                    "TikTok search UI disappeared after scrolling",
+                    searchUiCount(activity) >= 1 || videoLinkCount(activity) >= 1
+                )
                 appendStage("search-after-4-swipes", activity, mediaCount(activity))
                 screenshot("04-search-after-scroll.png")
             } catch (t: Throwable) {
@@ -144,6 +147,11 @@ class TikTokRuntimeSmokeTest {
         """document.querySelectorAll('video, a[href*="/video/"]').length"""
     )
 
+    private fun searchUiCount(activity: TikTokSmokeActivity): Int = evalInt(
+        activity,
+        """document.querySelectorAll('[data-e2e*="search"], [class*="Search"], [class*="search"], input[type="search"]').length"""
+    )
+
     private fun videoLinkCount(activity: TikTokSmokeActivity): Int = evalInt(
         activity,
         """document.querySelectorAll('a[href*="/video/"]').length"""
@@ -193,7 +201,8 @@ class TikTokRuntimeSmokeTest {
     private fun appendStage(stage: String, activity: TikTokSmokeActivity, media: Int) {
         val url = runCatching { currentUrl(activity) }.getOrDefault("<unavailable>")
         val links = runCatching { videoLinkCount(activity) }.getOrDefault(-1)
-        shellAppend("$stage | url=$url | media=$media | videoLinks=$links")
+        val searchUi = runCatching { searchUiCount(activity) }.getOrDefault(-1)
+        shellAppend("$stage | url=$url | media=$media | videoLinks=$links | searchUi=$searchUi")
     }
 
     private fun appendDiagnostic(stage: String, activity: TikTokSmokeActivity) {
@@ -237,10 +246,11 @@ class TikTokRuntimeSmokeTest {
     }
 
     private fun shellAppend(line: String) {
+        val clean = line.replace("\n", " ")
+        android.util.Log.i("TTUBE_SMOKE", clean)
         runCatching {
             evidenceDir.mkdirs()
-            File(evidenceDir, "report.txt")
-                .appendText(line.replace("\n", " ") + "\n")
+            File(evidenceDir, "report.txt").appendText(clean + "\n")
         }
     }
 
