@@ -341,16 +341,6 @@ object LicenseManager {
         })
     }
 
-    /**
-     * Kích hoạt chế độ dùng thử hoặc cấp phép nội bộ (Dành cho Developer/Admin test)
-     */
-    fun setDevBypass(context: Context, email: String = "admin@tcar.vn") {
-        saveApproval(context, email, "DEV_PASS", "VĨNH VIỄN")
-    }
-
-    /**
-     * Xóa bản quyền (Đưa về trạng thái chưa kích hoạt)
-     */
     fun resetLicense(context: Context) {
         getPrefs(context).edit().clear().apply()
     }
