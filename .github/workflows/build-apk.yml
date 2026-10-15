@@ -88,18 +88,21 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
           script: >
             bash -c 'set +e;
+            ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.carhud.aaproxy.CarDisconnectWatchdogRuntimeTest --stacktrace;
+            cable_status=$?;
             ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.carhud.aaproxy.TikTokRuntimeSmokeTest --stacktrace;
-            status=$?;
+            tiktok_status=$?;
             mkdir -p smoke-artifacts;
-            adb logcat -d -v time | grep TTUBE_SMOKE > smoke-artifacts/runtime.log || true;
+            adb logcat -d -v time | grep -E "TTUBE_SMOKE|CarDisconnectWatchdog|CarAppShutdownManager" > smoke-artifacts/runtime.log || true;
             adb exec-out screencap -p > smoke-artifacts/final-screen.png || true;
-            exit $status'
+            if [ $cable_status -ne 0 ] || [ $tiktok_status -ne 0 ]; then exit 1; fi;
+            exit 0'
 
       - name: Upload TikTok smoke evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.0.63-build254-smoke-evidence
+          name: TTube-v1.0.63-build255-smoke-evidence
           path: smoke-artifacts/**
           if-no-files-found: ignore
           retention-days: 7
@@ -109,6 +112,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.0.63-build254-APK
+          name: TTube-v1.0.63-build255-APK
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 7
