@@ -23,6 +23,7 @@ object CarAppShutdownManager {
     fun shutdownCompletely(context: Context, reason: String) {
         if (isShuttingDown) return
         isShuttingDown = true
+        CarDisconnectWatchdog.resetAfterShutdown()
         Log.i(TAG, "Shutting down application completely. Reason: $reason")
 
         try {
@@ -30,7 +31,9 @@ object CarAppShutdownManager {
             try {
                 CarMediaManager.userWantsPlayback = false
                 CarMediaManager.currentLoadingUrl = null
-                CarMediaManager.pausePlayback()
+                // Stop both persistent WebViews before connection state changes;
+                // otherwise the async pause path can target the wrong WebView.
+                CarMediaManager.pauseAllPlaybackForShutdown()
                 CarMediaManager.releaseWakeLock()
                 CarMediaManager.setCarConnectionState(false, resumePhoneOnDisconnect = false)
             } catch (e: Exception) {
