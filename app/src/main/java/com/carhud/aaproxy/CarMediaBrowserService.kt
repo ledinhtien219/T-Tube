@@ -33,6 +33,28 @@ class CarMediaBrowserService : MediaBrowserServiceCompat() {
 
         var instance: CarMediaBrowserService? = null
             private set
+
+        /**
+         * Hard media teardown used by cable-disconnect shutdown.
+         * stopService() alone is not enough on every OEM because the media
+         * session/foreground notification can outlive the projection service.
+         */
+        fun forceShutdownForDisconnect(context: Context) {
+            val service = instance
+            if (service != null) {
+                service.forceShutdownNow()
+                return
+            }
+
+            try {
+                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                nm.cancel(NOTIFICATION_ID)
+            } catch (_: Throwable) {}
+
+            try {
+                context.stopService(Intent(context, CarMediaBrowserService::class.java))
+            } catch (_: Throwable) {}
+        }
     }
 
     var mediaSession: MediaSessionCompat? = null
@@ -601,10 +623,29 @@ class CarMediaBrowserService : MediaBrowserServiceCompat() {
     }
 
 
-    override fun onDestroy() {
-        getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(systemVoiceSettingsListener)
+    private fun forceShutdownNow() {
         preparedSystemVoice = null
-        CarMediaManager.cancelPendingSteeringNext()
+        isPlayingState = false
+        lastState = PlaybackStateCompat.STATE_STOPPED
+
+        try {
+            mediaSession?.setPlaybackState(
+                buildPlaybackState(
+                    PlaybackStateCompat.STATE_STOPPED,
+                    currentPositionSec * 1000L
+                ).build()
+            )
+        } catch (_: Throwable) {}
+
+        try {
+            mediaSession?.isActive = false
+        } catch (_: Throwable) {}
+
+        try {
+            mediaSession?.release()
+        } catch (_: Throwable) {}
+        mediaSession = null
+
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -612,10 +653,26 @@ class CarMediaBrowserService : MediaBrowserServiceCompat() {
                 @Suppress("DEPRECATION")
                 stopForeground(true)
             }
-        } catch (e: Exception) {}
+        } catch (_: Throwable) {}
+
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.cancel(NOTIFICATION_ID)
+        } catch (_: Throwable) {}
+
+        CarMediaManager.cancelPendingSteeringNext()
         CarMediaManager.releaseWakeLock()
-        mediaSession?.release()
         instance = null
+
+        try {
+            stopSelf()
+        } catch (_: Throwable) {}
+    }
+
+    override fun onDestroy() {
+        getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
+            .unregisterOnSharedPreferenceChangeListener(systemVoiceSettingsListener)
+        forceShutdownNow()
         super.onDestroy()
     }
 
