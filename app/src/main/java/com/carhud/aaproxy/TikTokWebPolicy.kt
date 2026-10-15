@@ -162,6 +162,73 @@ internal object TikTokWebPolicy {
                         ].join('');
                     }
 
+                    function fitPageWidth() {
+                        if (!document.body || state.fitPending) return;
+
+                        var viewport = Math.max(
+                            1,
+                            document.documentElement.clientWidth || window.innerWidth || 1
+                        );
+                        var routeKey = (location.pathname || '') + (location.search || '') +
+                            '|' + Math.round(viewport);
+
+                        if (state.fitRouteKey !== routeKey) {
+                            state.fitRouteKey = routeKey;
+                            state.fitPasses = 0;
+                            state.fitScale = 1;
+                            document.body.style.removeProperty('zoom');
+                            document.body.style.removeProperty('width');
+                        }
+                        if ((state.fitPasses || 0) >= 2) return;
+
+                        state.fitPending = true;
+                        requestAnimationFrame(function() {
+                            try {
+                                var body = document.body;
+                                var de = document.documentElement;
+                                if (!body || !de) return;
+
+                                // Measure once at natural desktop-web size, then
+                                // shrink only as much as this WebView requires.
+                                body.style.removeProperty('zoom');
+                                body.style.removeProperty('width');
+
+                                var rawWidth = Math.max(
+                                    de.scrollWidth || 0,
+                                    body.scrollWidth || 0,
+                                    de.clientWidth || 0
+                                );
+                                var currentViewport = Math.max(
+                                    1,
+                                    de.clientWidth || window.innerWidth || viewport
+                                );
+                                var scale = rawWidth > currentViewport * 1.015
+                                    ? currentViewport / rawWidth
+                                    : 1;
+
+                                // Avoid making the real TikTok UI unreadably tiny.
+                                scale = Math.max(0.76, Math.min(1, scale));
+
+                                if (scale < 0.995) {
+                                    body.style.setProperty('zoom', scale.toFixed(4), 'important');
+                                    body.style.setProperty(
+                                        'width',
+                                        (100 / scale).toFixed(3) + '%',
+                                        'important'
+                                    );
+                                }
+
+                                state.fitScale = scale;
+                                state.fitRawWidth = rawWidth;
+                                state.fitViewport = currentViewport;
+                                state.fitPasses = (state.fitPasses || 0) + 1;
+                            } catch (_) {
+                            } finally {
+                                state.fitPending = false;
+                            }
+                        });
+                    }
+
                     function normalizedText(el) {
                         return (((el && (el.innerText || el.textContent)) || '') + '')
                             .toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 2600);
@@ -304,6 +371,7 @@ internal object TikTokWebPolicy {
                         });
 
                         if (hidden) unlockPage();
+                        fitPageWidth();
                     }
 
                     function scheduleSweep() {
