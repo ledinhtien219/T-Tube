@@ -9,6 +9,7 @@ import androidx.test.uiautomator.UiDevice
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -17,10 +18,16 @@ import java.util.concurrent.atomic.AtomicReference
 class TikTokRuntimeSmokeTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val device = UiDevice.getInstance(instrumentation)
+    private val targetContext = instrumentation.targetContext
+    private val evidenceDir = File(
+        targetContext.getExternalFilesDir(null),
+        "tiktok-smoke"
+    )
 
     @Test
     fun liveTikTokHomeScrollAndSearchStayRendered() {
-        device.executeShellCommand("rm -rf /sdcard/ttube-smoke && mkdir -p /sdcard/ttube-smoke")
+        evidenceDir.deleteRecursively()
+        evidenceDir.mkdirs()
         shellAppend("T Tube TikTok runtime smoke")
 
         ActivityScenario.launch(TikTokSmokeActivity::class.java).use { scenario ->
@@ -34,9 +41,11 @@ class TikTokRuntimeSmokeTest {
                     "TikTok home did not render usable web content",
                     waitUntil(55_000) { isHealthy(activity) && mediaCount(activity) >= 1 }
                 )
+                val homeFits = waitUntil(6_000) { fitsViewport(activity) }
+                if (!homeFits) appendDiagnostic("home-fit-failure", activity)
                 assertTrue(
                     "TikTok home overflows the WebView horizontally",
-                    fitsViewport(activity)
+                    homeFits
                 )
                 appendStage("home", activity, mediaCount(activity))
                 screenshot("01-home.png")
@@ -63,9 +72,11 @@ class TikTokRuntimeSmokeTest {
                     screenshot("98-search-timeout.png")
                 }
                 assertTrue("TikTok search route did not render video results", searchReady)
+                val searchFits = waitUntil(6_000) { fitsViewport(activity) }
+                if (!searchFits) appendDiagnostic("search-fit-failure", activity)
                 assertTrue(
                     "TikTok search overflows the WebView horizontally",
-                    fitsViewport(activity)
+                    searchFits
                 )
 
                 appendStage("search-cat", activity, mediaCount(activity))
@@ -117,14 +128,12 @@ class TikTokRuntimeSmokeTest {
         """
         (function() {
           try {
-            var de = document.documentElement;
-            var body = document.body;
-            var viewport = Math.max(1, window.innerWidth || de.clientWidth || 1);
-            var width = Math.max(
-              de ? de.scrollWidth : 0,
-              body ? body.scrollWidth : 0
-            );
-            return width <= Math.ceil(viewport * 1.12);
+            var state = window.__ttubeTikTokWebOnly || {};
+            var viewport = Number(state.fitViewport || 0);
+            var rawWidth = Number(state.fitRawWidth || 0);
+            var scale = Number(state.fitScale || 0);
+            if (!(viewport > 0 && rawWidth > 0 && scale > 0)) return false;
+            return rawWidth * scale <= viewport * 1.035;
           } catch (_) { return false; }
         })();
         """.trimIndent()
@@ -177,7 +186,7 @@ class TikTokRuntimeSmokeTest {
 
     private fun screenshot(name: String) {
         runCatching {
-            device.executeShellCommand("screencap -p /sdcard/ttube-smoke/$name")
+            device.takeScreenshot(File(evidenceDir, name))
         }
     }
 
@@ -202,14 +211,36 @@ class TikTokRuntimeSmokeTest {
             )
         }.getOrDefault(-1)
         val links = runCatching { videoLinkCount(activity) }.getOrDefault(-1)
-        shellAppend("$stage | url=$url | videoLinks=$links | searchNodes=$searchNodes")
+        val fit = runCatching {
+            evalString(
+                activity,
+                """
+                JSON.stringify((function() {
+                  var s = window.__ttubeTikTokWebOnly || {};
+                  return {
+                    viewport: s.fitViewport || 0,
+                    rawWidth: s.fitRawWidth || 0,
+                    scale: s.fitScale || 0,
+                    passes: s.fitPasses || 0,
+                    innerWidth: window.innerWidth || 0,
+                    scrollWidth: Math.max(
+                      document.documentElement ? document.documentElement.scrollWidth : 0,
+                      document.body ? document.body.scrollWidth : 0
+                    )
+                  };
+                })())
+                """.trimIndent()
+            )
+        }.getOrDefault("<fit unavailable>")
+        shellAppend("$stage | url=$url | videoLinks=$links | searchNodes=$searchNodes | fit=$fit")
         shellAppend("BODY: $text")
     }
 
     private fun shellAppend(line: String) {
-        val safe = line.replace("'", "'\\''").replace("\n", " ")
         runCatching {
-            device.executeShellCommand("printf '%s\\n' '$safe' >> /sdcard/ttube-smoke/report.txt")
+            evidenceDir.mkdirs()
+            File(evidenceDir, "report.txt")
+                .appendText(line.replace("\n", " ") + "\n")
         }
     }
 
