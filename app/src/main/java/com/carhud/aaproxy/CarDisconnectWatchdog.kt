@@ -41,6 +41,9 @@ object CarDisconnectWatchdog {
     private var externalPowerSeen = false
 
     @Volatile
+    private var usbPowerSeen = false
+
+    @Volatile
     private var powerLossStartedAt = 0L
 
     @Volatile
@@ -74,8 +77,12 @@ object CarDisconnectWatchdog {
         shutdownTriggered = false
         powerLossStartedAt = 0L
 
-        if (isExternalPowerConnected(context)) {
+        val plugged = getPluggedType(context)
+        if (plugged != 0) {
             externalPowerSeen = true
+        }
+        if ((plugged and BatteryManager.BATTERY_PLUGGED_USB) != 0) {
+            usbPowerSeen = true
         }
 
         handler.removeCallbacks(pollRunnable)
@@ -106,7 +113,7 @@ object CarDisconnectWatchdog {
 
         if (!projectionSessionSeen || shutdownTriggered) return
 
-        val powered = isExternalPowerConnected(app)
+        val powered = isProjectionPowerConnected(app)
         if (externalPowerSeen && !powered) {
             triggerShutdown(app, "projection service destroyed after cable power loss")
             return
@@ -148,7 +155,12 @@ object CarDisconnectWatchdog {
     fun hasSeenProjectionSession(): Boolean = projectionSessionSeen
 
     private fun checkPowerState(context: Context, source: String) {
-        val powered = isExternalPowerConnected(context)
+        val plugged = getPluggedType(context)
+        val usbPowered = (plugged and BatteryManager.BATTERY_PLUGGED_USB) != 0
+        if (usbPowered) {
+            usbPowerSeen = true
+        }
+        val powered = if (usbPowerSeen) usbPowered else plugged != 0
         if (powered) {
             externalPowerSeen = true
             powerLossStartedAt = 0L
@@ -188,21 +200,33 @@ object CarDisconnectWatchdog {
         }
     }
 
-    private fun isExternalPowerConnected(context: Context): Boolean {
+    private fun getPluggedType(context: Context): Int {
         return try {
             val battery = context.registerReceiver(
                 null,
                 IntentFilter(Intent.ACTION_BATTERY_CHANGED)
             )
-            val plugged = battery?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0
-            plugged != 0
+            battery?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0
         } catch (_: Throwable) {
-            false
+            0
         }
+    }
+
+    private fun isExternalPowerConnected(context: Context): Boolean =
+        getPluggedType(context) != 0
+
+    private fun isProjectionPowerConnected(context: Context): Boolean {
+        val plugged = getPluggedType(context)
+        val usbPowered = (plugged and BatteryManager.BATTERY_PLUGGED_USB) != 0
+        if (usbPowered) usbPowerSeen = true
+        return if (usbPowerSeen) usbPowered else plugged != 0
     }
 
     internal fun isExternalPowerConnectedForTests(context: Context): Boolean =
         isExternalPowerConnected(context)
+
+    internal fun isUsbPowerConnectedForTests(context: Context): Boolean =
+        (getPluggedType(context) and BatteryManager.BATTERY_PLUGGED_USB) != 0
 
     fun resetAfterShutdown() {
         handler.removeCallbacks(pollRunnable)
@@ -215,6 +239,7 @@ object CarDisconnectWatchdog {
         projectionSessionSeen = false
         projectionServiceAlive = false
         externalPowerSeen = false
+        usbPowerSeen = false
         powerLossStartedAt = 0L
         shutdownTriggered = false
         appContext = null
@@ -225,6 +250,7 @@ object CarDisconnectWatchdog {
         handler.removeCallbacks(pollRunnable)
         projectionSessionSeen = false
         externalPowerSeen = false
+        usbPowerSeen = false
         powerLossStartedAt = 0L
         shutdownTriggered = false
     }
