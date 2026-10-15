@@ -1068,7 +1068,9 @@ class CarPresentation(
             if (lastAppliedScale == -2) return
             lastAppliedScale = -2
             web.settings.useWideViewPort = true
-            web.settings.loadWithOverviewMode = false
+            // Match the phone WebView: fit the native desktop TikTok site to the
+            // available projected viewport instead of clipping the right edge.
+            web.settings.loadWithOverviewMode = true
             web.settings.textZoom = 100
             web.setInitialScale(100)
             return
