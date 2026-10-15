@@ -13,14 +13,13 @@ const versionName = gradle.match(/versionName = "([^"]+)"/)?.[1] || '';
 assert.ok(versionCode >= 237);
 assert.ok(/^1\.0\./.test(versionName));
 
-// TikTok video detail pages must be video-only, while feed/search remains intact.
-assert.match(tiktok, /\/video\\\/\\d\+/);
-assert.match(tiktok, /ttube-tiktok-video-only/);
-assert.match(tiktok, /search-comment-container/);
-assert.match(tiktok, /browse-video-desc/);
-assert.match(tiktok, /video\[data-ttube-video-only="1"\]/);
-assert.match(tiktok, /object-fit: contain/);
+// TikTok now stays on the native desktop web experience.
+assert.match(tiktok, /DESKTOP_UA/);
+assert.match(tiktok, /Chrome\/128\.0\.0\.0 Safari\/537\.36/);
+assert.match(tiktok, /"https:\/\/www\.tiktok\.com\/search\?q=" \+ Uri\.encode/);
 assert.match(tiktok, /MutationObserver/);
+assert.doesNotMatch(tiktok, /ttube-tiktok-video-only/);
+assert.doesNotMatch(tiktok, /guestQueue/);
 
 // THTV keyboard search may not silently fail on a stale currentActiveAppId.
 assert.match(presentation, /val youtubeVisible = currentUrl\.contains\("youtube\.com"/);
@@ -45,4 +44,4 @@ assert.match(auto, /CarSearchScreen\(carContext, input\) \{/);
 assert.match(search, /private val onClosed: \(\) -> Unit = \{\}/);
 assert.match(search, /onClosed\(\)/);
 
-console.log('PASS v1.0.50: TikTok video-only + YouTube submit + native Android Auto keyboard');
+console.log('PASS v1.0.63: TikTok native web + YouTube submit + native Android Auto keyboard');
