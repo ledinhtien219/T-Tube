@@ -7,7 +7,7 @@ const main = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/MainActivity.
 const car = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarPresentation.kt','utf8');
 const apps = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/WebAppModel.kt','utf8');
 
-assert.match(gradle, /versionCode = 255/);
+assert.match(gradle, /versionCode = 256/);
 
 // Native tiktok.com desktop web owns feed, scrolling, video navigation and search.
 assert.match(tiktok, /POLICY_VERSION = 15/);
@@ -39,4 +39,4 @@ assert.match(apps, /url = "https:\/\/www\.tiktok\.com\/"[\s\S]*?isDesktop = true
 assert.match(main, /"tiktok" -> current\.trimEnd\('\/'\) == "https:\/\/www\.tiktok\.com"/);
 assert.match(car, /app\.id != "tiktok"[\s\S]*?CarMediaManager\.hasWebAppSession/);
 
-console.log('PASS v1.0.63 build 255: native TikTok desktop web + clean home + web-only redirects');
+console.log('PASS v1.0.65 build 256: native TikTok desktop web + clean home + web-only redirects');

@@ -9,7 +9,7 @@ const media = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarMediaMana
 const runtime = fs.readFileSync('app/src/androidTest/java/com/carhud/aaproxy/CarDisconnectWatchdogRuntimeTest.kt','utf8');
 const workflow = fs.readFileSync('.github/workflows/build-apk.yml','utf8');
 
-assert.match(gradle, /versionCode = 255/);
+assert.match(gradle, /versionCode = 256/);
 
 // Do not trust the mutable CarMediaManager flag as the only disconnect signal.
 assert.match(projection, /CarDisconnectWatchdog\.onProjectionConnected\(this\)/);
@@ -42,6 +42,6 @@ assert.match(workflow, /CarDisconnectWatchdogRuntimeTest/);
 assert.match(workflow, /TikTokRuntimeSmokeTest/);
 assert.match(workflow, /cable_status/);
 assert.match(workflow, /tiktok_status/);
-assert.match(workflow, /TTube-v1\.0\.63-build255-APK/);
+assert.match(workflow, /TTube-v1\.0\.65-build256-APK/);
 
-console.log('PASS build 255: wired cable loss is independently detected, hard-stopped, runtime-tested, and gates APK');
+console.log('PASS build 256: wired cable loss is independently detected, hard-stopped, runtime-tested, and gates APK');
