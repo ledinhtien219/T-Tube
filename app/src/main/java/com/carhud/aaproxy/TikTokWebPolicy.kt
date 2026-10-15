@@ -91,7 +91,9 @@ internal object TikTokWebPolicy {
             databaseEnabled = true
             mediaPlaybackRequiresUserGesture = false
             useWideViewPort = true
-            loadWithOverviewMode = false
+            // Desktop tiktok.com is wider than phone/AA WebViews. Let WebView
+            // calculate an overview scale so the full site fits horizontally.
+            loadWithOverviewMode = true
             textZoom = 100
             cacheMode = WebSettings.LOAD_DEFAULT
             javaScriptCanOpenWindowsAutomatically = true
@@ -144,6 +146,12 @@ internal object TikTokWebPolicy {
                             (document.head || document.documentElement).appendChild(style);
                         }
                         style.textContent = [
+                            'html,body{',
+                            'max-width:100vw !important;',
+                            'overflow-x:hidden !important;',
+                            'overscroll-behavior-x:none !important;',
+                            '}',
+                            'video,img{max-width:100% !important;}',
                             '[data-ttube-app-promo-wall="1"],',
                             '[data-ttube-app-promo-backdrop="1"] {',
                             'display:none !important;',
