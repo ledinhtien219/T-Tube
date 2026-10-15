@@ -34,7 +34,7 @@ assert.match(waze, /InetSocketAddress\("127\.0\.0\.1", port\)/);
 assert.doesNotMatch(waze, /InetSocketAddress\(port\)/);
 
 // Zalo support is visible in Settings and uses the existing supported link.
-assert.match(licenseConfig, /SUPPORT_ZALO_URL = "https:\/\/zalo\.me\/0366717255"/);
+assert.match(licenseConfig, /SUPPORT_ZALO_URL = "https:\/\/zalo\.me\/g\/v8zlxq1055wjovfvgcsn"/);
 assert.match(settings, /title = "ZALO T TUBE"/);
 assert.match(settings, /LicenseConfig\.SUPPORT_ZALO_URL/);
 
