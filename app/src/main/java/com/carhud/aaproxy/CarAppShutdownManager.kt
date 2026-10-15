@@ -57,10 +57,12 @@ object CarAppShutdownManager {
                 Log.e(TAG, "Error stopping CarHudProjectionService", e)
             }
             try {
-                val mediaIntent = Intent(context, CarMediaBrowserService::class.java)
-                context.stopService(mediaIntent)
+                // Release MediaSession + foreground notification synchronously
+                // before process death so OEM SystemUI cannot keep stale media
+                // controls alive after the cable is unplugged.
+                CarMediaBrowserService.forceShutdownForDisconnect(context)
             } catch (e: Exception) {
-                Log.e(TAG, "Error stopping CarMediaBrowserService", e)
+                Log.e(TAG, "Error force-stopping CarMediaBrowserService", e)
             }
 
             // Persist the disconnected state before the process is terminated.
