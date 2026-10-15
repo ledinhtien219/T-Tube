@@ -177,7 +177,7 @@ jobs:
               "approved": True,
               "versionCode": code,
               "versionName": name,
-              "downloadUrl": f"https://github.com/ledinhtien219/T-Tube/releases/download/v{name}/TTube_v{name}_debug.apk",
+              "downloadUrl": f"https://github.com/ledinhtien219/THTV/releases/download/v{name}/TTube_v{name}_debug.apk",
               "approvedCommit": sha,
               "approvedAt": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
               "changelog": notes,
