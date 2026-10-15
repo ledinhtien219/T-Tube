@@ -36,8 +36,6 @@ class ActivationActivity : AppCompatActivity() {
 
     private val pollHandler = Handler(Looper.getMainLooper())
     private var isPolling = false
-    private var devTapCount = 0
-    private var lastTapTime = 0L
 
     companion object {
         val BG_DARK = Color.parseColor("#0A1119")
@@ -122,7 +120,7 @@ class ActivationActivity : AppCompatActivity() {
         }
         container.addView(subtitleTv)
 
-        // Badge phiên bản (Có bí mật bấm 5 lần để mở khóa Test Developer)
+        // Badge phiên bản
         val versionBadge = TextView(this).apply {
             text = "v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})"
             textSize = 11f
@@ -132,9 +130,6 @@ class ActivationActivity : AppCompatActivity() {
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#1E293B"))
                 cornerRadius = dp(12).toFloat()
-            }
-            setOnClickListener {
-                handleDevBypassClick()
             }
         }
         container.addView(versionBadge)
@@ -378,13 +373,6 @@ class ActivationActivity : AppCompatActivity() {
 
     private fun submitRegistration() {
         val email = emailInput.text.toString().trim()
-        if (email == "219171") {
-            LicenseManager.setDevBypass(this, "admin@tcar.vn")
-            Toast.makeText(this, "⚡ Đã mở khóa chế độ Developer thành công!", Toast.LENGTH_LONG).show()
-            launchMainApp()
-            return
-        }
-
         if (email.isEmpty() || !Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
             Toast.makeText(this, "⚠️ Vui lòng nhập đúng định dạng Email!", Toast.LENGTH_SHORT).show()
             emailInput.requestFocus()
@@ -509,66 +497,6 @@ class ActivationActivity : AppCompatActivity() {
                 statusCard.visibility = View.GONE
             }
         }
-    }
-
-    private fun handleDevBypassClick() {
-        val now = System.currentTimeMillis()
-        if (now - lastTapTime < 600) {
-            devTapCount++
-        } else {
-            devTapCount = 1
-        }
-        lastTapTime = now
-
-        if (devTapCount in 2..4) {
-            Toast.makeText(this, "Nhấn thêm ${5 - devTapCount} lần để nhập mật khẩu Developer", Toast.LENGTH_SHORT).show()
-        } else if (devTapCount >= 5) {
-            devTapCount = 0
-            showDevPasswordDialog()
-        }
-    }
-
-    private fun showDevPasswordDialog() {
-        val input = EditText(this).apply {
-            hint = "Nhập mật khẩu Developer"
-            setHintTextColor(Color.parseColor("#64748B"))
-            setTextColor(TEXT_WHITE)
-            textSize = 18f
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#0F172A"))
-                cornerRadius = dp(8).toFloat()
-                setStroke(dp(1), ACCENT_CYAN)
-            }
-        }
-
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(16), dp(20), dp(10))
-            addView(input)
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle("🔑 CHẾ ĐỘ DEVELOPER (DEV MODE)")
-            .setMessage("Vui lòng nhập mật khẩu Developer để mở khóa ứng dụng:")
-            .setView(container)
-            .setPositiveButton("XÁC NHẬN") { _, _ ->
-                val pass = input.text.toString().trim()
-                if (pass == "219171") {
-                    LicenseManager.setDevBypass(this, "admin@tcar.vn")
-                    Toast.makeText(this, "⚡ Đã mở khóa chế độ Developer thành công!", Toast.LENGTH_LONG).show()
-                    launchMainApp()
-                } else {
-                    Toast.makeText(this, "❌ Mật khẩu Developer không đúng! Vui lòng thử lại.", Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setNegativeButton("HỦY") { dialog, _ ->
-                dialog.dismiss()
-            }
-            .show()
     }
 
     private fun launchMainApp() {
