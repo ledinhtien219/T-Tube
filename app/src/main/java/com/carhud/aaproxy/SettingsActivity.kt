@@ -2227,6 +2227,28 @@ class SettingsActivity : AppCompatActivity() {
                 ))
 
                 content.addView(settingCard(
+                    title = "ZALO T TUBE",
+                    subtitle = "Hỗ trợ, trao đổi sử dụng và nhận thông tin từ T Tube",
+                    badgeText = "Mở Zalo",
+                    onClick = {
+                        try {
+                            startActivity(
+                                Intent(
+                                    Intent.ACTION_VIEW,
+                                    android.net.Uri.parse(LicenseConfig.SUPPORT_ZALO_URL)
+                                )
+                            )
+                        } catch (_: Exception) {
+                            Toast.makeText(
+                                this@SettingsActivity,
+                                "Không mở được Zalo. Vui lòng thử lại sau.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                ))
+
+                content.addView(settingCard(
                     title = "XUẤT CẤU HÌNH & YÊU THÍCH",
                     subtitle = "Lưu giao diện, HUD, phím vô lăng, ứng dụng và kênh yêu thích vào file JSON. Không kèm ảnh nền/biểu tượng tùy chỉnh.",
                     badgeText = "Xuất file",
