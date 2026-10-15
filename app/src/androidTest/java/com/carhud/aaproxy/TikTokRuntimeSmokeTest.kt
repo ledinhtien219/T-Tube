@@ -110,12 +110,12 @@ class TikTokRuntimeSmokeTest {
 
     private fun mediaCount(activity: TikTokSmokeActivity): Int = evalInt(
         activity,
-        "document.querySelectorAll('video, a[href*="/video/"]').length"
+        """document.querySelectorAll('video, a[href*="/video/"]').length"""
     )
 
     private fun videoLinkCount(activity: TikTokSmokeActivity): Int = evalInt(
         activity,
-        "document.querySelectorAll('a[href*="/video/"]').length"
+        """document.querySelectorAll('a[href*="/video/"]').length"""
     )
 
     private fun evalBoolean(activity: TikTokSmokeActivity, script: String): Boolean =
