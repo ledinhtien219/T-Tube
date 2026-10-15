@@ -37,14 +37,11 @@ assert.match(presentation, /params\.width = ViewGroup\.LayoutParams\.MATCH_PAREN
 assert.match(presentation, /params\.rightMargin = 0/);
 assert.match(presentation, /web\.setInitialScale\(100\)/);
 
-// TikTok uses a consistent desktop identity and can restore its own session.
-assert.doesNotMatch(presentation, /app\.id != "tiktok"/);
-assert.match(presentation, /getDefaultUserAgent\(context\)/);
-assert.match(presentation, /replace\("; wv", ""\)/);
+// TikTok uses a consistent desktop identity, but build 253 deliberately
+// avoids restoring stale TikTok WebView state. Cookies still keep login.
+assert.match(presentation, /app\.id != "tiktok"/);
 assert.match(presentation, /TikTokWebPolicy\.configure\(web, startUrl \?: app\.url\)/);
-const tikTokBlock = presentation.match(/if \(app\.id == "tiktok"[\s\S]*?\} else if \(isDesktop\)/)?.[0] || '';
-assert.notEqual(tikTokBlock, '');
-assert.doesNotMatch(tikTokBlock, /Windows NT 10\.0/);
+assert.match(manager, /url = "https:\/\/www\.tiktok\.com\/"[\s\S]*?isDesktop = true/);
 
 // Per-app dashboard pin state is separate from app availability.
 assert.match(main, /PREF_DASHBOARD_PINNED_APPS = "pref_dashboard_pinned_apps"/);
@@ -58,4 +55,4 @@ assert.match(dashboard, /private fun refreshPinnedApps\(\)/);
 assert.match(dashboard, /WebAppManager\.getPinnedDashboardApps\(context\)/);
 assert.match(dashboard, /setOnClickListener \{ onAppClick\(app\) \}/);
 
-console.log('PASS v1.0.46: v1.0.39 AA host preserved + TikTok/browser fixes + dashboard pin switches');
+console.log('PASS v1.0.46: v1.0.39 AA host preserved + TikTok desktop-web/browser fixes + dashboard pin switches');
