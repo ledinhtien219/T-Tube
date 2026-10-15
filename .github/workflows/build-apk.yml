@@ -88,10 +88,12 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
           script: |
             set +e
-            ./gradlew connectedDebugAndroidTest --stacktrace
+            ./gradlew connectedDebugAndroidTest \
+              -Pandroid.testInstrumentationRunnerArguments.class=com.carhud.aaproxy.TikTokRuntimeSmokeTest \
+              --stacktrace
             status=$?
             mkdir -p smoke-artifacts
-            adb pull /sdcard/Android/data/com.tcar.auto/files/tiktok-smoke smoke-artifacts/ || true
+            adb pull /sdcard/ttube-smoke smoke-artifacts/ || true
             exit $status
 
       - name: Upload TikTok smoke evidence
