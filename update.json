@@ -1,12 +1,15 @@
 {
   "channel": "stable",
   "approved": true,
-  "versionCode": 250,
-  "versionName": "1.0.63",
-  "downloadUrl": "https://github.com/ledinhtien219/T-Tube/releases/download/v1.0.63/TTube_v1.0.63_debug.apk",
-  "approvedCommit": "d04f84f34647fdedf48fc932311c11c4b643c1a8",
-  "approvedAt": "2026-10-14T09:49:34+00:00",
+  "versionCode": 256,
+  "versionName": "1.0.65",
+  "downloadUrl": "https://github.com/ledinhtien219/T-Tube/releases/download/v1.0.65/TTube_v1.0.65_debug.apk",
+  "approvedCommit": "9fc586eebc8c8ccc766e008cb196e089173bae9c",
+  "approvedAt": "2026-10-15T07:32:49+00:00",
   "changelog": [
-    "Bug fix"
+    "Sửa rút cáp Android Auto: dừng audio và đóng ứng dụng.",
+    "TikTok dùng tiktok.com trực tiếp, cải thiện đăng nhập, tìm kiếm và cuộn feed.",
+    "Tự fit giao diện TikTok theo màn hình.",
+    "Cải thiện giao diện tối và độ mượt WebView."
   ]
 }
