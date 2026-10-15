@@ -77,13 +77,7 @@ class CarHudProjectionService : CarActivityService() {
         }
     }
 
-    override fun onStop() {
-        CarDisconnectWatchdog.onProjectionLifecycleEnded(this, "projection activity stopped")
-        super.onStop()
-    }
-
     override fun onDestroy() {
-        CarDisconnectWatchdog.onProjectionLifecycleEnded(this, "projection activity destroyed")
         try {
             cableDisconnectReceiver?.let { unregisterReceiver(it) }
             cableDisconnectReceiver = null
@@ -260,7 +254,13 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
         }
     }
 
+    override fun onStop() {
+        CarDisconnectWatchdog.onProjectionLifecycleEnded(this, "projection activity stopped")
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        CarDisconnectWatchdog.onProjectionLifecycleEnded(this, "projection activity destroyed")
         try {
             presentation?.dismiss()
             presentation = null
