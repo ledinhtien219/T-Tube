@@ -1,27 +1,27 @@
-name: Build T Tube v1.0.67 APK
+name: Build T Tube v1.0.68 APK
 
 on:
   push:
-    branches: [ "main", "test/ttube-v1.0.67-apk" ]
+    branches: [ "main", "test/ttube-v1.0.68-apk" ]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ttube-v167-${{ github.ref }}
+  group: ttube-v168-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    name: Build T Tube v1.0.67 APK
+    name: Build T Tube v1.0.68 APK
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Prepare checked-in v1.0.67 source
+      - name: Prepare checked-in v1.0.68 source
         shell: bash
         run: |
           chmod +x gradlew
@@ -63,6 +63,9 @@ jobs:
             node "$f"
           done
 
+      - name: Run JVM unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
       - name: Build T Tube debug APK
         run: ./gradlew assembleDebug --stacktrace
 
@@ -102,7 +105,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.0.67-build258-smoke-evidence
+          name: TTube-v1.0.68-build259-smoke-evidence
           path: smoke-artifacts/**
           if-no-files-found: ignore
           retention-days: 7
@@ -112,6 +115,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.0.67-build258-APK
+          name: TTube-v1.0.68-build259-APK
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 7
