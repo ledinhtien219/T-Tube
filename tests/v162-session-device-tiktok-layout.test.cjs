@@ -30,7 +30,7 @@ assert.match(presentation,/val tiktokActive = currentActiveAppId == "tiktok" \|\
 assert.match(presentation,/searchOverlayMode = if \(tiktokActive\) "tiktok" else "youtube"/);
 assert.match(tiktok,/POLICY_VERSION = (?:[789]|10|11|12|13|14|15)/);
 assert.match(tiktok,/DESKTOP_UA/);
-assert.match(tiktok,/www\.tiktok\.com\/search\\\?q=/);
+assert.match(tiktok,/"https:\/\/www\.tiktok\.com\/search\?q=" \+ Uri\.encode/);
 assert.doesNotMatch(tiktok,/browse-sidebar/);
 assert.doesNotMatch(tiktok,/DivActionItemContainer/);
 assert.match(presentation,/app\.id != "tiktok"/);
