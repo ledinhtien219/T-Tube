@@ -81,7 +81,7 @@ object WazeHlpWebSocketManager {
     }
 
     private class WazeHlpServer(port: Int) : WebSocketServer(
-        InetSocketAddress(port),
+        InetSocketAddress("127.0.0.1", port),
         listOf(HlpDraft(), Draft_6455())
     ) {
         init {
@@ -94,7 +94,7 @@ object WazeHlpWebSocketManager {
             serverStarted = true
             restartJob?.cancel()
             restartJob = null
-            Log.i(TAG, "Waze HLP WebSocket Server started on 0.0.0.0:$WS_PORT")
+            Log.i(TAG, "Waze HLP WebSocket Server started on 127.0.0.1:$WS_PORT")
             if (!_isConnected.value) {
                 _statusText.value = "Server đang lắng nghe cổng $WS_PORT (Sẵn sàng)"
             }
