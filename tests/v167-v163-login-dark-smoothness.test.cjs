@@ -7,7 +7,7 @@ const projection = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarHudP
 const shutdown = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarAppShutdownManager.kt','utf8');
 const tiktok = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/TikTokWebPolicy.kt','utf8');
 
-assert.match(gradle, /versionCode = 251/);
+assert.match(gradle, /versionCode = 252/);
 assert.match(gradle, /versionName = "1\.0\.63"/);
 
 // Phone defaults to dark only when the user has never chosen a mode.
@@ -29,6 +29,7 @@ assert.match(tiktok, /state\.loginRequestedAt = Date\.now\(\)/);
 assert.match(tiktok, /if \(loginWall && allowLogin\)/);
 assert.match(tiktok, /removeAttribute\('data-ttube-login-wall'\)/);
 assert.doesNotMatch(tiktok, /html:not\(\.ttube-tiktok-search\) \[data-e2e="top-login-button"\]/);
+assert.match(tiktok, /"https:\/\/www\.tiktok\.com\/search\/video\?q=" \+ Uri\.encode/);
 assert.match(tiktok, /"https:\/\/www\.tiktok\.com\/search\?q=" \+ Uri\.encode/);
 
 // DOM work is frame-coalesced and rate-limited instead of rescanning on every mutation.
@@ -38,4 +39,4 @@ assert.match(tiktok, /var delay = Math\.max\(72, 160 - elapsed\)/);
 assert.match(tiktok, /requestAnimationFrame/);
 assert.doesNotMatch(tiktok, /setInterval\s*\(/);
 
-console.log('PASS v1.0.63 build 251: cable exit + dark phone default + TikTok login/search + smoother WebViews');
+console.log('PASS v1.0.63 build 252: cable exit + dark phone default + TikTok login/search + smoother WebViews');
