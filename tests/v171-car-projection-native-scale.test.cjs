@@ -4,8 +4,8 @@ const assert = require('node:assert/strict');
 const gradle = fs.readFileSync('app/build.gradle.kts','utf8');
 const presentation = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarPresentation.kt','utf8');
 
-assert.match(gradle, /versionCode = 258/);
-assert.match(gradle, /versionName = "1\.0\.67"/);
+assert.match(gradle, /versionCode = 259/);
+assert.match(gradle, /versionName = "1\.0\.68"/);
 
 // Non-TikTok projected pages must render at the VirtualDisplay's native scale.
 const scaleBlock = presentation.match(/fun applyWebScaleForUrl\(url: String\?\) \{[\s\S]*?\n    \}/)?.[0] || '';
@@ -31,4 +31,4 @@ assert.match(
   /root\.addView\(web, 0, FrameLayout\.LayoutParams\(ViewGroup\.LayoutParams\.MATCH_PARENT, ViewGroup\.LayoutParams\.MATCH_PARENT\)\)/
 );
 
-console.log('PASS v1.0.67 build 258: projected YouTube/IPTV/browser stay at native 100% car-surface scale');
+console.log('PASS v1.0.68 build 259: projected YouTube/IPTV/browser stay at native 100% car-surface scale');
