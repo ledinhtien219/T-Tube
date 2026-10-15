@@ -1078,7 +1078,7 @@ class CarPresentation(
 
         // Never scale projected media pages using phoneDpi/carDpi. The WebView is
         // already attached to the Android Auto VirtualDisplay, so Chromium knows
-        // the correct display density. Applying carDpi / phoneDpi here shrinks
+        // the correct display density. Applying a phone-to-car DPI ratio here shrinks
         // YouTube/IPTV to ~35-45% on many head units and leaves a large black area.
         // Keep the projected viewport at native 100% and let page CSS/layout adapt.
         if (lastAppliedScale != 100) {
