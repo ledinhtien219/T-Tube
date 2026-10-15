@@ -15,7 +15,7 @@ assert.match(scaleBlock, /web\.settings\.loadWithOverviewMode = false/);
 assert.match(scaleBlock, /web\.settings\.useWideViewPort = true/);
 assert.doesNotMatch(scaleBlock, /effectiveCarDpi/);
 assert.doesNotMatch(scaleBlock, /effectivePhoneDpi/);
-assert.doesNotMatch(scaleBlock, /carDpi\s*\/\s*phoneDpi/);
+assert.doesNotMatch(scaleBlock, /\(\(effectiveCarDpi \/ effectivePhoneDpi\)/);
 assert.doesNotMatch(scaleBlock, /coerceIn\(20f, 200f\)/);
 
 // TikTok keeps its isolated overview-fit path.
