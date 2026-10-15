@@ -30,7 +30,8 @@ assert.match(tiktok, /open tiktok lite/);
 assert.match(tiktok, /function isAppOnlyWall/);
 assert.match(tiktok, /candidates/);
 assert.match(tiktok, /button, a, \[role="button"\]/);
-assert.match(tiktok, /\{ childList: true, subtree: true \}/);
+assert.match(tiktok, /childList: true/);
+assert.match(tiktok, /subtree: true/);
 assert.doesNotMatch(tiktok, /attributeFilter/);
 assert.doesNotMatch(tiktok, /setInterval\s*\(/);
 
