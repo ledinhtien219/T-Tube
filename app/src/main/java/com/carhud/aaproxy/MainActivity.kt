@@ -434,6 +434,15 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         registerFullExitReceiver()
 
+        // v1.0.63 build 251: phone UI starts in Night mode on first launch.
+        // Existing users keep their explicit Day/Night/Auto choice.
+        if (!prefs.contains(PREF_THEME_MODE)) {
+            prefs.edit()
+                .putString(PREF_THEME_MODE, SettingsActivity.THEME_NIGHT)
+                .putBoolean("carhud_day_mode", false)
+                .apply()
+        }
+
         // Reset một lần ở bản 0.9.1 để người dùng kiểm duyệt luồng kích hoạt
         val auditKey = "audit_activation_check_v171"
         if (!prefs.getBoolean(auditKey, false)) {
@@ -1837,6 +1846,9 @@ class MainActivity : AppCompatActivity() {
             }
             false
         }
+
+        // Keep IPTV on the same accelerated WebView path as YouTube/browser.
+        YouTubePlayerHelper.applyUltraPerformance(w)
 
         w.settings.apply {
             javaScriptEnabled = true

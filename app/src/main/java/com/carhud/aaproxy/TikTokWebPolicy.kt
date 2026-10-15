@@ -9,13 +9,13 @@ import android.webkit.WebView
 /**
  * TikTok-specific WebView policy for Android Auto.
  *
- * The page remains TikTok's public web UI. The policy only removes client-side
- * login overlays, preserves the browsing session, and keeps a small queue of
- * public video links already exposed by TikTok so a guest can continue browsing
- * when the web feed itself becomes login-gated.
+ * The page remains TikTok's public web UI. Explicit login is allowed and kept
+ * in the same WebView/cookie session. Automatic login gates may still fall back
+ * to public browsing, and a small queue of public video links lets playback
+ * continue when TikTok temporarily guest-gates the feed.
  */
 internal object TikTokWebPolicy {
-    private const val POLICY_VERSION = 12
+    private const val POLICY_VERSION = 13
 
     fun isTikTok(url: String?): Boolean {
         val host = runCatching { Uri.parse(url.orEmpty()).host.orEmpty().lowercase() }.getOrDefault("")
@@ -55,7 +55,8 @@ internal object TikTokWebPolicy {
             loadWithOverviewMode = false
             textZoom = 100
             cacheMode = WebSettings.LOAD_DEFAULT
-            javaScriptCanOpenWindowsAutomatically = false
+            // Keep OAuth/login links in this WebView instead of silently dropping them.
+            javaScriptCanOpenWindowsAutomatically = true
             setSupportMultipleWindows(false)
             builtInZoomControls = false
             displayZoomControls = false
@@ -145,9 +146,7 @@ internal object TikTokWebPolicy {
                             html:not(.ttube-tiktok-search) [data-e2e="browse-like"],
                             html:not(.ttube-tiktok-search) [data-e2e="browse-comment"],
                             html:not(.ttube-tiktok-search) [data-e2e="browse-share"],
-                            html:not(.ttube-tiktok-search) [data-e2e="browse-save"],
-                            html:not(.ttube-tiktok-search) [data-e2e="top-login-button"],
-                            html:not(.ttube-tiktok-search) [class*="DivHeaderRightContainer"] {
+                            html:not(.ttube-tiktok-search) [data-e2e="browse-save"] {
                                 display: none !important;
                                 visibility: hidden !important;
                                 pointer-events: none !important;
@@ -200,6 +199,12 @@ internal object TikTokWebPolicy {
                     function isSearchRoute() {
                         var path = location.pathname || '';
                         return path === '/search' || path.indexOf('/search/') === 0;
+                    }
+
+                    function isLoginRoute() {
+                        var path = (location.pathname || '').toLowerCase();
+                        return path === '/login' || path.indexOf('/login/') === 0 ||
+                            path === '/signup' || path.indexOf('/signup/') === 0;
                     }
 
                     function clearVideoMode() {
@@ -454,6 +459,47 @@ internal object TikTokWebPolicy {
                         } catch (_) {}
                     }
 
+
+                    function installLoginIntentTracking() {
+                        if (state.loginIntentHandlerVersion === VERSION && state.loginIntentHandler) return;
+                        if (state.loginIntentHandler) {
+                            try { document.removeEventListener('click', state.loginIntentHandler, true); } catch (_) {}
+                        }
+                        state.loginIntentHandlerVersion = VERSION;
+                        state.loginIntentHandler = function(event) {
+                            var target = event.target;
+                            if (target && target.nodeType !== 1) target = target.parentElement;
+                            var clickable = target && target.closest ?
+                                target.closest('button, a, [role="button"], [data-e2e]') : null;
+                            if (!clickable) return;
+
+                            var marker = (
+                                (clickable.getAttribute('data-e2e') || '') + ' ' +
+                                (clickable.getAttribute('class') || '') + ' ' +
+                                (clickable.getAttribute('id') || '')
+                            ).toLowerCase();
+                            var text = ((clickable.innerText || clickable.textContent || '') + '')
+                                .toLowerCase().replace(/\s+/g, ' ').trim();
+
+                            var loginIntent =
+                                marker.indexOf('login') >= 0 || marker.indexOf('sign-in') >= 0 ||
+                                text === 'log in' || text === 'login' || text.indexOf('đăng nhập') >= 0 ||
+                                text.indexOf('sign in') >= 0 || text.indexOf('use phone') >= 0 ||
+                                text.indexOf('use email') >= 0;
+                            if (!loginIntent) return;
+
+                            state.loginRequestedAt = Date.now();
+                            state.guestFallback = false;
+                            document.querySelectorAll(
+                                '[data-ttube-login-wall="1"], [data-ttube-login-backdrop="1"]'
+                            ).forEach(function(el) {
+                                el.removeAttribute('data-ttube-login-wall');
+                                el.removeAttribute('data-ttube-login-backdrop');
+                            });
+                        };
+                        document.addEventListener('click', state.loginIntentHandler, true);
+                    }
+
                     function dismissLoginWalls(force) {
                         var now = Date.now();
                         if (!force && state.lastLoginSweepAt && now - state.lastLoginSweepAt < 250) return;
@@ -494,14 +540,24 @@ internal object TikTokWebPolicy {
                         }
 
                         var hidden = false;
+                        var allowLogin = isLoginRoute() ||
+                            (state.loginRequestedAt && now - state.loginRequestedAt < 180000);
                         candidateList.forEach(function(el) {
                             var loginWall = looksLikeLoginWall(el);
+                            if (loginWall && allowLogin) {
+                                el.removeAttribute('data-ttube-login-wall');
+                                document.querySelectorAll('[data-ttube-login-backdrop="1"]').forEach(function(bg) {
+                                    bg.removeAttribute('data-ttube-login-backdrop');
+                                });
+                                return;
+                            }
+
                             var appPromo = !loginWall && looksLikeAppPromoWall(el);
                             if (!loginWall && !appPromo) return;
                             hidden = true;
                             el.setAttribute(appPromo ? 'data-ttube-app-promo-wall' : 'data-ttube-login-wall', '1');
-                            // Avoid synthetic close clicks: CSS removal is enough and
-                            // looks less automated to TikTok's guest risk checks.
+                            // Automatic gates can still use guest fallback. A login
+                            // explicitly opened by the user is never hidden.
                             markBackdropNear(el);
                         });
                         if (hidden) {
@@ -623,15 +679,25 @@ internal object TikTokWebPolicy {
 
                     function applyAll() {
                         state.pending = false;
+                        state.lastApplyAt = Date.now();
                         ensureViewport();
                         ensureStyle();
                         document.documentElement.classList.toggle('ttube-tiktok-search', isSearchRoute());
                         if (recoverLegacyPlayerRoute()) return;
-                        if (!isVideoRoute()) collectPublicVideos(document);
-                        else {
+
+                        if (!isVideoRoute()) {
+                            var collectNow = Date.now();
+                            var collectGap = isSearchRoute() ? 420 : 900;
+                            if (!state.lastCollectAt || collectNow - state.lastCollectAt >= collectGap) {
+                                state.lastCollectAt = collectNow;
+                                collectPublicVideos(document);
+                            }
+                        } else {
                             var current = normalizeVideoUrl(location.href);
                             if (current && state.guestQueue.indexOf(current) < 0) state.guestQueue.push(current);
                         }
+
+                        installLoginIntentTracking();
                         dismissLoginWalls(false);
                         recoverSearchShell();
                         installGuestGestures();
@@ -643,7 +709,15 @@ internal object TikTokWebPolicy {
                     function schedule() {
                         if (state.pending) return;
                         state.pending = true;
-                        var run = function() { setTimeout(applyAll, 72); };
+                        var run = function() {
+                            if (!state.lastApplyAt) {
+                                setTimeout(applyAll, 72);
+                                return;
+                            }
+                            var elapsed = Date.now() - state.lastApplyAt;
+                            var delay = Math.max(72, 160 - elapsed);
+                            setTimeout(applyAll, delay);
+                        };
                         if (window.requestAnimationFrame) requestAnimationFrame(run); else run();
                     }
 

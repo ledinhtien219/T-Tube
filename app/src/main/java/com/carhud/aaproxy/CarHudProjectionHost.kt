@@ -54,6 +54,10 @@ class CarHudProjectionService : CarActivityService() {
             cableDisconnectReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
                     val action = intent?.action ?: return
+                    if (!CarMediaManager.isCarConnected) {
+                        Log.d("CarHudProjectionService", "Ignoring detach without active projection: $action")
+                        return
+                    }
                     Log.i("CarHudProjectionService", "Projection cable disconnected: $action")
                     CarAppShutdownManager.shutdownCompletely(
                         (context ?: applicationContext).applicationContext,
