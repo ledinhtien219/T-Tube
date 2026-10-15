@@ -12,8 +12,9 @@ assert.match(manifest, /android:name="com\.carhud\.aaproxy\.CarHudProjectionServ
 assert.match(projection, /Intent\.ACTION_POWER_DISCONNECTED/);
 assert.match(projection, /UsbManager\.ACTION_USB_DEVICE_DETACHED/);
 assert.match(projection, /UsbManager\.ACTION_USB_ACCESSORY_DETACHED/);
-assert.match(projection, /CarAppShutdownManager\.shutdownCompletely/);
-assert.match(projection, /if \(wasConnected\)[\s\S]*?Android Auto projection service destroyed/);
+assert.match(projection, /CarDisconnectWatchdog\.onCableDetachBroadcast/);
+assert.match(projection, /CarDisconnectWatchdog\.onProjectionServiceDestroyed/);
+assert.doesNotMatch(projection, /if \(wasConnected\)/);
 
 // Surface recreation is not itself treated as a disconnect; cable/service lifecycle
 // owns the full exit so resize/config changes do not terminate the app.
@@ -21,6 +22,7 @@ assert.match(projection, /Surface loss can be a resize\/recreation[\s\S]*?servic
 
 // Full shutdown disables playback, does not wake the phone WebView, and stops services.
 assert.match(shutdown, /CarMediaManager\.userWantsPlayback = false/);
+assert.match(shutdown, /pauseAllPlaybackForShutdown\(\)/);
 assert.match(shutdown, /setCarConnectionState\(false, resumePhoneOnDisconnect = false\)/);
 assert.match(shutdown, /stopService\(Intent\(context, CarHudProjectionService::class\.java\)\)/);
 assert.match(shutdown, /stopService\(mediaIntent\)/);
