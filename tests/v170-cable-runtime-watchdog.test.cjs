@@ -48,6 +48,6 @@ assert.match(workflow, /CarDisconnectWatchdogRuntimeTest/);
 assert.match(workflow, /TikTokRuntimeSmokeTest/);
 assert.match(workflow, /cable_status/);
 assert.match(workflow, /tiktok_status/);
-assert.match(workflow, /TTube-v1\.0\.67-build259-APK/);
+assert.match(workflow, /TTube-v1\.0\.68-build259-APK/);
 
 console.log('PASS v1.0.68 build 259: wired cable loss is independently detected, hard-stopped, runtime-tested, and gates APK');
