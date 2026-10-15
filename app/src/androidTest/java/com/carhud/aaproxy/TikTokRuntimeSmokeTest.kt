@@ -34,6 +34,10 @@ class TikTokRuntimeSmokeTest {
                     "TikTok home did not render usable web content",
                     waitUntil(55_000) { isHealthy(activity) && mediaCount(activity) >= 1 }
                 )
+                assertTrue(
+                    "TikTok home overflows the WebView horizontally",
+                    fitsViewport(activity)
+                )
                 appendStage("home", activity, mediaCount(activity))
                 screenshot("01-home.png")
 
@@ -59,6 +63,10 @@ class TikTokRuntimeSmokeTest {
                     screenshot("98-search-timeout.png")
                 }
                 assertTrue("TikTok search route did not render video results", searchReady)
+                assertTrue(
+                    "TikTok search overflows the WebView horizontally",
+                    fitsViewport(activity)
+                )
 
                 appendStage("search-cat", activity, mediaCount(activity))
                 screenshot("03-search.png")
@@ -99,6 +107,24 @@ class TikTokRuntimeSmokeTest {
             var blocked = /access denied|unusual traffic|captcha|verify to continue|network error|something went wrong/i.test(text);
             return location.hostname.indexOf('tiktok.com') >= 0 &&
                    sized && text.length > 80 && !blocked;
+          } catch (_) { return false; }
+        })();
+        """.trimIndent()
+    )
+
+    private fun fitsViewport(activity: TikTokSmokeActivity): Boolean = evalBoolean(
+        activity,
+        """
+        (function() {
+          try {
+            var de = document.documentElement;
+            var body = document.body;
+            var viewport = Math.max(1, window.innerWidth || de.clientWidth || 1);
+            var width = Math.max(
+              de ? de.scrollWidth : 0,
+              body ? body.scrollWidth : 0
+            );
+            return width <= Math.ceil(viewport * 1.12);
           } catch (_) { return false; }
         })();
         """.trimIndent()
