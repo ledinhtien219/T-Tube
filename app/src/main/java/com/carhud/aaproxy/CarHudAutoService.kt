@@ -34,6 +34,7 @@ class CarHudAutoService : CarAppService() {
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_POWER_DISCONNECTED)
                 addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+                addAction(UsbManager.ACTION_USB_ACCESSORY_DETACHED)
             }
             powerDisconnectReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
