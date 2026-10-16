@@ -14,9 +14,6 @@ import androidx.car.app.SurfaceCallback
 import androidx.car.app.SurfaceContainer
 import androidx.car.app.model.Action
 import androidx.car.app.model.ActionStrip
-import androidx.car.app.model.CarColor
-import androidx.car.app.model.Pane
-import androidx.car.app.navigation.model.MapTemplate
 import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.car.app.model.Template
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -89,6 +86,10 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     override fun onStableAreaChanged(stableArea: Rect) {}
 
     override fun onSurfaceDestroyed(surfaceContainer: SurfaceContainer) {
+        CarDisconnectWatchdog.onProjectionLifecycleEnded(
+            carContext,
+            "ultrawide SurfaceContainer destroyed"
+        )
         handler.post {
             try {
                 // User switched to Maps/Waze/Android Auto home. Keep the Presentation and
@@ -165,6 +166,7 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
             presentation = pres
 
             CarMediaManager.setCarConnectionState(true)
+            CarDisconnectWatchdog.onProjectionConnected(carContext)
             CarMediaManager.carScreenWidth = width
             CarMediaManager.carScreenHeight = height
             CarMediaManager.carScreenDpi = dpi
@@ -204,23 +206,14 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     }
 
     override fun onGetTemplate(): Template {
-        // Car API 5+ can expose the navigation SurfaceContainer without an
-        // ActionStrip. On compatible ultrawide/Coolwalk hosts this can restore
-        // the full-width canvas instead of the narrower content pane.
-        if (carContext.carAppApiLevel >= 5) {
-            return MapTemplate.Builder()
-                .setPane(Pane.Builder().build())
-                .build()
-        }
-
-        // Older hosts still need NavigationTemplate with one action.
-        val transparent = CarColor.createCustom(0x00000000, 0x00000000)
+        // NavigationTemplate requires a non-empty ActionStrip on real AA hosts.
+        // A zero-width text action is the known crash-safe full-surface variant
+        // used by the earlier working implementation. SurfaceContainer still
+        // carries the host-provided width/height for ultrawide rendering.
         val hiddenActionStrip = ActionStrip.Builder()
             .addAction(
                 Action.Builder()
                     .setTitle("\u200B")
-                    .setFlags(Action.FLAG_PRIMARY)
-                    .setBackgroundColor(transparent)
                     .build()
             )
             .build()
