@@ -4334,6 +4334,278 @@ class CarPresentation(
         showDashboard()
     }
 
+    /**
+     * Mazda Commander support for the dedicated Mazda build.
+     * direction > 0 moves forward/down, direction < 0 moves backward/up.
+     */
+    fun dispatchMazdaRotary(direction: Int): Boolean {
+        if (direction == 0) return false
+        onUserInteraction()
+
+        val nativeContainer: View? = when {
+            videoQualityOverlay != null -> videoQualityOverlay
+            addAppOverlay?.visibility == View.VISIBLE -> addAppOverlay
+            appGridOverlay?.visibility == View.VISIBLE -> appGridOverlay
+            ::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE -> searchOverlay
+            isDashboardShowing -> dashboardView
+            else -> null
+        }
+
+        if (nativeContainer != null) {
+            val focusDirection = if (direction > 0) View.FOCUS_FORWARD else View.FOCUS_BACKWARD
+            return moveMazdaNativeFocus(nativeContainer, focusDirection)
+        }
+
+        return moveMazdaWebFocus(direction)
+    }
+
+    /**
+     * Fallback for AndroidX car hosts. In pan mode the host converts rotary nudges
+     * to SurfaceCallback.onScroll(), but does not expose the original MotionEvent.
+     */
+    fun dispatchMazdaSurfaceScroll(dx: Float, dy: Float): Boolean {
+        val primary = if (kotlin.math.abs(dy) >= kotlin.math.abs(dx)) dy else dx
+        if (kotlin.math.abs(primary) < 0.01f) return false
+        val steps = kotlin.math.ceil((kotlin.math.abs(primary) / 48f).toDouble())
+            .toInt()
+            .coerceIn(1, 4)
+        val direction = if (primary > 0f) 1 else -1
+        var handled = false
+        repeat(steps) {
+            handled = dispatchMazdaRotary(direction) || handled
+        }
+        return handled
+    }
+
+    fun dispatchMazdaKey(event: KeyEvent): Boolean {
+        val supported = when (event.keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP,
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            KeyEvent.KEYCODE_DPAD_RIGHT,
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_NUMPAD_ENTER,
+            KeyEvent.KEYCODE_BACK,
+            KeyEvent.KEYCODE_DEL,
+            KeyEvent.KEYCODE_ESCAPE -> true
+            else -> false
+        }
+        if (!supported) return false
+
+        // Consume key-up too so the host does not execute a second action.
+        if (event.action != KeyEvent.ACTION_DOWN) return true
+
+        return when (event.keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP,
+            KeyEvent.KEYCODE_DPAD_LEFT -> dispatchMazdaDirectional(View.FOCUS_BACKWARD, -1)
+
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_DPAD_RIGHT -> dispatchMazdaDirectional(View.FOCUS_FORWARD, 1)
+
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_NUMPAD_ENTER -> activateMazdaFocus()
+
+            KeyEvent.KEYCODE_BACK,
+            KeyEvent.KEYCODE_DEL,
+            KeyEvent.KEYCODE_ESCAPE -> {
+                if (currentActiveAppId == "tiktok" && !isDashboardShowing) {
+                    goBackWithinTikTok()
+                } else {
+                    goBack()
+                }
+                true
+            }
+
+            else -> false
+        }
+    }
+
+    private fun dispatchMazdaDirectional(nativeDirection: Int, webDirection: Int): Boolean {
+        onUserInteraction()
+        val nativeContainer: View? = when {
+            videoQualityOverlay != null -> videoQualityOverlay
+            addAppOverlay?.visibility == View.VISIBLE -> addAppOverlay
+            appGridOverlay?.visibility == View.VISIBLE -> appGridOverlay
+            ::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE -> searchOverlay
+            isDashboardShowing -> dashboardView
+            else -> null
+        }
+        return if (nativeContainer != null) {
+            moveMazdaNativeFocus(nativeContainer, nativeDirection)
+        } else {
+            moveMazdaWebFocus(webDirection)
+        }
+    }
+
+    private fun moveMazdaNativeFocus(container: View, direction: Int): Boolean {
+        val candidates = ArrayList<View>()
+        container.addFocusables(candidates, direction)
+        if (candidates.isEmpty()) return false
+
+        val current = root.findFocus()
+        val currentInside = current != null && isMazdaDescendant(container, current)
+        val next = if (currentInside) {
+            current?.focusSearch(direction)
+        } else null
+
+        val target = next?.takeIf { isMazdaDescendant(container, it) }
+            ?: when (direction) {
+                View.FOCUS_BACKWARD, View.FOCUS_LEFT, View.FOCUS_UP -> candidates.lastOrNull()
+                else -> candidates.firstOrNull()
+            }
+            ?: return false
+
+        current?.isSelected = false
+        current?.animate()?.scaleX(1f)?.scaleY(1f)?.setDuration(80L)?.start()
+        val focused = target.requestFocus()
+        if (focused) {
+            target.isSelected = true
+            target.animate().scaleX(1.06f).scaleY(1.06f).setDuration(80L).start()
+        }
+        return focused
+    }
+
+    private fun isMazdaDescendant(container: View, child: View): Boolean {
+        var node: View? = child
+        while (node != null) {
+            if (node === container) return true
+            node = node.parent as? View
+        }
+        return false
+    }
+
+    private fun activeMazdaWebView(): WebView {
+        return if (isDashboardShowing && dashboardView?.isEmbeddedAppShowing() == true) {
+            dashboardView?.currentEmbeddedWeb ?: web
+        } else {
+            CarMediaManager.getActiveWebView() ?: web
+        }
+    }
+
+    private fun moveMazdaWebFocus(direction: Int): Boolean {
+        val target = activeMazdaWebView()
+        val forward = direction > 0
+        val isYouTubeResults = currentActiveAppId == "youtube" &&
+            target.url.orEmpty().contains("/results", ignoreCase = true)
+        val forwardJs = if (forward) "true" else "false"
+        val ytResultsJs = if (isYouTubeResults) "true" else "false"
+        val js = """
+            (function() {
+                try {
+                    var forward = FORWARD_LITERAL;
+                    var ytResults = YT_RESULTS_LITERAL;
+                    var selector = ytResults
+                        ? 'ytm-video-with-context-renderer a[href*="/watch"], ytm-compact-video-renderer a[href*="/watch"], ytd-video-renderer a[href*="/watch"], ytd-compact-video-renderer a[href*="/watch"]'
+                        : 'a[href], button, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"])';
+
+                    var raw = Array.prototype.slice.call(document.querySelectorAll(selector));
+                    var seen = {};
+                    var items = raw.filter(function(el) {
+                        if (!el || el.disabled) return false;
+                        var r = el.getBoundingClientRect();
+                        if (!r || r.width < 2 || r.height < 2) return false;
+                        var s = getComputedStyle(el);
+                        if (s.display === 'none' || s.visibility === 'hidden') return false;
+                        if (ytResults) {
+                            var key = el.href || el.getAttribute('href') || '';
+                            if (!key || seen[key]) return false;
+                            seen[key] = true;
+                        }
+                        return true;
+                    });
+
+                    if (!items.length) {
+                        window.scrollBy({ top: forward ? 180 : -180, behavior: 'smooth' });
+                        return true;
+                    }
+
+                    var current = document.querySelector('.ttube-mazda-focus');
+                    var idx = items.indexOf(current);
+                    if (idx < 0 && document.activeElement) idx = items.indexOf(document.activeElement);
+                    idx = idx < 0
+                        ? (forward ? 0 : items.length - 1)
+                        : (idx + (forward ? 1 : -1) + items.length) % items.length;
+
+                    var old = document.querySelectorAll('.ttube-mazda-focus');
+                    for (var i = 0; i < old.length; i++) old[i].classList.remove('ttube-mazda-focus');
+
+                    if (!document.getElementById('ttube-mazda-focus-style')) {
+                        var style = document.createElement('style');
+                        style.id = 'ttube-mazda-focus-style';
+                        style.textContent =
+                            '.ttube-mazda-focus{outline:4px solid #38BDF8 !important;outline-offset:3px !important;border-radius:8px !important;}';
+                        document.documentElement.appendChild(style);
+                    }
+
+                    var el = items[idx];
+                    el.classList.add('ttube-mazda-focus');
+                    try { el.focus({preventScroll:true}); } catch(e) { try { el.focus(); } catch(_) {} }
+                    try {
+                        el.scrollIntoView({behavior:'smooth', block:'center', inline:'nearest'});
+                    } catch(e) {
+                        el.scrollIntoView(false);
+                    }
+                    return true;
+                } catch(e) {
+                    return false;
+                }
+            })();
+        """.trimIndent()
+            .replace("FORWARD_LITERAL", forwardJs)
+            .replace("YT_RESULTS_LITERAL", ytResultsJs)
+        return try {
+            target.evaluateJavascript(js, null)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun activateMazdaFocus(): Boolean {
+        val nativeContainer: View? = when {
+            videoQualityOverlay != null -> videoQualityOverlay
+            addAppOverlay?.visibility == View.VISIBLE -> addAppOverlay
+            appGridOverlay?.visibility == View.VISIBLE -> appGridOverlay
+            ::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE -> searchOverlay
+            isDashboardShowing -> dashboardView
+            else -> null
+        }
+
+        if (nativeContainer != null) {
+            val focused = root.findFocus()
+            if (focused != null && isMazdaDescendant(nativeContainer, focused) && focused !== nativeContainer) {
+                if (focused.performClick()) return true
+            }
+            // First center press with no selection only establishes focus.
+            return moveMazdaNativeFocus(nativeContainer, View.FOCUS_FORWARD)
+        }
+
+        val target = activeMazdaWebView()
+        val js = """
+            (function() {
+                try {
+                    var el = document.querySelector('.ttube-mazda-focus') || document.activeElement;
+                    if (!el || el === document.body || el === document.documentElement) return false;
+                    if (typeof el.click === 'function') {
+                        el.click();
+                        return true;
+                    }
+                    return false;
+                } catch(e) {
+                    return false;
+                }
+            })();
+        """.trimIndent()
+        return try {
+            target.evaluateJavascript(js, null)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == KeyEvent.KEYCODE_MEDIA_NEXT) {
             if (event.action == KeyEvent.ACTION_DOWN) CarMediaManager.handleSteeringNext(context, event)

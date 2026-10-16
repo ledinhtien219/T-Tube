@@ -12,8 +12,8 @@ android {
         applicationId = "com.tcar.auto"
         minSdk = 29
         targetSdk = 35
-        versionCode = 261
-        versionName = "1.0.70"
+        versionCode = 262
+        versionName = "1.0.70-mazda1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

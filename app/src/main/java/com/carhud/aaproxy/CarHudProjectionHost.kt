@@ -11,6 +11,7 @@ import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
 import android.view.GestureDetector
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceHolder
@@ -116,6 +117,7 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
             holder.addCallback(this@CarHudProjectionActivity)
             isClickable = true
             isFocusable = true
+            isFocusableInTouchMode = true
         }
 
         root.addView(
@@ -166,7 +168,49 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
             }
             true
         }
+
+        // Mazda Commander / other rotary head units can deliver the knob as either
+        // generic ACTION_SCROLL motion or DPAD/ENTER key events.
+        surfaceView.setOnGenericMotionListener { _, event ->
+            handleMazdaRotaryMotion(event)
+        }
+        surfaceView.setOnKeyListener { _, _, event ->
+            presentation?.dispatchMazdaKey(event) == true
+        }
+        surfaceView.requestFocus()
     }
+
+    private fun handleMazdaRotaryMotion(event: MotionEvent): Boolean {
+        if (event.action != MotionEvent.ACTION_SCROLL) return false
+
+        val generic = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            event.getAxisValue(MotionEvent.AXIS_SCROLL)
+        } else 0f
+        val vertical = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
+        val horizontal = event.getAxisValue(MotionEvent.AXIS_HSCROLL)
+
+        val value = when {
+            kotlin.math.abs(generic) > 0.001f -> generic
+            kotlin.math.abs(vertical) > 0.001f -> vertical
+            kotlin.math.abs(horizontal) > 0.001f -> horizontal
+            else -> 0f
+        }
+        if (value == 0f) return false
+
+        // Scroll-wheel convention: negative means forward/down, positive back/up.
+        // Clamp bursts so one physical detent cannot skip a large part of the UI.
+        val steps = kotlin.math.ceil(kotlin.math.abs(value).toDouble()).toInt().coerceIn(1, 4)
+        val direction = if (value < 0f) 1 else -1
+        Log.d(
+            "CarHudMazda",
+            "rotary source=${event.source} generic=$generic v=$vertical h=$horizontal steps=$steps dir=$direction"
+        )
+        repeat(steps) {
+            presentation?.dispatchMazdaRotary(direction)
+        }
+        return true
+    }
+
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         val frame = holder.surfaceFrame
