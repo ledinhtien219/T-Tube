@@ -169,35 +169,33 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
             true
         }
         // Mazda Commander needs keyboard-style focus to stay on the projection surface.
+        // CarActivity in the bundled AA SDK is not a normal Activity subclass, so
+        // receive Commander input directly on the focused projection SurfaceView.
         surfaceView.isFocusableInTouchMode = true
+        surfaceView.setOnKeyListener { _, keyCode, event ->
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP,
+                KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_DPAD_LEFT,
+                KeyEvent.KEYCODE_DPAD_RIGHT,
+                KeyEvent.KEYCODE_DPAD_CENTER,
+                KeyEvent.KEYCODE_ENTER,
+                KeyEvent.KEYCODE_NUMPAD_ENTER ->
+                    presentation?.dispatchProjectedKeyEvent(event) == true
+                else -> false
+            }
+        }
+        surfaceView.setOnGenericMotionListener { _, event ->
+            val fromRotary = (event.source and InputDevice.SOURCE_ROTARY_ENCODER) ==
+                InputDevice.SOURCE_ROTARY_ENCODER
+            if (fromRotary && event.action == MotionEvent.ACTION_SCROLL) {
+                val axis = event.getAxisValue(MotionEvent.AXIS_SCROLL)
+                axis != 0f && presentation?.dispatchMazdaRotary(axis) == true
+            } else {
+                false
+            }
+        }
         surfaceView.requestFocus()
-    }
-
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        when (event.keyCode) {
-            KeyEvent.KEYCODE_DPAD_UP,
-            KeyEvent.KEYCODE_DPAD_DOWN,
-            KeyEvent.KEYCODE_DPAD_LEFT,
-            KeyEvent.KEYCODE_DPAD_RIGHT,
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER,
-            KeyEvent.KEYCODE_NUMPAD_ENTER -> {
-                if (presentation?.dispatchProjectedKeyEvent(event) == true) return true
-            }
-        }
-        return super.dispatchKeyEvent(event)
-    }
-
-    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
-        val fromRotary = (event.source and InputDevice.SOURCE_ROTARY_ENCODER) ==
-            InputDevice.SOURCE_ROTARY_ENCODER
-        if (fromRotary && event.action == MotionEvent.ACTION_SCROLL) {
-            val axis = event.getAxisValue(MotionEvent.AXIS_SCROLL)
-            if (axis != 0f && presentation?.dispatchMazdaRotary(axis) == true) {
-                return true
-            }
-        }
-        return super.dispatchGenericMotionEvent(event)
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
