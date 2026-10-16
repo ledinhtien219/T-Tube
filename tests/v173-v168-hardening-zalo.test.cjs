@@ -13,7 +13,7 @@ const licenseConfig = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/Lice
 const workflow = fs.readFileSync('.github/workflows/build-apk.yml','utf8');
 
 assert.match(gradle, /versionCode = (?:261|262)/);
-assert.match(gradle, /versionName = "1\\.0\\.70(?:-mazda1)?"/);
+assert.match(gradle, /versionName = "1\.0\.70(?:-mazda1)?"/);
 
 // No public/client-side developer unlock shortcut.
 assert.doesNotMatch(activation, /219171|setDevBypass|handleDevBypassClick|showDevPasswordDialog/);
