@@ -24,6 +24,12 @@ assert.match(flingBlock, /flingScale = if \(isYouTubeResults\) 0\.28f else 0\.45
 
 assert.match(presentation, /private var youtubeSeekBar: SeekBar\?/);
 assert.match(presentation, /private var youtubeSeekDragging = false/);
+assert.match(presentation, /private fun shouldShowYouTubeSeekOverlay\(\): Boolean/);
+assert.match(presentation, /CarMediaManager\.activeAppId == "youtube"/);
+assert.match(presentation, /dashboardView\?\.visibility != View\.VISIBLE/);
+assert.match(presentation, /private fun hideYouTubeSeekOverlayImmediately\(\)/);
+assert.match(presentation, /fun showDashboard\(\)[\s\S]*?hideYouTubeSeekOverlayImmediately\(\)/);
+assert.match(presentation, /if \(isDashboardShowing \|\| currentActiveAppId == "iptv"\)[\s\S]*?hideYouTubeSeekOverlayImmediately\(\)/);
 assert.match(presentation, /private fun isYouTubeVideoPage\(\): Boolean/);
 assert.match(presentation, /url\.contains\("\/watch", ignoreCase = true\)/);
 assert.match(presentation, /url\.contains\("\/shorts\/", ignoreCase = true\)/);
@@ -36,4 +42,4 @@ assert.match(presentation, /youtubeSeekTimeLabel\?\.text/);
 assert.match(helper, /fun seekTo\(view: WebView\?, seconds: Long\)/);
 assert.match(helper, /player\.seekTo\(\$seconds, true\)/);
 
-console.log('PASS main: YouTube results use 1.5x/0.28x swipe tuning and native seekable timeline');
+console.log('PASS main: YouTube swipe tuning + seekbar only on foreground YouTube video pages');
