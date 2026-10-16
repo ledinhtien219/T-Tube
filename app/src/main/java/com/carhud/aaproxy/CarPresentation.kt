@@ -105,6 +105,16 @@ class CarPresentation(
     private var commanderCursorY = 0f
     private var commanderCursorAccel = 1f
     private var commanderLastMoveAt = 0L
+    private var commanderDpadKeyCode = KeyEvent.KEYCODE_UNKNOWN
+    private var commanderDpadDx = 0f
+    private var commanderDpadDy = 0f
+    private val commanderDpadRepeatRunnable = object : Runnable {
+        override fun run() {
+            if (commanderDpadKeyCode == KeyEvent.KEYCODE_UNKNOWN) return
+            moveCommanderCursor(commanderDpadDx, commanderDpadDy, "RAW DPAD HOLD")
+            mainHandler.postDelayed(this, 50L)
+        }
+    }
     private val hideCommanderCursorRunnable = Runnable {
         commanderCursor?.visibility = View.GONE
     }
@@ -1593,6 +1603,43 @@ class CarPresentation(
     private fun hideCommanderCursorVisual() {
         commanderCursor?.visibility = View.GONE
         mainHandler.removeCallbacks(hideCommanderCursorRunnable)
+    }
+
+    // Fermata-style Mazda PAD handling: D-pad directions drive the free cursor
+    // continuously while held, and DPAD_CENTER activates the cursor on KEY_UP.
+    // Keeping this separate from rotary navigation preserves the existing
+    // semantic Commander focus path for the knob.
+    private fun startCommanderDpad(keyCode: Int, dx: Float, dy: Float) {
+        if (!::root.isInitialized) return
+
+        mainHandler.removeCallbacks(commanderDpadRepeatRunnable)
+        commanderDpadKeyCode = keyCode
+        commanderDpadDx = dx
+        commanderDpadDy = dy
+        dashboardView?.clearCommanderFocus()
+        YouTubePlayerHelper.clearCommanderSelection(web)
+
+        val cursorVisible = commanderCursor?.visibility == View.VISIBLE
+        if (cursorVisible) {
+            moveCommanderCursor(dx, dy, "RAW DPAD")
+        } else {
+            showCommanderCursor("RAW DPAD")
+        }
+
+        mainHandler.postDelayed(commanderDpadRepeatRunnable, 50L)
+        showRotaryDiagnostic("RAW DPAD DOWN key=$keyCode dx=$dx dy=$dy")
+    }
+
+    private fun stopCommanderDpad(keyCode: Int) {
+        if (commanderDpadKeyCode != keyCode) return
+        mainHandler.removeCallbacks(commanderDpadRepeatRunnable)
+        commanderDpadKeyCode = KeyEvent.KEYCODE_UNKNOWN
+        commanderDpadDx = 0f
+        commanderDpadDy = 0f
+        commanderCursorAccel = 1f
+        mainHandler.removeCallbacks(hideCommanderCursorRunnable)
+        mainHandler.postDelayed(hideCommanderCursorRunnable, 5000L)
+        showRotaryDiagnostic("RAW DPAD UP key=$keyCode")
     }
 
     fun moveCommanderTarget(dx: Float, dy: Float, source: String) {
@@ -4207,45 +4254,62 @@ class CarPresentation(
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
             when (event.keyCode) {
-                KeyEvent.KEYCODE_DPAD_UP,
+                KeyEvent.KEYCODE_DPAD_UP -> {
+                    if (event.repeatCount == 0) startCommanderDpad(event.keyCode, 0f, -1f)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    if (event.repeatCount == 0) startCommanderDpad(event.keyCode, 0f, 1f)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    if (event.repeatCount == 0) startCommanderDpad(event.keyCode, -1f, 0f)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (event.repeatCount == 0) startCommanderDpad(event.keyCode, 1f, 0f)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_UP_LEFT -> {
+                    if (event.repeatCount == 0) startCommanderDpad(event.keyCode, -1f, -1f)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_UP_RIGHT -> {
+                    if (event.repeatCount == 0) startCommanderDpad(event.keyCode, 1f, -1f)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN_LEFT -> {
+                    if (event.repeatCount == 0) startCommanderDpad(event.keyCode, -1f, 1f)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN_RIGHT -> {
+                    if (event.repeatCount == 0) startCommanderDpad(event.keyCode, 1f, 1f)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_CENTER -> {
+                    if (commanderCursor?.visibility == View.VISIBLE) {
+                        showRotaryDiagnostic("RAW DPAD CENTER DOWN")
+                        return true
+                    }
+                }
                 KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP,
                 KeyEvent.KEYCODE_NAVIGATE_PREVIOUS -> {
                     moveCommanderTarget(0f, -1f, "RAW UP")
                     return true
                 }
-                KeyEvent.KEYCODE_DPAD_DOWN,
                 KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN,
                 KeyEvent.KEYCODE_NAVIGATE_NEXT -> {
                     moveCommanderTarget(0f, 1f, "RAW DOWN")
                     return true
                 }
-                KeyEvent.KEYCODE_DPAD_LEFT,
                 KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT -> {
                     moveCommanderTarget(-1f, 0f, "RAW LEFT")
                     return true
                 }
-                KeyEvent.KEYCODE_DPAD_RIGHT,
                 KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT -> {
                     moveCommanderTarget(1f, 0f, "RAW RIGHT")
                     return true
                 }
-                KeyEvent.KEYCODE_DPAD_UP_LEFT -> {
-                    moveCommanderTarget(-1f, -1f, "RAW UP_LEFT")
-                    return true
-                }
-                KeyEvent.KEYCODE_DPAD_UP_RIGHT -> {
-                    moveCommanderTarget(1f, -1f, "RAW UP_RIGHT")
-                    return true
-                }
-                KeyEvent.KEYCODE_DPAD_DOWN_LEFT -> {
-                    moveCommanderTarget(-1f, 1f, "RAW DOWN_LEFT")
-                    return true
-                }
-                KeyEvent.KEYCODE_DPAD_DOWN_RIGHT -> {
-                    moveCommanderTarget(1f, 1f, "RAW DOWN_RIGHT")
-                    return true
-                }
-                KeyEvent.KEYCODE_DPAD_CENTER,
                 KeyEvent.KEYCODE_ENTER,
                 KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                     clickCommanderTarget("RAW SELECT")
@@ -4268,8 +4332,16 @@ class CarPresentation(
                 KeyEvent.KEYCODE_DPAD_UP_LEFT,
                 KeyEvent.KEYCODE_DPAD_UP_RIGHT,
                 KeyEvent.KEYCODE_DPAD_DOWN_LEFT,
-                KeyEvent.KEYCODE_DPAD_DOWN_RIGHT,
-                KeyEvent.KEYCODE_DPAD_CENTER,
+                KeyEvent.KEYCODE_DPAD_DOWN_RIGHT -> {
+                    stopCommanderDpad(event.keyCode)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_CENTER -> {
+                    if (commanderCursor?.visibility == View.VISIBLE) {
+                        clickCommanderCursor("RAW DPAD SELECT")
+                        return true
+                    }
+                }
                 KeyEvent.KEYCODE_ENTER,
                 KeyEvent.KEYCODE_NUMPAD_ENTER,
                 KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP,

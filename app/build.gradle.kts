@@ -12,7 +12,7 @@ android {
         applicationId = "com.tcar.auto"
         minSdk = 29
         targetSdk = 35
-        versionCode = 215
+        versionCode = 216
         versionName = "1.0.40"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

@@ -35,9 +35,21 @@ assert.match(presentation, /dy > 0f[\s\S]*?dispatchScroll\(0f, 140f\)/);
 assert.match(screen, /panModeEnabled[\s\S]*?moveCommanderCursorFromSurface/);
 assert.match(screen, /panModeEnabled[\s\S]*?clickCommanderTarget\("HOST SELECT"\)/);
 
+// Fermata-style Mazda PAD path: directional keys start a held cursor loop,
+// repeats are synthesized every 50ms, and center/select clicks on KEY_UP.
+assert.match(presentation, /private val commanderDpadRepeatRunnable = object : Runnable/);
+assert.match(presentation, /postDelayed\(this, 50L\)/);
+assert.match(presentation, /private fun startCommanderDpad\(keyCode: Int, dx: Float, dy: Float\)/);
+assert.match(presentation, /private fun stopCommanderDpad\(keyCode: Int\)/);
+assert.match(presentation, /KEYCODE_DPAD_UP -> \{[\s\S]*?startCommanderDpad\(event\.keyCode, 0f, -1f\)/);
+assert.match(
+  presentation,
+  /if \(event\.action == KeyEvent\.ACTION_UP\)[\s\S]*?KEYCODE_DPAD_CENTER -> \{[\s\S]*?clickCommanderCursor\("RAW DPAD SELECT"\)/
+);
+
 // Diagnostics stay enabled in the test build so a real Mazda can reveal which
 // path delivered each Commander event.
 assert.match(presentation, /fun showRotaryDiagnostic\(message: String\)/);
 assert.match(presentation, /Mazda test:/);
 
-console.log('PASS Mazda Commander routing: host PAN + raw rotary/DPAD -> smart focus or cursor fallback');
+console.log('PASS Mazda Commander routing: host PAN + rotary + Fermata-style held D-pad cursor/select');

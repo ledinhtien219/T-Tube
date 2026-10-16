@@ -2,7 +2,7 @@ name: Build Internal Test APK
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main", "master", "test/mazda-commander-input" ]
   pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
