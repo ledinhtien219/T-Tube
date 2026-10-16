@@ -13,12 +13,12 @@ const flingBlock =
 
 assert.match(scrollBlock, /currentActiveAppId == "youtube"/);
 assert.match(scrollBlock, /contains\("\/results", ignoreCase = true\)/);
-assert.match(scrollBlock, /scrollScale = if \(isYouTubeResults\) 1\.0f else 2\.0f/);
+assert.match(scrollBlock, /scrollScale = if \\(isYouTubeResults\\) 1\\.5f else 2\\.0f/);
 assert.match(scrollBlock, /dy \* scrollScale/);
 
 assert.match(flingBlock, /currentActiveAppId == "youtube"/);
 assert.match(flingBlock, /contains\("\/results", ignoreCase = true\)/);
-assert.match(flingBlock, /flingScale = if \(isYouTubeResults\) 0\.18f else 0\.45f/);
+assert.match(flingBlock, /flingScale = if \\(isYouTubeResults\\) 0\\.28f else 0\\.45f/);
 assert.match(flingBlock, /-vy \* flingScale/);
 
-console.log('PASS v1.0.70: YouTube results use slower 1:1 drag and damped fling');
+console.log('PASS v1.0.70: YouTube results use balanced 1.5x drag and 0.28x fling');
