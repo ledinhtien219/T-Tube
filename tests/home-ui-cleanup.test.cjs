@@ -14,31 +14,43 @@ const dashboardXml = fs.readFileSync(
   'utf8'
 );
 
-// Android Auto must enter through the Fermata-style projection service.
-// The legacy AndroidX screen may remain in source but is not the AA entry path.
+// Android Auto packages two mutually-exclusive host entries.
+// Stable projection is the manifest default; the ultrawide CarAppService is
+// enabled only after a safe disconnect/reconnect transition.
 const manifest = fs.readFileSync('app/src/main/AndroidManifest.xml', 'utf8');
 const projectionHost = fs.readFileSync(
   'app/src/main/java/com/carhud/aaproxy/CarHudProjectionHost.kt',
   'utf8'
 );
+const hostMode = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/CarHostModeManager.kt',
+  'utf8'
+);
 const descriptor = fs.readFileSync('app/src/main/res/xml/automotive_app_desc.xml', 'utf8');
+const templateFactory = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/CarUltrawideTemplateFactory.kt',
+  'utf8'
+);
 
-assert.match(manifest, /android:name="com\.carhud\.aaproxy\.CarHudProjectionService"/);
+assert.match(manifest, /CarHudProjectionService"[\s\S]*?android:enabled="true"/);
+assert.match(manifest, /CarHudAutoService"[\s\S]*?android:enabled="false"/);
 assert.match(manifest, /CATEGORY_PROJECTION/);
-assert.doesNotMatch(manifest, /android:name="com\.carhud\.aaproxy\.CarHudAutoService"/);
+assert.match(manifest, /androidx\.car\.app\.category\.NAVIGATION/);
+assert.match(descriptor, /<uses\s+name="template"/);
 assert.match(descriptor, /<uses\s+name="service"/);
 assert.match(descriptor, /<uses\s+name="projection"/);
+assert.match(hostMode, /if \(!isAndroidAutoSessionActive\(\)\)/);
+assert.match(hostMode, /CarHudAutoService::class\.java/);
+assert.match(hostMode, /CarHudProjectionService::class\.java/);
 assert.match(projectionHost, /class CarHudProjectionService : CarActivityService\(\)/);
 assert.match(projectionHost, /class CarHudProjectionActivity : CarActivity\(\), SurfaceHolder\.Callback/);
-assert.match(projectionHost, /SurfaceView\(this\)/);
-assert.match(projectionHost, /CarPresentation\(this, vd\.display, persistentWeb\)/);
-assert.match(projectionHost, /hideAppHeader\(\)/);
-assert.match(projectionHost, /hideMenuButton\(\)/);
 
-// Keep NavigationTemplate for the legacy full app surface, but make the
-// required placeholder action fully transparent.
-assert.match(screen, /CarColor\.createCustom\(0x00000000, 0x00000000\)/);
-assert.match(screen, /ActionStrip\.Builder\(\)[\s\S]*?setTitle\("\\u200B"\)[\s\S]*?setFlags\(Action\.FLAG_PRIMARY\)[\s\S]*?setBackgroundColor\(transparent\)/);
+// Modern ultrawide mode must build a valid action-free MapTemplate: Pane + Header,
+// no ActionStrip call. Legacy hosts retain the tiny NavigationTemplate fallback.
+assert.match(templateFactory, /MapTemplate\.Builder\(\)[\s\S]*?setPane\(pane\)[\s\S]*?setHeader\(header\)[\s\S]*?build\(\)/);
+assert.doesNotMatch(templateFactory, /MapTemplate\.Builder\(\)[\s\S]*?setActionStrip/);
+assert.match(templateFactory, /Header\.Builder\(\)[\s\S]*?setTitle\("\\u200B"\)/);
+assert.match(templateFactory, /NavigationTemplate\.Builder\(\)[\s\S]*?setActionStrip\(hiddenActionStrip\)/);
 
 // Keep the existing weather-card bounds, but render weather with vector icons.
 assert.match(dashboardXml, /android:id="@\+id\/weatherCard"[\s\S]*?android:layout_width="150dp"[\s\S]*?android:layout_height="76dp"/);
