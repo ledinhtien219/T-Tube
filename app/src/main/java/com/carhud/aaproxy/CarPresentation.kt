@@ -4139,6 +4139,36 @@ class CarPresentation(
         return true
     }
 
+    fun dispatchProjectedKeyEvent(event: KeyEvent): Boolean {
+        onUserInteraction()
+        val decor = window?.decorView ?: return false
+        val copy = KeyEvent(event)
+        return try {
+            decor.dispatchKeyEvent(copy)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun dispatchMazdaRotary(axis: Float): Boolean {
+        if (axis == 0f) return false
+        onUserInteraction()
+
+        // Android rotary reports signed scroll ticks. Clockwise/forward moves focus
+        // down the page; counter-clockwise/backward moves it up.
+        val keyCode = if (axis < 0f) KeyEvent.KEYCODE_DPAD_DOWN else KeyEvent.KEYCODE_DPAD_UP
+        val steps = kotlin.math.ceil(kotlin.math.abs(axis).toDouble()).toInt().coerceIn(1, 6)
+        val decor = window?.decorView ?: return false
+        repeat(steps) {
+            val now = SystemClock.uptimeMillis()
+            val down = KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0)
+            val up = KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0)
+            decor.dispatchKeyEvent(down)
+            decor.dispatchKeyEvent(up)
+        }
+        return true
+    }
+
     fun dispatchTouch(x: Float, y: Float) {
         videoQualityOverlay?.let { dispatchOverlayClick(it, x, y); return }
         if (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) {
