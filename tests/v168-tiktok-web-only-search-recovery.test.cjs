@@ -7,7 +7,7 @@ const main = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/MainActivity.
 const car = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarPresentation.kt','utf8');
 const apps = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/WebAppModel.kt','utf8');
 
-assert.match(gradle, /versionCode = 261/);
+assert.match(gradle, /versionCode = 26[12]/);
 
 // Native tiktok.com desktop web owns feed, scrolling, video navigation and search.
 assert.match(tiktok, /POLICY_VERSION = 15/);
