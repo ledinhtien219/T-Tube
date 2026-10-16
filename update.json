@@ -1,11 +1,11 @@
 {
   "channel": "stable",
   "approved": true,
-  "versionCode": 260,
-  "versionName": "1.0.69",
-  "downloadUrl": "https://github.com/ledinhtien219/THTV/releases/download/v1.0.69/TTube_v1.0.69_debug.apk",
-  "approvedCommit": "c5251f19f1eddc6d919f4ea6882bfbb9cf831909",
-  "approvedAt": "2026-10-16T01:34:00+00:00",
+  "versionCode": 261,
+  "versionName": "1.0.70",
+  "downloadUrl": "https://github.com/ledinhtien219/THTV/releases/download/v1.0.70/TTube_v1.0.70_debug.apk",
+  "approvedCommit": "c93861b615e48460f43fd6591c09c54c9748b80c",
+  "approvedAt": "2026-10-16T02:25:13+00:00",
   "changelog": [
     "Bug fix"
   ]
