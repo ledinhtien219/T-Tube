@@ -55,43 +55,6 @@
                     android:src="@drawable/thtv_wordmark" />
             </LinearLayout>
 
-            <!-- Quick Zalo community button: visible only on Home. -->
-            <LinearLayout
-                android:id="@+id/btnHomeZalo"
-                android:layout_width="wrap_content"
-                android:layout_height="34dp"
-                android:layout_marginEnd="2dp"
-                android:background="@drawable/bg_search_pill"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center_vertical"
-                android:minWidth="112dp"
-                android:orientation="horizontal"
-                android:paddingStart="6dp"
-                android:paddingEnd="10dp">
-
-                <TextView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:background="@drawable/bg_button_blue"
-                    android:fontFamily="sans-serif-bold"
-                    android:gravity="center"
-                    android:includeFontPadding="false"
-                    android:text="Z"
-                    android:textColor="#FFFFFF"
-                    android:textSize="13sp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="7dp"
-                    android:fontFamily="sans-serif-medium"
-                    android:maxLines="1"
-                    android:text="Nhóm Zalo"
-                    android:textColor="#F8FAFC"
-                    android:textSize="12sp" />
-            </LinearLayout>
-
             <!-- Settings gear icon button (Hidden) -->
             <FrameLayout
                 android:id="@+id/btnPhoneSettings"
