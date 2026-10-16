@@ -16,8 +16,8 @@ assert.match(gradle, /versionCode = 262/);
 
 assert.match(host, /InputDevice\.SOURCE_ROTARY_ENCODER/);
 assert.match(host, /MotionEvent\.AXIS_SCROLL/);
-assert.match(host, /override fun dispatchGenericMotionEvent/);
-assert.match(host, /override fun dispatchKeyEvent/);
+assert.match(host, /setOnGenericMotionListener/);
+assert.match(host, /setOnKeyListener/);
 assert.match(host, /KEYCODE_DPAD_UP/);
 assert.match(host, /KEYCODE_DPAD_DOWN/);
 assert.match(host, /KEYCODE_DPAD_CENTER/);
