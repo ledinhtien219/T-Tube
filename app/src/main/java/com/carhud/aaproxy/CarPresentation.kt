@@ -168,6 +168,13 @@ class CarPresentation(
             )
         } catch (_: Throwable) {}
 
+        if (currentActiveAppId == "iptv" || web.url.orEmpty().contains("iptv_player.html")) {
+            web.evaluateJavascript(
+                "if (window.ThtvIptvNormalizeViewport) window.ThtvIptvNormalizeViewport();",
+                null
+            )
+        }
+
         updateHudLayoutParams()
 
         // Only rebuild floating chrome when the effective viewport or layout
@@ -2422,7 +2429,8 @@ class CarPresentation(
                     web.onResume()
                     web.resumeTimers()
                     web.evaluateJavascript(
-                        "if (window.restoreVideoAspectRatio) window.restoreVideoAspectRatio();",
+                        "if (window.restoreVideoAspectRatio) window.restoreVideoAspectRatio();" +
+                            "if (window.ThtvIptvNormalizeViewport) window.ThtvIptvNormalizeViewport();",
                         null
                     )
                     when (expectedAppId) {
