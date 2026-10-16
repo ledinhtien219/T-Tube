@@ -49,12 +49,17 @@ object CarAppShutdownManager {
                 Log.e(TAG, "Error stopping background tasks", e)
             }
 
-            // 3. Stop projection + media services so no foreground/background
-            // component can restart playback while the phone task is closing.
+            // 3. Stop whichever Android Auto host is active + media services
+            // so no component can restart playback while the phone task closes.
             try {
                 context.stopService(Intent(context, CarHudProjectionService::class.java))
             } catch (e: Exception) {
                 Log.e(TAG, "Error stopping CarHudProjectionService", e)
+            }
+            try {
+                context.stopService(Intent(context, CarHudAutoService::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Error stopping CarHudAutoService", e)
             }
             try {
                 // Release MediaSession + foreground notification synchronously
