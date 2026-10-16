@@ -11,6 +11,8 @@ import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
 import android.view.GestureDetector
+import android.view.InputDevice
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceHolder
@@ -166,6 +168,36 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
             }
             true
         }
+        // Mazda Commander needs keyboard-style focus to stay on the projection surface.
+        surfaceView.isFocusableInTouchMode = true
+        surfaceView.requestFocus()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        when (event.keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP,
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            KeyEvent.KEYCODE_DPAD_RIGHT,
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                if (presentation?.dispatchProjectedKeyEvent(event) == true) return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        val fromRotary = (event.source and InputDevice.SOURCE_ROTARY_ENCODER) ==
+            InputDevice.SOURCE_ROTARY_ENCODER
+        if (fromRotary && event.action == MotionEvent.ACTION_SCROLL) {
+            val axis = event.getAxisValue(MotionEvent.AXIS_SCROLL)
+            if (axis != 0f && presentation?.dispatchMazdaRotary(axis) == true) {
+                return true
+            }
+        }
+        return super.dispatchGenericMotionEvent(event)
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
