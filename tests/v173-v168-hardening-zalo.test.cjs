@@ -12,8 +12,8 @@ const settings = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/SettingsA
 const licenseConfig = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/LicenseConfig.kt','utf8');
 const workflow = fs.readFileSync('.github/workflows/build-apk.yml','utf8');
 
-assert.match(gradle, /versionCode = 260/);
-assert.match(gradle, /versionName = "1\.0\.69"/);
+assert.match(gradle, /versionCode = 261/);
+assert.match(gradle, /versionName = "1\.0\.70"/);
 
 // No public/client-side developer unlock shortcut.
 assert.doesNotMatch(activation, /219171|setDevBypass|handleDevBypassClick|showDevPasswordDialog/);
@@ -41,6 +41,6 @@ assert.doesNotMatch(main, /btnHomeZalo|Nhóm Zalo/);
 
 // Normal CI now runs the Kotlin/JVM unit suite before distributing the APK.
 assert.match(workflow, /\.\/gradlew testDebugUnitTest --stacktrace/);
-assert.match(workflow, /TTube-v1\.0\.69-build260-APK/);
+assert.match(workflow, /TTube-v1\.0\.69-build261-APK/);
 
-console.log('PASS v1.0.69 build 260: no Zalo group UI + license/wakelock/cable/Waze/CI hardening');
+console.log('PASS v1.0.70 build 261: no Zalo group UI + license/wakelock/cable/Waze/CI hardening');
