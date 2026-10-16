@@ -24,6 +24,7 @@ class CarHudAutoService : CarAppService() {
     override fun onCreate() {
         super.onCreate()
         try {
+            CarDisconnectWatchdog.onProjectionServiceCreated(applicationContext)
             AppCrashHandler.init(applicationContext)
             CarTtsManager.init(applicationContext)
             CarTtsManager.startListeningToRepository()
@@ -38,9 +39,13 @@ class CarHudAutoService : CarAppService() {
             }
             powerDisconnectReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
-                    Log.i("CarHudAutoService", "Cable unplugged event: ${intent?.action}")
+                    val action = intent?.action ?: return
+                    Log.i("CarHudAutoService", "Cable unplugged event: $action")
                     context?.let {
-                        CarAppShutdownManager.shutdownCompletely(it.applicationContext, "Cable unplugged (${intent?.action})")
+                        CarDisconnectWatchdog.onCableDetachBroadcast(
+                            it.applicationContext,
+                            action
+                        )
                     }
                 }
             }
@@ -58,9 +63,11 @@ class CarHudAutoService : CarAppService() {
         try {
             powerDisconnectReceiver?.let { unregisterReceiver(it) }
             powerDisconnectReceiver = null
-        } catch (e: Exception) {}
+        } catch (_: Exception) {}
+        CarDisconnectWatchdog.onProjectionServiceDestroyed(applicationContext)
         super.onDestroy()
-        CarAppShutdownManager.shutdownCompletely(applicationContext, "CarHudAutoService onDestroy (Android Auto Disconnected)")
+        // Do NOT treat service destruction as a cable unplug. Android Auto/OEM
+        // hosts can recreate CarAppService while the cable is still connected.
     }
 
     override fun createHostValidator(): HostValidator {
