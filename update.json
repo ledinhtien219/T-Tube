@@ -1,16 +1,12 @@
 {
   "channel": "stable",
   "approved": true,
-  "versionCode": 259,
-  "versionName": "1.0.68",
-  "downloadUrl": "https://github.com/ledinhtien219/THTV/releases/download/v1.0.68/TTube_v1.0.68_debug.apk",
-  "approvedCommit": "81882b6d3b33c134db123428e4cb11af1640d7cc",
-  "approvedAt": "2026-10-15T23:45:58+00:00",
+  "versionCode": 260,
+  "versionName": "1.0.69",
+  "downloadUrl": "https://github.com/ledinhtien219/THTV/releases/download/v1.0.69/TTube_v1.0.69_debug.apk",
+  "approvedCommit": "c5251f19f1eddc6d919f4ea6882bfbb9cf831909",
+  "approvedAt": "2026-10-16T01:34:00+00:00",
   "changelog": [
-    "Thêm mục Zalo T Tube trong Cài đặt/Hỗ trợ, mở nhóm cộng đồng chính thức.",
-    "Sửa WakeLock để giảm hao pin khi app ở nền nhưng media không phát.",
-    "Cải thiện nhận diện rút cáp Android Auto ngay cả khi điện thoại còn nguồn sạc khác.",
-    "Khóa Waze HLP WebSocket về localhost và gỡ Developer bypass khỏi bản public.",
-    "CI chạy đầy đủ JVM unit tests cùng regression/runtime test trước khi phát hành."
+    "Bug fix"
   ]
 }
