@@ -17,7 +17,7 @@ object LicenseConfig {
     const val SUPPORT_NAME = "Mr Tiến"
     const val SUPPORT_PHONE = "0366717255"
     const val SUPPORT_PHONE_FORMATTED = "0366.717.255"
-    const val SUPPORT_ZALO_URL = "https://zalo.me/g/v8zlxq1055wjovfvgcsn"
+    const val SUPPORT_ZALO_URL = "https://zalo.me/0366717255"
     const val SUPPORT_TELEGRAM = "https://t.me"
 
     // Thời gian cho phép chạy offline sau khi đã duyệt thành công (mặc định 14 ngày)
