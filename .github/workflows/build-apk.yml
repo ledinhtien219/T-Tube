@@ -91,6 +91,8 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
           script: >
             bash -c 'set +e;
+            ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.carhud.aaproxy.CarHostModeRuntimeTest --stacktrace;
+            host_status=$?;
             ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.carhud.aaproxy.CarDisconnectWatchdogRuntimeTest --stacktrace;
             cable_status=$?;
             ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.carhud.aaproxy.TikTokRuntimeSmokeTest --stacktrace;
@@ -98,7 +100,7 @@ jobs:
             mkdir -p smoke-artifacts;
             adb logcat -d -v time | grep -E "TTUBE_SMOKE|CarDisconnectWatchdog|CarAppShutdownManager" > smoke-artifacts/runtime.log || true;
             adb exec-out screencap -p > smoke-artifacts/final-screen.png || true;
-            if [ $cable_status -ne 0 ] || [ $tiktok_status -ne 0 ]; then exit 1; fi;
+            if [ $host_status -ne 0 ] || [ $cable_status -ne 0 ] || [ $tiktok_status -ne 0 ]; then exit 1; fi;
             exit 0'
 
       - name: Upload TikTok smoke evidence
