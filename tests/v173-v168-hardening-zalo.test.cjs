@@ -33,13 +33,14 @@ assert.match(runtime, /usbUnplugStillShutsDownWhileWirelessChargingRemains/);
 assert.match(waze, /InetSocketAddress\("127\.0\.0\.1", port\)/);
 assert.doesNotMatch(waze, /InetSocketAddress\(port\)/);
 
-// Zalo support is visible in Settings and uses the existing supported link.
-assert.match(licenseConfig, /SUPPORT_ZALO_URL = "https:\/\/zalo\.me\/g\/v8zlxq1055wjovfvgcsn"/);
-assert.match(settings, /title = "ZALO T TUBE"/);
-assert.match(settings, /LicenseConfig\.SUPPORT_ZALO_URL/);
+// Group/community Zalo UI was intentionally removed; activation support keeps
+// the original personal Zalo contact only.
+assert.match(licenseConfig, /SUPPORT_ZALO_URL = "https:\/\/zalo\.me\/0366717255"/);
+assert.doesNotMatch(settings, /title = "ZALO T TUBE"/);
+assert.doesNotMatch(main, /btnHomeZalo|Nhóm Zalo/);
 
 // Normal CI now runs the Kotlin/JVM unit suite before distributing the APK.
 assert.match(workflow, /\.\/gradlew testDebugUnitTest --stacktrace/);
 assert.match(workflow, /TTube-v1\.0\.69-build260-APK/);
 
-console.log('PASS v1.0.69 build 260: Zalo support + license/wakelock/cable/Waze/CI hardening');
+console.log('PASS v1.0.69 build 260: no Zalo group UI + license/wakelock/cable/Waze/CI hardening');
