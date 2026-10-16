@@ -1159,7 +1159,23 @@ class CarPresentation(
         val activeWeb = CarMediaManager.getActiveWebView() ?: web
         val url = activeWeb.url.orEmpty()
         return currentActiveAppId == "youtube" &&
+            CarMediaManager.activeAppId == "youtube" &&
             (url.contains("/watch", ignoreCase = true) || url.contains("/shorts/", ignoreCase = true))
+    }
+
+    private fun shouldShowYouTubeSeekOverlay(): Boolean {
+        return !isDashboardShowing &&
+            dashboardView?.visibility != View.VISIBLE &&
+            web.visibility == View.VISIBLE &&
+            isYouTubeVideoPage() &&
+            youtubeSeekDurationSec > 0
+    }
+
+    private fun hideYouTubeSeekOverlayImmediately() {
+        youtubeSeekContainer?.animate()?.cancel()
+        youtubeSeekContainer?.alpha = 1f
+        youtubeSeekContainer?.visibility = View.GONE
+        youtubeSeekDragging = false
     }
 
     fun updateVideoProgress(currentSec: Int, totalSec: Int, formattedTime: String) {
@@ -1167,8 +1183,8 @@ class CarPresentation(
         val safeCurrent = if (safeDuration > 0) currentSec.coerceIn(0, safeDuration) else 0
         youtubeSeekDurationSec = safeDuration
 
-        val showYoutubeSeek = isYouTubeVideoPage() &&
-            safeDuration > 0 && !isDashboardShowing
+        val showYoutubeSeek = shouldShowYouTubeSeekOverlay() &&
+            safeDuration > 0
         if (showYoutubeSeek) {
             youtubeSeekBar?.let { bar ->
                 if (!youtubeSeekDragging) {
@@ -1666,7 +1682,7 @@ class CarPresentation(
             addView(seekBar, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply {
                 leftMargin = dp(6)
             })
-            visibility = if (youtubeSeekDurationSec > 0 && isYouTubeVideoPage()) View.VISIBLE else View.GONE
+            visibility = if (shouldShowYouTubeSeekOverlay()) View.VISIBLE else View.GONE
         }
         youtubeSeekContainer = seekCard
 
@@ -1697,6 +1713,7 @@ class CarPresentation(
         if (isDashboardShowing || currentActiveAppId == "iptv") {
             sidebarContainer?.visibility = View.GONE
             topToolbarContainer?.visibility = View.GONE
+            hideYouTubeSeekOverlayImmediately()
             autoHideHandler.removeCallbacks(hideBarsRunnable)
             return
         }
@@ -1709,8 +1726,7 @@ class CarPresentation(
             }
         }
         youtubeSeekContainer?.let { seek ->
-            if (isYouTubeVideoPage() && youtubeSeekDurationSec > 0 &&
-                !isDashboardShowing && seek.visibility != View.VISIBLE) {
+            if (shouldShowYouTubeSeekOverlay() && seek.visibility != View.VISIBLE) {
                 seek.bringToFront()
                 seek.visibility = View.VISIBLE
                 seek.alpha = 0f
@@ -2449,6 +2465,8 @@ class CarPresentation(
 
         topToolbarContainer?.visibility = View.GONE
         sidebarContainer?.visibility = View.GONE
+        hideYouTubeSeekOverlayImmediately()
+        videoTimePill?.visibility = View.GONE
         dashboardView?.visibility = View.VISIBLE
         dashboardView?.bringToFront()
         
@@ -4081,6 +4099,7 @@ class CarPresentation(
         hudOverlay?.visibility = View.GONE
         sidebarContainer?.visibility = View.GONE
         topToolbarContainer?.visibility = View.GONE
+        hideYouTubeSeekOverlayImmediately()
 
         searchInput.requestFocus()
         try {
@@ -4104,6 +4123,7 @@ class CarPresentation(
         if (isDashboardShowing) {
             sidebarContainer?.visibility = View.GONE
             topToolbarContainer?.visibility = View.GONE
+            hideYouTubeSeekOverlayImmediately()
         } else {
             sidebarContainer?.visibility = View.VISIBLE
             sidebarContainer?.let { root.bringChildToFront(it) }
