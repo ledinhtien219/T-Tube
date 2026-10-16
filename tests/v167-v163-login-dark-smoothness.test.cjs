@@ -8,7 +8,7 @@ const shutdown = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarAppShu
 const tiktok = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/TikTokWebPolicy.kt','utf8');
 
 assert.match(gradle, /versionCode = (?:261|262)/);
-assert.match(gradle, /versionName = "1\.0\.70"/);
+assert.match(gradle, /versionName = "1\\.0\\.70(?:-mazda1)?"/);
 
 // Phone defaults to dark only when the user has never chosen a mode.
 assert.match(main, /if \(!prefs\.contains\(PREF_THEME_MODE\)\)[\s\S]*?SettingsActivity\.THEME_NIGHT/);
