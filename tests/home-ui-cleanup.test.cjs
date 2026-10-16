@@ -39,7 +39,8 @@ assert.match(hostMode, /CarHudProjectionService::class\.java, !preferUltrawide/)
 assert.match(hostMode, /if \(isAndroidAutoSessionActive\(\)\)/);
 assert.match(projectionHost, /class CarHudProjectionService : CarActivityService\(\)/);
 assert.match(projectionHost, /class CarHudProjectionActivity : CarActivity\(\), SurfaceHolder\.Callback/);
-assert.doesNotMatch(screen, /MapTemplate\.Builder/);
+assert.match(screen, /carContext\.carAppApiLevel >= 5/);
+assert.match(screen, /MapTemplate\.Builder\(\)[\s\S]*?Pane\.Builder\(\)\.build\(\)/);
 assert.match(screen, /NavigationTemplate\.Builder\(\)[\s\S]*?setActionStrip\(hiddenActionStrip\)/);
 assert.match(screen, /setTitle\("\\u200B"\)/);
 
