@@ -24,6 +24,13 @@ object CarAppShutdownManager {
         if (isShuttingDown) return
         isShuttingDown = true
         CarDisconnectWatchdog.resetAfterShutdown()
+        // The real cable-disconnect path is the safe moment to swap Android
+        // Auto entry components for the next connection.
+        try {
+            CarHostModeManager.applyPendingAfterDisconnect(context.applicationContext)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error applying pending Android Auto host mode", e)
+        }
         Log.i(TAG, "Shutting down application completely. Reason: $reason")
 
         try {
