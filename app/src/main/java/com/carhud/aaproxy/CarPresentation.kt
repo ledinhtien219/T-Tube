@@ -1137,10 +1137,60 @@ class CarPresentation(
     }
 
     private var videoTimePill: TextView? = null
+    private var youtubeSeekContainer: View? = null
+    private var youtubeSeekBar: SeekBar? = null
+    private var youtubeSeekTimeLabel: TextView? = null
+    private var youtubeSeekDragging = false
+    private var youtubeSeekDurationSec = 0
+
+    private fun formatPlaybackSeconds(seconds: Int): String {
+        val safe = seconds.coerceAtLeast(0)
+        val hours = safe / 3600
+        val minutes = (safe % 3600) / 60
+        val secs = safe % 60
+        return if (hours > 0) {
+            String.format(java.util.Locale.US, "%d:%02d:%02d", hours, minutes, secs)
+        } else {
+            String.format(java.util.Locale.US, "%d:%02d", minutes, secs)
+        }
+    }
 
     fun updateVideoProgress(currentSec: Int, totalSec: Int, formattedTime: String) {
+        val safeDuration = totalSec.coerceAtLeast(0)
+        val safeCurrent = if (safeDuration > 0) currentSec.coerceIn(0, safeDuration) else 0
+        youtubeSeekDurationSec = safeDuration
+
+        val showYoutubeSeek = currentActiveAppId == "youtube" &&
+            safeDuration > 0 && !isDashboardShowing
+        if (showYoutubeSeek) {
+            youtubeSeekBar?.let { bar ->
+                if (!youtubeSeekDragging) {
+                    if (bar.max != safeDuration) bar.max = safeDuration
+                    if (bar.progress != safeCurrent) bar.progress = safeCurrent
+                }
+            }
+            if (!youtubeSeekDragging) {
+                youtubeSeekTimeLabel?.text = if (formattedTime.isNotEmpty()) {
+                    formattedTime
+                } else {
+                    "${formatPlaybackSeconds(safeCurrent)} / ${formatPlaybackSeconds(safeDuration)}"
+                }
+            }
+            // Respect auto-hide: progress callbacks update data but do not force
+            // the controls back on-screen after the toolbar has hidden itself.
+            if (sidebarContainer?.visibility == View.VISIBLE) {
+                youtubeSeekContainer?.visibility = View.VISIBLE
+            }
+        } else {
+            youtubeSeekContainer?.visibility = View.GONE
+            if (!youtubeSeekDragging) {
+                youtubeSeekBar?.progress = 0
+                youtubeSeekTimeLabel?.text = ""
+            }
+        }
+
         val showTime = prefs.getBoolean(SettingsActivity.KEY_SHOW_TIME_PILL, true)
-        if (showTime && currentActiveAppId != "tiktok" && totalSec > 0 && formattedTime.isNotEmpty() && !isDashboardShowing) {
+        if (showTime && currentActiveAppId != "tiktok" && safeDuration > 0 && formattedTime.isNotEmpty() && !isDashboardShowing) {
             videoTimePill?.apply {
                 text = "⏱ $formattedTime"
                 if (visibility != View.VISIBLE) {
@@ -1155,6 +1205,11 @@ class CarPresentation(
     private fun rebuildSidebar() {
         sidebarContainer?.let { root.removeView(it) }
         sidebarContainer = null
+        youtubeSeekContainer?.let { root.removeView(it) }
+        youtubeSeekContainer = null
+        youtubeSeekBar = null
+        youtubeSeekTimeLabel = null
+        youtubeSeekDragging = false
 
         // Settings/theme rebuilds must never restore the floating controls on home.
         if (isDashboardShowing || currentActiveAppId == "iptv" || currentActiveAppId == "web") {
@@ -1427,7 +1482,7 @@ class CarPresentation(
             val origin = IntArray(2)
             web.getLocationOnScreen(origin)
             val obstacles = org.json.JSONArray()
-            listOfNotNull(sidebarContainer, hudOverlay, topToolbarContainer).forEach { overlay ->
+            listOfNotNull(sidebarContainer, youtubeSeekContainer, hudOverlay, topToolbarContainer).forEach { overlay ->
                 if (overlay.width <= 0 || overlay.height <= 0 || overlay.visibility != View.VISIBLE) return@forEach
                 val pos = IntArray(2)
                 overlay.getLocationOnScreen(pos)
@@ -1530,6 +1585,94 @@ class CarPresentation(
         }
         root.addView(wrapper, params)
         root.bringChildToFront(wrapper)
+
+        val currentTrack = CarMediaManager.trackState.value
+        youtubeSeekDurationSec = currentTrack.currentDurationSec.coerceAtLeast(0)
+
+        val seekTime = TextView(context).apply {
+            textSize = (11f * scale / 100f).coerceIn(9.5f, 13f)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER_VERTICAL
+            includeFontPadding = false
+            setTextColor(if (isDay) Color.parseColor("#0F172A") else Color.WHITE)
+            text = if (youtubeSeekDurationSec > 0) currentTrack.formattedProgress else ""
+        }
+        youtubeSeekTimeLabel = seekTime
+
+        val seekBar = SeekBar(context).apply {
+            max = youtubeSeekDurationSec.coerceAtLeast(1)
+            progress = currentTrack.currentPositionSec.coerceIn(0, max)
+            splitTrack = false
+            progressTintList = android.content.res.ColorStateList.valueOf(
+                if (isDay) Color.parseColor("#0284C7") else Color.parseColor("#22D3EE")
+            )
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(
+                if (isDay) Color.parseColor("#CBD5E1") else Color.parseColor("#475569")
+            )
+            thumbTintList = android.content.res.ColorStateList.valueOf(
+                if (isDay) Color.parseColor("#0369A1") else Color.parseColor("#67E8F9")
+            )
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (!fromUser) return
+                    val duration = youtubeSeekDurationSec.coerceAtLeast(1)
+                    val target = progress.coerceIn(0, duration)
+                    youtubeSeekTimeLabel?.text =
+                        "${formatPlaybackSeconds(target)} / ${formatPlaybackSeconds(duration)}"
+                }
+
+                override fun onStartTrackingTouch(bar: SeekBar?) {
+                    youtubeSeekDragging = true
+                    autoHideHandler.removeCallbacks(hideBarsRunnable)
+                }
+
+                override fun onStopTrackingTouch(bar: SeekBar?) {
+                    val duration = youtubeSeekDurationSec
+                    val target = bar?.progress?.coerceIn(0, duration.coerceAtLeast(0)) ?: 0
+                    youtubeSeekDragging = false
+                    if (duration > 0) {
+                        val activeWeb = CarMediaManager.getActiveWebView() ?: web
+                        YouTubePlayerHelper.seekTo(activeWeb, target.toLong())
+                        CarMediaManager.updatePlaybackProgress(target, duration)
+                        youtubeSeekTimeLabel?.text =
+                            "${formatPlaybackSeconds(target)} / ${formatPlaybackSeconds(duration)}"
+                    }
+                    resetAutoHideTimer()
+                }
+            })
+        }
+        youtubeSeekBar = seekBar
+
+        val seekCard = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            isClickable = true
+            background = rounded(
+                if (isDay) Color.parseColor("#F7FFFFFF") else Color.parseColor("#E60B1118"),
+                16f,
+                if (isDay) Color.parseColor("#94A3B8") else Color.parseColor("#506B8299"),
+                1
+            )
+            setPadding(dp(10), dp(4), dp(10), dp(4))
+            elevation = dp(18).toFloat()
+            addView(seekTime, LinearLayout.LayoutParams(dp(105), ViewGroup.LayoutParams.MATCH_PARENT))
+            addView(seekBar, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply {
+                leftMargin = dp(6)
+            })
+            visibility = if (youtubeSeekDurationSec > 0) View.VISIBLE else View.GONE
+        }
+        youtubeSeekContainer = seekCard
+
+        root.addView(seekCard, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            dp(((48 * scale) / 100).coerceIn(44, 58)),
+            Gravity.BOTTOM
+        ).apply {
+            leftMargin = dp(btnWidth + 26)
+            rightMargin = dp(18)
+            bottomMargin = dp(10)
+        })
+        root.bringChildToFront(seekCard)
         updateYouTubeHomeObstacles()
     }
 
@@ -1558,6 +1701,15 @@ class CarPresentation(
                 sidebar.animate().alpha(1f).setDuration(200).start()
             }
         }
+        youtubeSeekContainer?.let { seek ->
+            if (currentActiveAppId == "youtube" && youtubeSeekDurationSec > 0 &&
+                !isDashboardShowing && seek.visibility != View.VISIBLE) {
+                seek.bringToFront()
+                seek.visibility = View.VISIBLE
+                seek.alpha = 0f
+                seek.animate().alpha(1f).setDuration(200).start()
+            }
+        }
         topToolbarContainer?.let { topBar ->
             if (topBar.visibility != View.VISIBLE) {
                 topBar.bringToFront()
@@ -1573,10 +1725,18 @@ class CarPresentation(
         // Browser chrome and TikTok Back/Home controls are persistent controls.
         // Never auto-hide them while their app is visible.
         if ((currentActiveAppId == "web" || currentActiveAppId == "tiktok") && !isDashboardShowing) return
+        if (youtubeSeekDragging) return
         sidebarContainer?.let { sidebar ->
             if (sidebar.visibility == View.VISIBLE) {
                 sidebar.animate().alpha(0f).setDuration(200).withEndAction {
                     sidebar.visibility = View.GONE
+                }.start()
+            }
+        }
+        youtubeSeekContainer?.let { seek ->
+            if (seek.visibility == View.VISIBLE) {
+                seek.animate().alpha(0f).setDuration(200).withEndAction {
+                    seek.visibility = View.GONE
                 }.start()
             }
         }
@@ -4225,7 +4385,12 @@ class CarPresentation(
             return
         }
         val activeWeb = CarMediaManager.getActiveWebView() ?: web
-        val scrollDelta = (dy * 2.0f).roundToInt()
+        val isYouTubeResults = currentActiveAppId == "youtube" &&
+            activeWeb.url.orEmpty().contains("/results", ignoreCase = true)
+        // Search result cards are tall: keep the drag responsive without the
+        // generic 2x boost that makes short swipes skip too many results.
+        val scrollScale = if (isYouTubeResults) 1.5f else 2.0f
+        val scrollDelta = (dy * scrollScale).roundToInt()
         if (scrollDelta != 0) {
             val js = """
                 (function() {
@@ -4251,7 +4416,12 @@ class CarPresentation(
             return
         }
         val activeWeb = CarMediaManager.getActiveWebView() ?: web
-        val flingAmount = (-vy * 0.45f).roundToInt()
+        val isYouTubeResults = currentActiveAppId == "youtube" &&
+            activeWeb.url.orEmpty().contains("/results", ignoreCase = true)
+        // Damp release inertia only on YouTube results; other apps keep the
+        // existing 0.45 multiplier.
+        val flingScale = if (isYouTubeResults) 0.28f else 0.45f
+        val flingAmount = (-vy * flingScale).roundToInt()
         if (flingAmount != 0) {
             val js = """
                 (function() {
