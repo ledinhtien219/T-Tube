@@ -211,15 +211,6 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
         return true
     }
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (presentation?.dispatchMazdaKey(event) == true) return true
-        return super.dispatchKeyEvent(event)
-    }
-
-    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
-        if (handleMazdaRotaryMotion(event)) return true
-        return super.dispatchGenericMotionEvent(event)
-    }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         val frame = holder.surfaceFrame
