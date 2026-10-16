@@ -24,6 +24,7 @@ class CarHudAutoService : CarAppService() {
     override fun onCreate() {
         super.onCreate()
         try {
+            CarDisconnectWatchdog.onProjectionServiceCreated(applicationContext)
             AppCrashHandler.init(applicationContext)
             CarTtsManager.init(applicationContext)
             CarTtsManager.startListeningToRepository()
@@ -34,12 +35,17 @@ class CarHudAutoService : CarAppService() {
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_POWER_DISCONNECTED)
                 addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+                addAction(UsbManager.ACTION_USB_ACCESSORY_DETACHED)
             }
             powerDisconnectReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
-                    Log.i("CarHudAutoService", "Cable unplugged event: ${intent?.action}")
+                    val action = intent?.action ?: return
+                    Log.i("CarHudAutoService", "Cable unplugged event: $action")
                     context?.let {
-                        CarAppShutdownManager.shutdownCompletely(it.applicationContext, "Cable unplugged (${intent?.action})")
+                        CarDisconnectWatchdog.onCableDetachBroadcast(
+                            it.applicationContext,
+                            action
+                        )
                     }
                 }
             }
@@ -57,9 +63,11 @@ class CarHudAutoService : CarAppService() {
         try {
             powerDisconnectReceiver?.let { unregisterReceiver(it) }
             powerDisconnectReceiver = null
-        } catch (e: Exception) {}
+        } catch (_: Exception) {}
+        CarDisconnectWatchdog.onProjectionServiceDestroyed(applicationContext)
         super.onDestroy()
-        CarAppShutdownManager.shutdownCompletely(applicationContext, "CarHudAutoService onDestroy (Android Auto Disconnected)")
+        // Android Auto can recreate CarAppService during app switches. Service
+        // destruction is not treated as a physical disconnect.
     }
 
     override fun createHostValidator(): HostValidator {
