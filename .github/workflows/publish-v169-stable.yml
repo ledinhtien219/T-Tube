@@ -1,0 +1,150 @@
+name: Publish T Tube v1.0.69 Stable
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - ".github/workflows/publish-v169-stable.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Publish v1.0.69 Stable
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout exact tested candidate
+        uses: actions/checkout@v4
+        with:
+          ref: c5251f19f1eddc6d919f4ea6882bfbb9cf831909
+          fetch-depth: 0
+
+      - name: Verify v1.0.69 build 260
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "c5251f19f1eddc6d919f4ea6882bfbb9cf831909"
+          VERSION_NAME=$(grep -E 'versionName = "' app/build.gradle.kts | head -1 | sed -E 's/.*versionName = "([^"]+)".*/\1/')
+          VERSION_CODE=$(grep -E 'versionCode = [0-9]+' app/build.gradle.kts | head -1 | sed -E 's/.*versionCode = ([0-9]+).*/\1/')
+          test "$VERSION_NAME" = "1.0.69"
+          test "$VERSION_CODE" = "260"
+          git fetch origin main --quiet
+          git show origin/main:update.json > /tmp/current-stable.json
+          CURRENT_CODE=$(jq -r '.versionCode' /tmp/current-stable.json)
+          test "$CURRENT_CODE" -lt "260"
+          echo "TARGET_SHA=c5251f19f1eddc6d919f4ea6882bfbb9cf831909" >> "$GITHUB_ENV"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Restore stable debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: thtv-stable-debug-keystore-v1
+
+      - name: Ensure stable signing key
+        run: |
+          test -f ~/.android/debug.keystore || {
+            echo "Stable signing key missing; aborting stable publication."
+            exit 1
+          }
+
+      - name: Run all regression and JVM tests
+        run: |
+          set -e
+          chmod +x gradlew
+          for f in tests/*.cjs; do
+            echo "RUN $f"
+            node "$f"
+          done
+          ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Build stable APK and Android tests
+        run: ./gradlew assembleDebug assembleDebugAndroidTest --stacktrace
+
+      - name: Enable KVM acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+
+      - name: Run cable + TikTok runtime smoke tests
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
+          script: |
+            set -e
+            ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.carhud.aaproxy.CarDisconnectWatchdogRuntimeTest --stacktrace
+            ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.carhud.aaproxy.TikTokRuntimeSmokeTest --stacktrace
+
+      - name: Create immutable v1.0.69 release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/TTube_v1.0.69_debug.apk"
+          test -f "$APK"
+          if gh release view "v1.0.69" >/dev/null 2>&1; then
+            TAG_SHA=$(git rev-list -n 1 "v1.0.69" 2>/dev/null || true)
+            test "$TAG_SHA" = "$TARGET_SHA"
+          else
+            cat > /tmp/release-notes.txt <<'EOF'
+          - Thêm nút Nhóm Zalo ngay góc phải header Trang chủ, gồm icon + tên.
+          - Nút chỉ hiện ở Trang chủ và mở thẳng nhóm Zalo T Tube chính thức.
+          - Giữ toàn bộ các fix v1.0.68 về WakeLock, rút cáp Android Auto, Waze HLP và license.
+          - Cải thiện runtime smoke test TikTok để kiểm tra trạng thái recover thực tế sau khi cuộn search.
+          EOF
+            gh release create "v1.0.69" "$APK" \
+              --target "$TARGET_SHA" \
+              --title "T Tube v1.0.69 (STABLE)" \
+              --notes-file /tmp/release-notes.txt
+          fi
+
+      - name: Promote v1.0.69 in update.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --quiet
+          git checkout -B stable-manifest origin/main
+
+          python3 - <<'PY'
+          import datetime, json
+          manifest = {
+              "channel": "stable",
+              "approved": True,
+              "versionCode": 260,
+              "versionName": "1.0.69",
+              "downloadUrl": "https://github.com/ledinhtien219/THTV/releases/download/v1.0.69/TTube_v1.0.69_debug.apk",
+              "approvedCommit": "c5251f19f1eddc6d919f4ea6882bfbb9cf831909",
+              "approvedAt": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
+              "changelog": [
+                  "Bug fix"
+              ]
+          }
+          with open("update.json", "w", encoding="utf-8") as f:
+              json.dump(manifest, f, ensure_ascii=False, indent=2)
+              f.write("\n")
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add update.json
+          git commit -m "release: publish v1.0.69 stable"
+          git push origin HEAD:main
