@@ -20,7 +20,10 @@ assert.doesNotMatch(projection, /if \(wasConnected\)/);
 assert.match(autoService, /Intent\.ACTION_POWER_DISCONNECTED/);
 assert.match(autoService, /UsbManager\.ACTION_USB_DEVICE_DETACHED/);
 assert.match(autoService, /UsbManager\.ACTION_USB_ACCESSORY_DETACHED/);
-assert.match(autoService, /shutdownCompletely/);
+assert.match(autoService, /CarDisconnectWatchdog\.onCableDetachBroadcast/);
+assert.match(autoService, /CarDisconnectWatchdog\.onProjectionServiceDestroyed/);
+const autoDestroy = autoService.match(/override fun onDestroy\(\)[\s\S]*?override fun createHostValidator/)?.[0] || '';
+assert.doesNotMatch(autoDestroy, /shutdownCompletely/);
 
 // Surface recreation is not itself treated as a disconnect; cable/service lifecycle
 // owns the full exit so resize/config changes do not terminate the app.
@@ -32,6 +35,7 @@ assert.match(shutdown, /pauseAllPlaybackForShutdown\(\)/);
 assert.match(shutdown, /setCarConnectionState\(false, resumePhoneOnDisconnect = false\)/);
 assert.match(shutdown, /stopService\(Intent\(context, CarHudProjectionService::class\.java\)\)/);
 assert.match(shutdown, /stopService\(Intent\(context, CarHudAutoService::class\.java\)\)/);
+assert.match(shutdown, /CarHostModeManager\.applyPendingAfterDisconnect\(context\.applicationContext\)/);
 assert.match(shutdown, /CarMediaBrowserService\.forceShutdownForDisconnect\(context\)/);
 assert.match(media, /resumePhoneOnDisconnect: Boolean = true/);
 assert.match(media, /if \(!resumePhoneOnDisconnect\)[\s\S]*?phone\?\.pauseTimers\(\)/);
