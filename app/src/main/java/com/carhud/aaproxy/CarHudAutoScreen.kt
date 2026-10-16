@@ -26,6 +26,7 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     private var presentation: CarPresentation? = null
     private var carSurface: Surface? = null
     private val handler = Handler(Looper.getMainLooper())
+    private var mazdaPanMode = false
 
     private var nativeInput: CarInputSession? = null
     private val nativeSearchListener: (CarInputSession) -> Unit = { input ->
@@ -118,13 +119,19 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
 
     override fun onScroll(distanceX: Float, distanceY: Float) {
         handler.post {
-            presentation?.dispatchScroll(distanceX, distanceY)
+            if (mazdaPanMode) {
+                presentation?.dispatchMazdaSurfaceScroll(distanceX, distanceY)
+            } else {
+                presentation?.dispatchScroll(distanceX, distanceY)
+            }
         }
     }
 
     override fun onFling(velocityX: Float, velocityY: Float) {
         handler.post {
-            presentation?.dispatchFling(velocityX, velocityY)
+            // Rotary nudge events can be promoted to fling by some hosts. In pan
+            // mode use discrete focus navigation instead of adding momentum.
+            if (!mazdaPanMode) presentation?.dispatchFling(velocityX, velocityY)
         }
     }
 
@@ -220,6 +227,16 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
 
         return NavigationTemplate.Builder()
             .setActionStrip(hiddenActionStrip)
+            // Non-touch controllers such as Mazda Commander are translated by
+            // Android Auto into SurfaceCallback scroll events while pan mode is on.
+            .setMapActionStrip(
+                ActionStrip.Builder()
+                    .addAction(Action.PAN)
+                    .build()
+            )
+            .setPanModeListener { isInPanMode ->
+                mazdaPanMode = isInPanMode
+            }
             .build()
     }
 }
