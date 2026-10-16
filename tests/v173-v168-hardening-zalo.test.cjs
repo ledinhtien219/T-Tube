@@ -40,6 +40,6 @@ assert.match(settings, /LicenseConfig\.SUPPORT_ZALO_URL/);
 
 // Normal CI now runs the Kotlin/JVM unit suite before distributing the APK.
 assert.match(workflow, /\.\/gradlew testDebugUnitTest --stacktrace/);
-assert.match(workflow, /TTube-v1\.0\.68-build260-APK/);
+assert.match(workflow, /TTube-v1\.0\.69-build260-APK/);
 
 console.log('PASS v1.0.69 build 260: Zalo support + license/wakelock/cable/Waze/CI hardening');
