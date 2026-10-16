@@ -15,6 +15,8 @@ import androidx.car.app.SurfaceContainer
 import androidx.car.app.model.Action
 import androidx.car.app.model.ActionStrip
 import androidx.car.app.model.CarColor
+import androidx.car.app.model.Pane
+import androidx.car.app.navigation.model.MapTemplate
 import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.car.app.model.Template
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -202,11 +204,16 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     }
 
     override fun onGetTemplate(): Template {
-        // NavigationTemplate keeps the custom Surface behavior used by the
-        // original v1.0.39 dashboard. Android Auto requires one action in the
-        // strip, so provide a zero-width action with a fully transparent
-        // background instead of BACK. This avoids both the host BACK button and
-        // the "No items" content overlay from list-based templates.
+        // Car API 5+ can expose the navigation SurfaceContainer without an
+        // ActionStrip. On compatible ultrawide/Coolwalk hosts this can restore
+        // the full-width canvas instead of the narrower content pane.
+        if (carContext.carAppApiLevel >= 5) {
+            return MapTemplate.Builder()
+                .setPane(Pane.Builder().build())
+                .build()
+        }
+
+        // Older hosts still need NavigationTemplate with one action.
         val transparent = CarColor.createCustom(0x00000000, 0x00000000)
         val hiddenActionStrip = ActionStrip.Builder()
             .addAction(
