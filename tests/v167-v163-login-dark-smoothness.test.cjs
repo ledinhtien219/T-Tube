@@ -7,8 +7,8 @@ const projection = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarHudP
 const shutdown = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarAppShutdownManager.kt','utf8');
 const tiktok = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/TikTokWebPolicy.kt','utf8');
 
-assert.match(gradle, /versionCode = 259/);
-assert.match(gradle, /versionName = "1\.0\.68"/);
+assert.match(gradle, /versionCode = 260/);
+assert.match(gradle, /versionName = "1\.0\.69"/);
 
 // Phone defaults to dark only when the user has never chosen a mode.
 assert.match(main, /if \(!prefs\.contains\(PREF_THEME_MODE\)\)[\s\S]*?SettingsActivity\.THEME_NIGHT/);
@@ -37,4 +37,4 @@ assert.match(tiktok, /MutationObserver/);
 assert.match(tiktok, /requestAnimationFrame/);
 assert.doesNotMatch(tiktok, /setInterval\s*\(/);
 
-console.log('PASS v1.0.68 build 259: cable exit + dark phone default + TikTok login/search + smoother WebViews');
+console.log('PASS v1.0.69 build 260: cable exit + dark phone default + TikTok login/search + smoother WebViews');
