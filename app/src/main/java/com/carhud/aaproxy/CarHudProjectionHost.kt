@@ -216,9 +216,9 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
         return super.dispatchKeyEvent(event)
     }
 
-    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
         if (handleMazdaRotaryMotion(event)) return true
-        return super.onGenericMotionEvent(event)
+        return super.dispatchGenericMotionEvent(event)
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
