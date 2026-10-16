@@ -45,6 +45,7 @@ class SettingsActivity : AppCompatActivity() {
         const val KEY_AUDIO_DUCKING = "audio_ducking_enabled"
         const val KEY_AUTO_FULLSCREEN = "auto_fullscreen_enabled"
         const val KEY_AUTO_DETECT_SCREEN = "auto_detect_screen_layout"
+        const val KEY_ULTRAWIDE_FULL_SURFACE = "ultrawide_full_surface"
         const val KEY_AUTO_RESUME_LAST_TRACK = "auto_resume_last_track"
         const val KEY_DEFAULT_TO_DASHBOARD = "default_to_dashboard"
         const val KEY_LAST_PLAYED_URL = "last_played_url"
@@ -703,6 +704,8 @@ class SettingsActivity : AppCompatActivity() {
                         default = true
                     )
                 )
+
+                content.addView(createUltrawideModeRow())
 
                 content.addView(createCarScreenDetailsCard())
 
@@ -2571,6 +2574,23 @@ class SettingsActivity : AppCompatActivity() {
             })
 
             addView(TextView(this@SettingsActivity).apply {
+                val hostState = CarHostModeManager.getState(this@SettingsActivity)
+                val activeName = if (hostState.appliedMode == CarHostModeManager.MODE_ULTRAWIDE) {
+                    "Toàn màn hình siêu rộng"
+                } else {
+                    "Tương thích / chia đôi"
+                }
+                text = if (hostState.pending) {
+                    "• Android Auto: $activeName • ⏳ Chờ áp dụng lựa chọn mới"
+                } else {
+                    "• Android Auto: $activeName"
+                }
+                textSize = 11f
+                setTextColor(if (hostState.pending) Color.parseColor("#FBBF24") else Color.parseColor("#38BDF8"))
+                setPadding(0, dp(3), 0, 0)
+            })
+
+            addView(TextView(this@SettingsActivity).apply {
                 val hz = if (refreshHz > 0f) String.format(java.util.Locale.US, "%.1f Hz", refreshHz) else "chưa rõ"
                 text = "• Refresh: $hz  •  Mã máy: $deviceId"
                 textSize = 11f
@@ -2693,6 +2713,76 @@ class SettingsActivity : AppCompatActivity() {
                         if (pinned) "Đã đưa ${app.name} ra màn hình chính"
                         else "Đã ẩn ${app.name} khỏi màn hình chính",
                         Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            addView(sw)
+            setOnClickListener { sw.toggle() }
+        }
+    }
+
+    private fun createUltrawideModeRow(): LinearLayout {
+        val initialState = CarHostModeManager.getState(this)
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(2), dp(9), dp(2), dp(9))
+            isClickable = true
+            isFocusable = true
+
+            val textLayout = LinearLayout(this@SettingsActivity).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+            textLayout.addView(TextView(this@SettingsActivity).apply {
+                text = "Ưu tiên toàn màn hình siêu rộng"
+                textSize = 13.5f
+                setTextColor(colorTextPrimary)
+                typeface = Typeface.DEFAULT_BOLD
+            })
+
+            val statusText = TextView(this@SettingsActivity).apply {
+                textSize = 11.5f
+                setPadding(0, dp(2), 0, 0)
+            }
+            fun renderState(state: CarHostModeManager.State) {
+                statusText.text = when {
+                    state.pending && state.sessionActive ->
+                        "Đã lưu • sẽ đổi sau khi ngắt Android Auto rồi kết nối lại"
+                    state.pending ->
+                        "Đang áp dụng cho lần kết nối Android Auto tiếp theo"
+                    state.appliedMode == CarHostModeManager.MODE_ULTRAWIDE ->
+                        "Đang dùng full-width cho màn dài • không ActionStrip"
+                    else ->
+                        "Đang dùng chế độ tương thích / chia đôi"
+                }
+                statusText.setTextColor(
+                    if (state.pending) Color.parseColor("#FBBF24") else colorTextSecondary
+                )
+            }
+            renderState(initialState)
+            textLayout.addView(statusText)
+            addView(
+                textLayout,
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f)
+            )
+
+            val sw = Switch(this@SettingsActivity).apply {
+                isChecked = initialState.requestedUltrawide
+                setOnCheckedChangeListener { _, checked ->
+                    prefs.edit().putBoolean(KEY_ULTRAWIDE_FULL_SURFACE, checked).apply()
+                    val state = CarHostModeManager.requestMode(this@SettingsActivity, checked)
+                    renderState(state)
+                    Toast.makeText(
+                        this@SettingsActivity,
+                        when {
+                            state.pending && state.sessionActive ->
+                                "Đã lưu. Hãy ngắt Android Auto hoàn toàn rồi kết nối lại để đổi chế độ."
+                            checked ->
+                                "Đã chọn toàn màn hình siêu rộng cho lần kết nối tiếp theo."
+                            else ->
+                                "Đã chọn chế độ tương thích / chia đôi cho lần kết nối tiếp theo."
+                        },
+                        Toast.LENGTH_LONG
                     ).show()
                 }
             }
