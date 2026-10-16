@@ -12,10 +12,6 @@ import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.SurfaceCallback
 import androidx.car.app.SurfaceContainer
-import androidx.car.app.model.Action
-import androidx.car.app.model.ActionStrip
-import androidx.car.app.model.CarColor
-import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.car.app.model.Template
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -77,9 +73,10 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
         val height = if (surfaceContainer.height > 0) surfaceContainer.height else 480
         val dpi = if (surfaceContainer.dpi > 0) surfaceContainer.dpi else 160
 
+        CarDisconnectWatchdog.onProjectionConnected(carContext)
         handler.post {
             setupPresentation(carSurface, width, height, dpi)
-            try { invalidate() } catch (e: Exception) {}
+            try { invalidate() } catch (_: Exception) {}
         }
     }
 
@@ -87,6 +84,10 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     override fun onStableAreaChanged(stableArea: Rect) {}
 
     override fun onSurfaceDestroyed(surfaceContainer: SurfaceContainer) {
+        CarDisconnectWatchdog.onProjectionLifecycleEnded(
+            carContext,
+            "ultrawide SurfaceContainer destroyed"
+        )
         handler.post {
             try {
                 // User switched to Maps/Waze/Android Auto home. Keep the Presentation and
@@ -202,24 +203,6 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     }
 
     override fun onGetTemplate(): Template {
-        // NavigationTemplate keeps the custom Surface behavior used by the
-        // original v1.0.39 dashboard. Android Auto requires one action in the
-        // strip, so provide a zero-width action with a fully transparent
-        // background instead of BACK. This avoids both the host BACK button and
-        // the "No items" content overlay from list-based templates.
-        val transparent = CarColor.createCustom(0x00000000, 0x00000000)
-        val hiddenActionStrip = ActionStrip.Builder()
-            .addAction(
-                Action.Builder()
-                    .setTitle("\u200B")
-                    .setFlags(Action.FLAG_PRIMARY)
-                    .setBackgroundColor(transparent)
-                    .build()
-            )
-            .build()
-
-        return NavigationTemplate.Builder()
-            .setActionStrip(hiddenActionStrip)
-            .build()
+        return CarUltrawideTemplateFactory.build(carContext.carAppApiLevel)
     }
 }
