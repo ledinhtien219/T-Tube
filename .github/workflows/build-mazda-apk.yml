@@ -2,7 +2,7 @@ name: Build T Tube Mazda Commander APK
 
 on:
   push:
-    branches: [ "mazda/v170-commander" ]
+    branches: [ "mazda/**" ]
   workflow_dispatch:
 
 permissions:
