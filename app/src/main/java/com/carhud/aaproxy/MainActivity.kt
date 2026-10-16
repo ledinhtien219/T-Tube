@@ -598,6 +598,8 @@ class MainActivity : AppCompatActivity() {
     private fun switchTab(tab: String) {
         hideAllSubviews()
         activeTab = tab
+        findViewById<View>(R.id.btnHomeZalo)?.visibility =
+            if (tab == TAB_HOME) View.VISIBLE else View.GONE
 
         // Keep the phone navigation toolbar docked at the bottom on every tab.
         // The mini-player is only useful on the IPTV screen; keep Home and Settings clean.
@@ -681,6 +683,14 @@ class MainActivity : AppCompatActivity() {
         // Top bar Settings gear button -> opens Screen 3: Cài đặt giao diện
         findViewById<FrameLayout>(R.id.btnPhoneSettings)?.setOnClickListener {
             showSubview(subviewDisplaySettings)
+        }
+
+        findViewById<LinearLayout>(R.id.btnHomeZalo)?.setOnClickListener {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(LicenseConfig.SUPPORT_ZALO_URL)))
+            } catch (_: Throwable) {
+                Toast.makeText(this, "Không mở được nhóm Zalo.", Toast.LENGTH_SHORT).show()
+            }
         }
 
         // Hero card click -> opens Screen 2: Chọn hình nền
