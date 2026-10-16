@@ -713,13 +713,18 @@ class SettingsActivity : AppCompatActivity() {
                         key = KEY_ULTRAWIDE_FULL_SURFACE,
                         default = false
                     ) { enabled ->
-                        CarHostModeManager.applyMode(this@SettingsActivity, enabled)
+                        val appliedNow =
+                            CarHostModeManager.requestMode(this@SettingsActivity, enabled)
                         Toast.makeText(
                             this@SettingsActivity,
-                            if (enabled) {
-                                "Đã bật chế độ siêu rộng. Hãy ngắt và kết nối lại Android Auto."
+                            if (appliedNow) {
+                                if (enabled) {
+                                    "Đã bật chế độ siêu rộng cho lần kết nối Android Auto tiếp theo."
+                                } else {
+                                    "Đã về chế độ tương thích."
+                                }
                             } else {
-                                "Đã về chế độ tương thích. Hãy ngắt và kết nối lại Android Auto."
+                                "Đã lưu lựa chọn. Để tránh lỗi Android Auto, chế độ sẽ đổi sau khi bạn ngắt kết nối hiện tại rồi cắm lại."
                             },
                             Toast.LENGTH_LONG
                         ).show()
