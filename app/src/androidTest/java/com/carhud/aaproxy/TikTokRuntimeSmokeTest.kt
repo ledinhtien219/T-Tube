@@ -87,7 +87,21 @@ class TikTokRuntimeSmokeTest {
                     val h = device.displayHeight
                     device.swipe(w / 2, (h * 0.78).toInt(), w / 2, (h * 0.25).toInt(), 18)
                     SystemClock.sleep(650)
-                    assertTrue("TikTok search became blank after swipe ${index + 1}", isHealthy(activity))
+
+                    // TikTok's live search SPA can briefly virtualize/unmount the
+                    // visible result tree immediately after a swipe. Require it
+                    // to recover quickly instead of sampling a single transient frame.
+                    val recovered = waitUntil(5_000) {
+                        currentUrl(activity).contains("/search") && isHealthy(activity)
+                    }
+                    if (!recovered) {
+                        appendDiagnostic("search-swipe-${index + 1}-blank", activity)
+                        screenshot("97-search-swipe-${index + 1}-blank.png")
+                    }
+                    assertTrue(
+                        "TikTok search stayed blank after swipe ${index + 1}",
+                        recovered
+                    )
                 }
                 assertTrue(
                     "TikTok search UI disappeared after scrolling",
