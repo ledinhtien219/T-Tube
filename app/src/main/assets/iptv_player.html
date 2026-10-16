@@ -1380,8 +1380,52 @@
       return localStorage.getItem('custom_iptv_url') || DEFAULT_URL;
     }
 
+    function normalizeProjectedViewport() {
+      try {
+        const isAuto = !!(window.AndroidVoice &&
+          typeof window.AndroidVoice.isAuto === 'function' &&
+          window.AndroidVoice.isAuto());
+        if (!isAuto) return false;
+
+        const main = document.querySelector('.main-body');
+        const player = document.getElementById('playerSection');
+        const container = document.querySelector('.video-container');
+        const nodes = [document.documentElement, document.body, main, player, container];
+        nodes.forEach(node => {
+          if (!node) return;
+          node.style.setProperty('width', '100%', 'important');
+          node.style.setProperty('height', '100%', 'important');
+          node.style.setProperty('max-width', '100%', 'important');
+          node.style.setProperty('max-height', '100%', 'important');
+        });
+
+        if (player) {
+          player.style.setProperty('position', 'absolute', 'important');
+          player.style.setProperty('inset', '0', 'important');
+        }
+        if (container) {
+          container.style.setProperty('position', 'absolute', 'important');
+          container.style.setProperty('inset', '0', 'important');
+        }
+
+        // Re-apply only the selected fit mode after a SurfaceContainer/VirtualDisplay
+        // resize. This prevents a persistent WebView from keeping stale embedded
+        // dimensions when switching from split to ultrawide AA.
+        if (window.ThtvIptvFit && typeof window.ThtvIptvFit.restore === 'function') {
+          window.ThtvIptvFit.restore();
+        }
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+    window.ThtvIptvNormalizeViewport = normalizeProjectedViewport;
+    window.addEventListener('resize', () => requestAnimationFrame(normalizeProjectedViewport));
+    window.addEventListener('pageshow', () => requestAnimationFrame(normalizeProjectedViewport));
+
     function init() {
       initVideoFit();
+      normalizeProjectedViewport();
       hideChannelsAndControls();
       setupChannelListDragScroll();
       urlInput.value = getM3uUrl();
