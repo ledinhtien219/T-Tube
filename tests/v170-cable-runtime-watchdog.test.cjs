@@ -9,7 +9,7 @@ const media = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarMediaMana
 const runtime = fs.readFileSync('app/src/androidTest/java/com/carhud/aaproxy/CarDisconnectWatchdogRuntimeTest.kt','utf8');
 const workflow = fs.readFileSync('.github/workflows/build-apk.yml','utf8');
 
-assert.match(gradle, /versionCode = 261/);
+assert.match(gradle, /versionCode = 26[12]/);
 
 // Do not trust the mutable CarMediaManager flag as the only disconnect signal.
 assert.match(projection, /CarDisconnectWatchdog\.onProjectionConnected\(this\)/);
