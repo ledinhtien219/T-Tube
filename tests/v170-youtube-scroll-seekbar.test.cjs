@@ -24,6 +24,9 @@ assert.match(flingBlock, /flingScale = if \(isYouTubeResults\) 0\.28f else 0\.45
 
 assert.match(presentation, /private var youtubeSeekBar: SeekBar\?/);
 assert.match(presentation, /private var youtubeSeekDragging = false/);
+assert.match(presentation, /private fun isYouTubeVideoPage\(\): Boolean/);
+assert.match(presentation, /url\.contains\("\/watch", ignoreCase = true\)/);
+assert.match(presentation, /url\.contains\("\/shorts\/", ignoreCase = true\)/);
 assert.match(presentation, /val youtubeSeekTouch = currentActiveAppId == "youtube"/);
 assert.match(presentation, /projectedTouchActive = editing \|\| tikTok \|\| youtubeSeekTouch/);
 assert.match(toolbarBlock, /SeekBar\.OnSeekBarChangeListener/);

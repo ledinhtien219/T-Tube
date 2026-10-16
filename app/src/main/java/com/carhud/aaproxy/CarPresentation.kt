@@ -1155,12 +1155,19 @@ class CarPresentation(
         }
     }
 
+    private fun isYouTubeVideoPage(): Boolean {
+        val activeWeb = CarMediaManager.getActiveWebView() ?: web
+        val url = activeWeb.url.orEmpty()
+        return currentActiveAppId == "youtube" &&
+            (url.contains("/watch", ignoreCase = true) || url.contains("/shorts/", ignoreCase = true))
+    }
+
     fun updateVideoProgress(currentSec: Int, totalSec: Int, formattedTime: String) {
         val safeDuration = totalSec.coerceAtLeast(0)
         val safeCurrent = if (safeDuration > 0) currentSec.coerceIn(0, safeDuration) else 0
         youtubeSeekDurationSec = safeDuration
 
-        val showYoutubeSeek = currentActiveAppId == "youtube" &&
+        val showYoutubeSeek = isYouTubeVideoPage() &&
             safeDuration > 0 && !isDashboardShowing
         if (showYoutubeSeek) {
             youtubeSeekBar?.let { bar ->
@@ -1659,7 +1666,7 @@ class CarPresentation(
             addView(seekBar, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply {
                 leftMargin = dp(6)
             })
-            visibility = if (youtubeSeekDurationSec > 0) View.VISIBLE else View.GONE
+            visibility = if (youtubeSeekDurationSec > 0 && isYouTubeVideoPage()) View.VISIBLE else View.GONE
         }
         youtubeSeekContainer = seekCard
 
@@ -1702,7 +1709,7 @@ class CarPresentation(
             }
         }
         youtubeSeekContainer?.let { seek ->
-            if (currentActiveAppId == "youtube" && youtubeSeekDurationSec > 0 &&
+            if (isYouTubeVideoPage() && youtubeSeekDurationSec > 0 &&
                 !isDashboardShowing && seek.visibility != View.VISIBLE) {
                 seek.bringToFront()
                 seek.visibility = View.VISIBLE
