@@ -45,7 +45,6 @@ class SettingsActivity : AppCompatActivity() {
         const val KEY_AUDIO_DUCKING = "audio_ducking_enabled"
         const val KEY_AUTO_FULLSCREEN = "auto_fullscreen_enabled"
         const val KEY_AUTO_DETECT_SCREEN = "auto_detect_screen_layout"
-        const val KEY_ULTRAWIDE_FULL_SURFACE = "ultrawide_full_surface"
         const val KEY_AUTO_RESUME_LAST_TRACK = "auto_resume_last_track"
         const val KEY_DEFAULT_TO_DASHBOARD = "default_to_dashboard"
         const val KEY_LAST_PLAYED_URL = "last_played_url"
@@ -336,7 +335,6 @@ class SettingsActivity : AppCompatActivity() {
             return
         }
         WazeHlpWebSocketManager.start()
-        CarHostModeManager.syncFromPreferences(this)
         updateThemeColors()
         window.statusBarColor = colorBg
         window.navigationBarColor = colorBg
@@ -704,31 +702,6 @@ class SettingsActivity : AppCompatActivity() {
                         key = KEY_AUTO_DETECT_SCREEN,
                         default = true
                     )
-                )
-
-                content.addView(
-                    createSwitchRow(
-                        title = "Ưu tiên toàn màn hình siêu rộng",
-                        subtitle = "Dành cho màn dài/Coolwalk. Bật để dùng full-surface; đổi xong cần ngắt và kết nối lại Android Auto.",
-                        key = KEY_ULTRAWIDE_FULL_SURFACE,
-                        default = false
-                    ) { enabled ->
-                        val appliedNow =
-                            CarHostModeManager.requestMode(this@SettingsActivity, enabled)
-                        Toast.makeText(
-                            this@SettingsActivity,
-                            if (appliedNow) {
-                                if (enabled) {
-                                    "Đã bật chế độ siêu rộng cho lần kết nối Android Auto tiếp theo."
-                                } else {
-                                    "Đã về chế độ tương thích."
-                                }
-                            } else {
-                                "Đã lưu lựa chọn. Để tránh lỗi Android Auto, chế độ sẽ đổi sau khi bạn ngắt kết nối hiện tại rồi cắm lại."
-                            },
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
                 )
 
                 content.addView(createCarScreenDetailsCard())
@@ -2485,7 +2458,6 @@ class SettingsActivity : AppCompatActivity() {
         val webH = prefs.getInt("car_screen_web_height", usableH)
         val refreshHz = prefs.getFloat("car_screen_refresh_rate", 0f)
         val screenSignature = prefs.getString("car_screen_signature", "") ?: ""
-        val ultrawideFullSurface = prefs.getBoolean(KEY_ULTRAWIDE_FULL_SURFACE, false)
         val deviceId = LicenseManager.getDeviceId(this)
         val lastSyncMs = ScreenProfileReporter.getLastSyncTime(this)
         val lastSyncText = if (lastSyncMs > 0L) {
@@ -2596,17 +2568,6 @@ class SettingsActivity : AppCompatActivity() {
                 textSize = 11f
                 setTextColor(colorTextSecondary)
                 setPadding(0, dp(8), 0, 0)
-            })
-
-            addView(TextView(this@SettingsActivity).apply {
-                text = if (ultrawideFullSurface) {
-                    "• Android Auto: Ưu tiên toàn màn hình siêu rộng"
-                } else {
-                    "• Android Auto: Chế độ tương thích"
-                }
-                textSize = 11f
-                setTextColor(if (ultrawideFullSurface) Color.parseColor("#38BDF8") else colorTextSecondary)
-                setPadding(0, dp(3), 0, 0)
             })
 
             addView(TextView(this@SettingsActivity).apply {
@@ -2740,13 +2701,7 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun createSwitchRow(
-        title: String,
-        subtitle: String,
-        key: String,
-        default: Boolean,
-        onChanged: ((Boolean) -> Unit)? = null
-    ): LinearLayout {
+    private fun createSwitchRow(title: String, subtitle: String, key: String, default: Boolean): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -2775,7 +2730,6 @@ class SettingsActivity : AppCompatActivity() {
                 isChecked = prefs.getBoolean(key, default)
                 setOnCheckedChangeListener { _, isChecked ->
                     prefs.edit().putBoolean(key, isChecked).apply()
-                    onChanged?.invoke(isChecked)
                 }
             }
             addView(sw)

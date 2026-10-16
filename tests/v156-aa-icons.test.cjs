@@ -9,7 +9,6 @@ const versionName = gradle.match(/versionName = "([^"]+)"/)?.[1] || "";
 assert.ok(versionCode >= 243);
 assert.ok(/^1\.0\./.test(versionName));
 assert.match(manifest, /android:name="com\.carhud\.aaproxy\.CarHudProjectionService"[\s\S]*android:icon="@drawable\/ic_carhud_logo"/);
-assert.match(manifest, /android:name="com\.carhud\.aaproxy\.CarHudAutoService"[\s\S]*android:icon="@drawable\/ic_carhud_logo"/);
 assert.match(manifest, /android:name="com\.carhud\.aaproxy\.CarMediaBrowserService"[\s\S]*android:icon="@drawable\/ic_carhud_media_round"/);
 assert.match(manifest, /android:resource="@drawable\/ic_carhud_media_round"/);
 assert.match(media, /R\.drawable\.ic_carhud_media_round/);

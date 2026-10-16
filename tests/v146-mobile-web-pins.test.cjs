@@ -8,25 +8,26 @@ const dashboard = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarDashb
 const main = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/MainActivity.kt', 'utf8');
 const screen = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarHudAutoScreen.kt', 'utf8');
 
-// Both AA host paths are packaged; stable projection stays default while the
-// settings toggle can enable full-surface SurfaceContainer mode.
+// Android Auto uses the working Fermata-style CarActivity projection path,
+// not AndroidX NavigationTemplate/MapTemplate as the runtime entry.
 const manifest = fs.readFileSync('app/src/main/AndroidManifest.xml', 'utf8');
-const descriptor = fs.readFileSync('app/src/main/res/xml/automotive_app_desc.xml', 'utf8');
-const hostMode = fs.readFileSync(
-  'app/src/main/java/com/carhud/aaproxy/CarHostModeManager.kt',
+const projectionHost = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/CarHudProjectionHost.kt',
   'utf8'
 );
+const descriptor = fs.readFileSync('app/src/main/res/xml/automotive_app_desc.xml', 'utf8');
 
 assert.match(manifest, /CarHudProjectionService/);
-assert.match(manifest, /CarHudAutoService/);
-assert.match(manifest, /androidx\.car\.app\.category\.NAVIGATION/);
-assert.match(descriptor, /name="template"/);
+assert.match(manifest, /CATEGORY_PROJECTION/);
+assert.doesNotMatch(manifest, /CarHudAutoService/);
+assert.match(descriptor, /name="service"/);
 assert.match(descriptor, /name="projection"/);
-assert.match(hostMode, /KEY_ULTRAWIDE_FULL_SURFACE/);
-assert.match(screen, /surfaceContainer\.width/);
-assert.match(screen, /surfaceContainer\.height/);
-assert.match(screen, /MapTemplate\.Builder\(\)/);
-assert.match(screen, /NavigationTemplate\.Builder\(\)/);
+assert.match(projectionHost, /CarActivityService/);
+assert.match(projectionHost, /CarActivity\(\)/);
+assert.match(projectionHost, /SurfaceView\(this\)/);
+assert.match(projectionHost, /CarPresentation\(this, vd\.display, persistentWeb\)/);
+assert.match(projectionHost, /hideAppHeader\(\)/);
+assert.match(projectionHost, /hideMenuButton\(\)/);
 
 // Projected WebViews use the full car surface at native 100% scale.
 assert.match(presentation, /web\.setInitialScale\(100\)/);

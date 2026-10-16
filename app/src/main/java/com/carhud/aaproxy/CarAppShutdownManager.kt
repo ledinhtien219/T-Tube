@@ -24,13 +24,6 @@ object CarAppShutdownManager {
         if (isShuttingDown) return
         isShuttingDown = true
         CarDisconnectWatchdog.resetAfterShutdown()
-        // The real cable-disconnect path is the safe moment to swap Android
-        // Auto entry components for the next connection.
-        try {
-            CarHostModeManager.applyPendingAfterDisconnect(context.applicationContext)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error applying pending Android Auto host mode", e)
-        }
         Log.i(TAG, "Shutting down application completely. Reason: $reason")
 
         try {
@@ -56,17 +49,12 @@ object CarAppShutdownManager {
                 Log.e(TAG, "Error stopping background tasks", e)
             }
 
-            // 3. Stop whichever Android Auto host is active + media services
-            // so no component can restart playback while the phone task closes.
+            // 3. Stop projection + media services so no foreground/background
+            // component can restart playback while the phone task is closing.
             try {
                 context.stopService(Intent(context, CarHudProjectionService::class.java))
             } catch (e: Exception) {
                 Log.e(TAG, "Error stopping CarHudProjectionService", e)
-            }
-            try {
-                context.stopService(Intent(context, CarHudAutoService::class.java))
-            } catch (e: Exception) {
-                Log.e(TAG, "Error stopping CarHudAutoService", e)
             }
             try {
                 // Release MediaSession + foreground notification synchronously

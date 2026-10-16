@@ -24,7 +24,6 @@ class CarHudAutoService : CarAppService() {
     override fun onCreate() {
         super.onCreate()
         try {
-            CarDisconnectWatchdog.onProjectionServiceCreated(applicationContext)
             AppCrashHandler.init(applicationContext)
             CarTtsManager.init(applicationContext)
             CarTtsManager.startListeningToRepository()
@@ -35,17 +34,12 @@ class CarHudAutoService : CarAppService() {
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_POWER_DISCONNECTED)
                 addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
-                addAction(UsbManager.ACTION_USB_ACCESSORY_DETACHED)
             }
             powerDisconnectReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
-                    val action = intent?.action ?: return
-                    Log.i("CarHudAutoService", "Cable unplugged event: $action")
+                    Log.i("CarHudAutoService", "Cable unplugged event: ${intent?.action}")
                     context?.let {
-                        CarDisconnectWatchdog.onCableDetachBroadcast(
-                            it.applicationContext,
-                            action
-                        )
+                        CarAppShutdownManager.shutdownCompletely(it.applicationContext, "Cable unplugged (${intent?.action})")
                     }
                 }
             }
@@ -63,11 +57,9 @@ class CarHudAutoService : CarAppService() {
         try {
             powerDisconnectReceiver?.let { unregisterReceiver(it) }
             powerDisconnectReceiver = null
-        } catch (_: Exception) {}
-        CarDisconnectWatchdog.onProjectionServiceDestroyed(applicationContext)
+        } catch (e: Exception) {}
         super.onDestroy()
-        // Do NOT treat service destruction as a cable unplug. Android Auto/OEM
-        // hosts can recreate CarAppService while the cable is still connected.
+        CarAppShutdownManager.shutdownCompletely(applicationContext, "CarHudAutoService onDestroy (Android Auto Disconnected)")
     }
 
     override fun createHostValidator(): HostValidator {
