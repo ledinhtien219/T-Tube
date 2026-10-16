@@ -4228,9 +4228,9 @@ class CarPresentation(
         val isYouTubeResults = currentActiveAppId == "youtube" &&
             activeWeb.url.orEmpty().contains("/results", ignoreCase = true)
         // The projected GestureDetector already reports movement in surface pixels.
-        // Keep YouTube search results close to 1:1 finger travel instead of the
+        // Keep YouTube search results responsive without the full
         // global 2x boost, which makes short swipes skip too many rows.
-        val scrollScale = if (isYouTubeResults) 1.0f else 2.0f
+        val scrollScale = if (isYouTubeResults) 1.5f else 2.0f
         val scrollDelta = (dy * scrollScale).roundToInt()
         if (scrollDelta != 0) {
             val js = """
@@ -4259,9 +4259,9 @@ class CarPresentation(
         val activeWeb = CarMediaManager.getActiveWebView() ?: web
         val isYouTubeResults = currentActiveAppId == "youtube" &&
             activeWeb.url.orEmpty().contains("/results", ignoreCase = true)
-        // Search-result cards are tall, so the generic fling multiplier jumps
+        // Search-result cards are tall, so the generic fling multiplier can jump
         // several rows at once. Damp only this page; keep other apps unchanged.
-        val flingScale = if (isYouTubeResults) 0.18f else 0.45f
+        val flingScale = if (isYouTubeResults) 0.28f else 0.45f
         val flingAmount = (-vy * flingScale).roundToInt()
         if (flingAmount != 0) {
             val js = """
