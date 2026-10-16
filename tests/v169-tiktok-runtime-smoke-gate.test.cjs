@@ -6,7 +6,7 @@ const workflow = fs.readFileSync('.github/workflows/build-apk.yml','utf8');
 const smokeActivity = fs.readFileSync('app/src/debug/java/com/carhud/aaproxy/TikTokSmokeActivity.kt','utf8');
 const smokeTest = fs.readFileSync('app/src/androidTest/java/com/carhud/aaproxy/TikTokRuntimeSmokeTest.kt','utf8');
 
-assert.match(gradle, /versionCode = 261/);
+assert.match(gradle, /versionCode = (?:261|262)/);
 assert.match(gradle, /androidx\.test\.uiautomator:uiautomator:2\.3\.0/);
 assert.match(gradle, /androidx\.test:core-ktx:1\.6\.1/);
 
