@@ -432,7 +432,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        StableProjectionHost.ensureEnabled(this)
+        CarHostModeManager.reconcileFromPreferences(this)
         registerFullExitReceiver()
 
         // v1.0.63 build 251: phone UI starts in Night mode on first launch.
