@@ -4284,7 +4284,21 @@ class CarPresentation(
                 appGridOverlay?.visibility != View.VISIBLE &&
                 hudOverlay?.let { it.visibility == View.VISIBLE &&
                     (!it.isHudLocked() || it.isTouchOnOverlay(event.x, event.y)) } != true
-            projectedTouchActive = editing || tikTok
+
+            // YouTube controls are normally driven by tap synthesis, but the seekbar
+            // needs the complete DOWN -> MOVE -> UP stream to support dragging.
+            val rootPosition = IntArray(2)
+            root.getLocationOnScreen(rootPosition)
+            val seekRect = android.graphics.Rect()
+            val youtubeSeekTouch = currentActiveAppId == "youtube" &&
+                youtubeSeekContainer?.visibility == View.VISIBLE &&
+                youtubeSeekContainer?.getGlobalVisibleRect(seekRect) == true &&
+                seekRect.contains(
+                    rootPosition[0] + event.x.toInt(),
+                    rootPosition[1] + event.y.toInt()
+                )
+
+            projectedTouchActive = editing || tikTok || youtubeSeekTouch
         }
         if (!projectedTouchActive) return false
         val copy = MotionEvent.obtain(event)
