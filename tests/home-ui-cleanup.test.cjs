@@ -36,10 +36,12 @@ assert.match(descriptor, /<uses\s+name="service"/);
 assert.match(descriptor, /<uses\s+name="projection"/);
 assert.match(hostMode, /CarHudAutoService::class\.java, preferUltrawide/);
 assert.match(hostMode, /CarHudProjectionService::class\.java, !preferUltrawide/);
+assert.match(hostMode, /if \(isAndroidAutoSessionActive\(\)\)/);
 assert.match(projectionHost, /class CarHudProjectionService : CarActivityService\(\)/);
 assert.match(projectionHost, /class CarHudProjectionActivity : CarActivity\(\), SurfaceHolder\.Callback/);
-assert.match(screen, /MapTemplate\.Builder\(\)[\s\S]*?Pane\.Builder\(\)\.build\(\)/);
+assert.doesNotMatch(screen, /MapTemplate\.Builder/);
 assert.match(screen, /NavigationTemplate\.Builder\(\)[\s\S]*?setActionStrip\(hiddenActionStrip\)/);
+assert.match(screen, /setTitle\("\\u200B"\)/);
 
 // Keep the existing weather-card bounds, but render weather with vector icons.
 assert.match(dashboardXml, /android:id="@\+id\/weatherCard"[\s\S]*?android:layout_width="150dp"[\s\S]*?android:layout_height="76dp"/);
