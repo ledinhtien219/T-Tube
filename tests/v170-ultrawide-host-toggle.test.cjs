@@ -51,10 +51,11 @@ assert.doesNotMatch(destroyBlock, /shutdownCompletely/);
 assert.match(screen, /surfaceContainer\.width/);
 assert.match(screen, /surfaceContainer\.height/);
 assert.match(screen, /CarDisconnectWatchdog\.onProjectionConnected\(carContext\)/);
+assert.match(screen, /carContext\.carAppApiLevel >= 5/);
+assert.match(screen, /MapTemplate\.Builder\(\)[\s\S]*?Pane\.Builder\(\)\.build\(\)/);
 assert.match(screen, /NavigationTemplate\.Builder\(\)/);
 assert.match(screen, /setTitle\("\\u200B"\)/);
-assert.doesNotMatch(screen, /MapTemplate\.Builder/);
 
 assert.match(shutdown, /CarHostModeManager\.applyPendingAfterDisconnect\(context\.applicationContext\)/);
 
-console.log('PASS AA host toggle: deferred switching + crash-safe ultrawide SurfaceContainer mode');
+console.log('PASS AA host toggle: deferred switching + action-free modern ultrawide mode');
