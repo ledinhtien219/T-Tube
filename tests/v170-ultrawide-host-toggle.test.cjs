@@ -11,8 +11,16 @@ const manager = fs.readFileSync(
   'app/src/main/java/com/carhud/aaproxy/CarHostModeManager.kt',
   'utf8'
 );
+const service = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/CarHudAutoService.kt',
+  'utf8'
+);
 const screen = fs.readFileSync(
   'app/src/main/java/com/carhud/aaproxy/CarHudAutoScreen.kt',
+  'utf8'
+);
+const shutdown = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/CarAppShutdownManager.kt',
   'utf8'
 );
 
@@ -23,17 +31,30 @@ assert.match(descriptor, /name="projection"/);
 
 assert.match(settings, /KEY_ULTRAWIDE_FULL_SURFACE = "ultrawide_full_surface"/);
 assert.match(settings, /Ưu tiên toàn màn hình siêu rộng/);
-assert.match(settings, /CarHostModeManager\.applyMode\(this@SettingsActivity, enabled\)/);
-assert.match(settings, /ngắt và kết nối lại Android Auto/);
-assert.match(settings, /CarHostModeManager\.syncFromPreferences\(this\)/);
+assert.match(settings, /CarHostModeManager\.requestMode\(this@SettingsActivity, enabled\)/);
+assert.doesNotMatch(settings, /CarHostModeManager\.applyMode\(/);
 
+assert.match(manager, /fun requestMode\(context: Context, preferUltrawide: Boolean\): Boolean/);
+assert.match(manager, /if \(isAndroidAutoSessionActive\(\)\)/);
+assert.match(manager, /CarDisconnectWatchdog\.hasSeenProjectionSession\(\)/);
+assert.match(manager, /fun applyPendingAfterDisconnect\(context: Context\)/);
 assert.match(manager, /CarHudAutoService::class\.java, preferUltrawide/);
 assert.match(manager, /CarHudProjectionService::class\.java, !preferUltrawide/);
 assert.match(manager, /PackageManager\.DONT_KILL_APP/);
 
+assert.match(service, /CarDisconnectWatchdog\.onProjectionServiceCreated/);
+assert.match(service, /CarDisconnectWatchdog\.onProjectionServiceDestroyed/);
+assert.match(service, /CarDisconnectWatchdog\.onCableDetachBroadcast/);
+const destroyBlock = service.match(/override fun onDestroy\(\)[\s\S]*?override fun createHostValidator/)?.[0] || '';
+assert.doesNotMatch(destroyBlock, /shutdownCompletely/);
+
 assert.match(screen, /surfaceContainer\.width/);
 assert.match(screen, /surfaceContainer\.height/);
-assert.match(screen, /carContext\.carAppApiLevel >= 5/);
-assert.match(screen, /MapTemplate\.Builder\(\)/);
+assert.match(screen, /CarDisconnectWatchdog\.onProjectionConnected\(carContext\)/);
+assert.match(screen, /NavigationTemplate\.Builder\(\)/);
+assert.match(screen, /setTitle\("\\u200B"\)/);
+assert.doesNotMatch(screen, /MapTemplate\.Builder/);
 
-console.log('PASS AA host toggle: stable default + user-selectable ultrawide SurfaceContainer mode');
+assert.match(shutdown, /CarHostModeManager\.applyPendingAfterDisconnect\(context\.applicationContext\)/);
+
+console.log('PASS AA host toggle: deferred switching + crash-safe ultrawide SurfaceContainer mode');
