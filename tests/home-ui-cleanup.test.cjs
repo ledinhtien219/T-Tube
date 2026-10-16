@@ -48,7 +48,8 @@ assert.match(projectionHost, /class CarHudProjectionActivity : CarActivity\(\), 
 // Modern ultrawide mode must build a valid action-free MapTemplate: Pane + Header,
 // no ActionStrip call. Legacy hosts retain the tiny NavigationTemplate fallback.
 assert.match(templateFactory, /MapTemplate\.Builder\(\)[\s\S]*?setPane\(pane\)[\s\S]*?setHeader\(header\)[\s\S]*?build\(\)/);
-assert.doesNotMatch(templateFactory, /MapTemplate\.Builder\(\)[\s\S]*?setActionStrip/);
+const modernTemplateBlock = templateFactory.match(/if \(carApiLevel >= 5\)[\s\S]*?return MapTemplate\.Builder\(\)[\s\S]*?\.build\(\)/)?.[0] || '';
+assert.doesNotMatch(modernTemplateBlock, /setActionStrip/);
 assert.match(templateFactory, /Header\.Builder\(\)[\s\S]*?setTitle\("\\u200B"\)/);
 assert.match(templateFactory, /NavigationTemplate\.Builder\(\)[\s\S]*?setActionStrip\(hiddenActionStrip\)/);
 
