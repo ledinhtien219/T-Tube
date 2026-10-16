@@ -8,7 +8,7 @@ const settings = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/SettingsA
 const licenseConfig = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/LicenseConfig.kt','utf8');
 
 assert.match(gradle, /versionCode = (?:261|262)/);
-assert.match(gradle, /versionName = "1\.0\.70"/);
+assert.match(gradle, /versionName = "1\\.0\\.70(?:-mazda1)?"/);
 
 // The temporary v1.0.69 Zalo-group shortcut has been fully removed.
 assert.doesNotMatch(layout, /btnHomeZalo|Nhóm Zalo/);
