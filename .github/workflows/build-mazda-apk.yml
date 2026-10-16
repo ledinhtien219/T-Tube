@@ -1,0 +1,71 @@
+name: Build T Tube Mazda Commander APK
+
+on:
+  push:
+    branches: [ "mazda/v170-commander" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ttube-mazda-v170-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Mazda Commander APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify Mazda variant
+        run: |
+          grep -q 'versionName = "1.0.70-mazda"' app/build.gradle.kts
+          grep -q 'SOURCE_ROTARY_ENCODER' app/src/main/java/com/carhud/aaproxy/CarHudProjectionHost.kt
+          grep -q 'dispatchMazdaRotary' app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Restore stable debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: thtv-stable-debug-keystore-v1
+
+      - name: Ensure stable signing key exists
+        run: |
+          test -f ~/.android/debug.keystore || {
+            echo "Stable signing key missing"
+            exit 1
+          }
+
+      - name: Run regression tests
+        run: |
+          set -e
+          for f in tests/*.cjs; do
+            echo "RUN $f"
+            node "$f"
+          done
+
+      - name: Run JVM unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Build Mazda debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload Mazda APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TTube-v1.0.70-mazda-build262-APK
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
