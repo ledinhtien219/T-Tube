@@ -8,26 +8,29 @@ const dashboard = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarDashb
 const main = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/MainActivity.kt', 'utf8');
 const screen = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarHudAutoScreen.kt', 'utf8');
 
-// Android Auto uses the working Fermata-style CarActivity projection path,
-// not AndroidX NavigationTemplate/MapTemplate as the runtime entry.
+// Stable projection remains the default AA path, with a disabled
+// SurfaceContainer host available for the reconnect-only ultrawide mode.
 const manifest = fs.readFileSync('app/src/main/AndroidManifest.xml', 'utf8');
 const projectionHost = fs.readFileSync(
   'app/src/main/java/com/carhud/aaproxy/CarHudProjectionHost.kt',
   'utf8'
 );
 const descriptor = fs.readFileSync('app/src/main/res/xml/automotive_app_desc.xml', 'utf8');
+const hostMode = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/CarHostModeManager.kt',
+  'utf8'
+);
 
-assert.match(manifest, /CarHudProjectionService/);
+assert.match(manifest, /CarHudProjectionService"[\s\S]*?android:enabled="true"/);
+assert.match(manifest, /CarHudAutoService"[\s\S]*?android:enabled="false"/);
 assert.match(manifest, /CATEGORY_PROJECTION/);
-assert.doesNotMatch(manifest, /CarHudAutoService/);
-assert.match(descriptor, /name="service"/);
+assert.match(manifest, /androidx\.car\.app\.category\.NAVIGATION/);
+assert.match(descriptor, /name="template"/);
 assert.match(descriptor, /name="projection"/);
+assert.match(hostMode, /requestMode\(context: Context, preferUltrawide: Boolean\)/);
 assert.match(projectionHost, /CarActivityService/);
 assert.match(projectionHost, /CarActivity\(\)/);
 assert.match(projectionHost, /SurfaceView\(this\)/);
-assert.match(projectionHost, /CarPresentation\(this, vd\.display, persistentWeb\)/);
-assert.match(projectionHost, /hideAppHeader\(\)/);
-assert.match(projectionHost, /hideMenuButton\(\)/);
 
 // Projected WebViews use the full car surface at native 100% scale.
 assert.match(presentation, /web\.setInitialScale\(100\)/);
