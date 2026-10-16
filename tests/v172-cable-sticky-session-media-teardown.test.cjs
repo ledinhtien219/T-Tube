@@ -7,8 +7,8 @@ const mediaService = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarMe
 const shutdown = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarAppShutdownManager.kt','utf8');
 const runtime = fs.readFileSync('app/src/androidTest/java/com/carhud/aaproxy/CarDisconnectWatchdogRuntimeTest.kt','utf8');
 
-assert.match(gradle, /versionCode = 259/);
-assert.match(gradle, /versionName = "1\.0\.68"/);
+assert.match(gradle, /versionCode = 260/);
+assert.match(gradle, /versionName = "1\.0\.69"/);
 
 // A real projection session must stay armed even if AA tears down its service
 // while USB power is still present.
@@ -29,4 +29,4 @@ assert.match(mediaService, /STOP_FOREGROUND_REMOVE/);
 assert.match(mediaService, /nm\.cancel\(NOTIFICATION_ID\)/);
 assert.match(shutdown, /CarMediaBrowserService\.forceShutdownForDisconnect\(context\)/);
 
-console.log('PASS v1.0.68 build 259: sticky cable watchdog + synchronous media-session teardown');
+console.log('PASS v1.0.69 build 260: sticky cable watchdog + synchronous media-session teardown');
