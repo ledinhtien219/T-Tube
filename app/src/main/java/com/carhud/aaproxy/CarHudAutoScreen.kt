@@ -14,6 +14,8 @@ import androidx.car.app.SurfaceCallback
 import androidx.car.app.SurfaceContainer
 import androidx.car.app.model.Action
 import androidx.car.app.model.ActionStrip
+import androidx.car.app.model.Pane
+import androidx.car.app.navigation.model.MapTemplate
 import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.car.app.model.Template
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -206,10 +208,21 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     }
 
     override fun onGetTemplate(): Template {
-        // NavigationTemplate requires a non-empty ActionStrip on real AA hosts.
-        // A zero-width text action is the known crash-safe full-surface variant
-        // used by the earlier working implementation. SurfaceContainer still
-        // carries the host-provided width/height for ultrawide rendering.
+        // Modern AA hosts (Car API 5+) can expose the navigation SurfaceContainer
+        // through MapTemplate without any ActionStrip. This removes the host-owned
+        // ghost/action button while preserving the full-width ultrawide surface.
+        //
+        // The earlier crash was caused by switching/disabling the active host
+        // service mid-session, not by this template. Host switching is now deferred
+        // until the real cable disconnect path.
+        if (carContext.carAppApiLevel >= 5) {
+            return MapTemplate.Builder()
+                .setPane(Pane.Builder().build())
+                .build()
+        }
+
+        // Legacy hosts require NavigationTemplate with a non-empty ActionStrip.
+        // Keep the smallest possible invisible placeholder only for those hosts.
         val hiddenActionStrip = ActionStrip.Builder()
             .addAction(
                 Action.Builder()
