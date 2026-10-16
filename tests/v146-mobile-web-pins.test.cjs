@@ -25,7 +25,8 @@ assert.match(descriptor, /name="projection"/);
 assert.match(hostMode, /KEY_ULTRAWIDE_FULL_SURFACE/);
 assert.match(screen, /surfaceContainer\.width/);
 assert.match(screen, /surfaceContainer\.height/);
-assert.match(screen, /MapTemplate\.Builder\(\)/);
+assert.match(screen, /NavigationTemplate\.Builder\(\)/);
+assert.doesNotMatch(screen, /MapTemplate\.Builder/);
 
 // Projected WebViews use the full car surface at native 100% scale.
 assert.match(presentation, /web\.setInitialScale\(100\)/);
