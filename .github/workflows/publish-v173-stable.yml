@@ -1,3 +1,4 @@
+# Source files verified against local Git blob hashes before stable publication.
 name: Publish T Tube v1.0.73 Stable
 
 on:
