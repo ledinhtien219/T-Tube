@@ -17,6 +17,7 @@ import androidx.car.app.model.ActionStrip
 import androidx.car.app.model.CarColor
 import androidx.car.app.model.Header
 import androidx.car.app.model.Pane
+import androidx.car.app.model.Row
 import androidx.car.app.navigation.model.MapTemplate
 import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.car.app.model.Template
@@ -216,8 +217,21 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
         // experiment crashed because MapTemplate requires both Pane and Header;
         // provide valid empty map content plus a zero-width header here.
         if (carContext.carAppApiLevel >= 5) {
+            // Pane.Builder() cannot be empty unless setLoading(true). An empty,
+            // non-loading Pane crashes the host with:
+            // "The pane is set to loading but is not empty, or vice versa".
+            // Use one zero-width informational row instead: valid content, no
+            // action strip, and no loading spinner over the projected surface.
+            val invisiblePane = Pane.Builder()
+                .addRow(
+                    Row.Builder()
+                        .setTitle("\u200B")
+                        .build()
+                )
+                .build()
+
             return MapTemplate.Builder()
-                .setPane(Pane.Builder().build())
+                .setPane(invisiblePane)
                 .setHeader(
                     Header.Builder()
                         .setTitle("\u200B")
