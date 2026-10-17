@@ -288,8 +288,10 @@ class CarDashboardView(
         val widthDp = if (autoDetect) widthPx / density else 1024f
         val heightDp = if (autoDetect) heightPx / density else 600f
 
-        val compactWidth = widthDp < 820f
-        val veryCompactWidth = widthDp < 700f
+        val viewportAspect = widthPx.toFloat() / heightPx.toFloat()
+        val ultrawideViewport = viewportAspect >= 1.85f
+        val compactWidth = !ultrawideViewport && widthDp < 820f
+        val veryCompactWidth = !ultrawideViewport && widthDp < 700f
         val compactHeight = heightDp < 430f
 
         val padH = when {
