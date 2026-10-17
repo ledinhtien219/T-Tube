@@ -151,7 +151,10 @@ class CarPresentation(
         isPortrait = aspectRatio < 0.95f
 
         // Feed the actual AA viewport into every responsive subsystem.
-        dashboardView?.applyAdaptiveScreen(carWidth, carHeight)
+        // The user-facing auto-detect switch now genuinely controls whether
+        // dashboard chrome adapts to the detected viewport.
+        val autoDetect = prefs.getBoolean(SettingsActivity.KEY_AUTO_DETECT_SCREEN, true)
+        dashboardView?.applyAdaptiveScreen(carWidth, carHeight, autoDetect)
 
         lastAppliedScale = -1
         applyWebScaleForUrl(web.url)
@@ -1109,7 +1112,11 @@ class CarPresentation(
                 }
                 web.loadUrl(targetUrl)
             }
-            if (key == SettingsActivity.KEY_THEME_MODE || key == "carhud_day_mode") {
+            if (key == SettingsActivity.KEY_AUTO_DETECT_SCREEN) {
+                applyEffectiveViewportFromRoot(force = true)
+                rebuildSidebar()
+                rebuildTopToolbar()
+            } else if (key == SettingsActivity.KEY_THEME_MODE || key == "carhud_day_mode") {
                 applyCurrentTheme(isDayMode())
             } else if (key != null && (key.startsWith("pref_show_") || key == MainActivity.PREF_FAV_CHANNELS_SET)) {
                 val showBottomNav = prefs.getBoolean(MainActivity.PREF_SHOW_BOTTOM_NAV, true)
@@ -1316,9 +1323,10 @@ class CarPresentation(
         val autoDetect = prefs.getBoolean(SettingsActivity.KEY_AUTO_DETECT_SCREEN, true)
         val configuredPos = prefs.getString(SettingsActivity.KEY_TOOLBAR_POSITION, "bottom") ?: "bottom"
         val positionKey = when {
-            configuredPos == "auto" -> {
+            configuredPos == "auto" && autoDetect -> {
                 if (isPortrait) "bottom" else "left"
             }
+            configuredPos == "auto" -> "bottom"
             else -> configuredPos
         }
         val isHorizontal = (positionKey == "bottom")
