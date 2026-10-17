@@ -111,10 +111,10 @@
             android:windowSoftInputMode="stateAlwaysVisible|adjustResize"
             android:excludeFromRecents="true"/>
 
-        <!-- Android Auto projection service (Fermata-style).
-             This path avoids AndroidX template ActionStrip chrome entirely. -->
+        <!-- Normal/split Android Auto projection host. Enabled by default. -->
         <service
             android:name="com.carhud.aaproxy.CarHudProjectionService"
+            android:enabled="true"
             android:exported="true"
             android:label="T Tube"
             android:icon="@drawable/ic_carhud_logo"
@@ -123,6 +123,25 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="com.google.android.gms.car.category.CATEGORY_PROJECTION"/>
                 <category android:name="com.google.android.gms.car.category.CATEGORY_PROJECTION_OEM"/>
+            </intent-filter>
+        </service>
+
+        <!-- Optional full-surface host for long/widescreen AA displays.
+             CarHostModeManager guarantees that exactly one host is enabled. -->
+        <service
+            android:name="com.carhud.aaproxy.CarHudAutoService"
+            android:enabled="false"
+            android:exported="true"
+            android:label="T Tube"
+            android:icon="@drawable/ic_carhud_logo">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService"/>
+                <category android:name="androidx.car.app.category.NAVIGATION"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="carhud"/>
             </intent-filter>
         </service>
 
@@ -148,7 +167,7 @@
         </receiver>
 
         <receiver
-            android:name="com.carhud.aaproxy.StableProjectionUpgradeReceiver"
+            android:name="com.carhud.aaproxy.CarHostModeUpgradeReceiver"
             android:enabled="true"
             android:exported="false">
             <intent-filter>
