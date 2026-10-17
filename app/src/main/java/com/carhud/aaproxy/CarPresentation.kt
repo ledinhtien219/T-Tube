@@ -155,6 +155,10 @@ class CarPresentation(
 
         lastAppliedScale = -1
         applyWebScaleForUrl(web.url)
+        if (currentActiveAppId == "iptv") {
+            forceIptvViewportFit(web)
+            web.postDelayed({ forceIptvViewportFit(web) }, 100L)
+        }
         try {
             YouTubePlayerHelper.inject(
                 web,
@@ -679,6 +683,7 @@ class CarPresentation(
                 view.postDelayed({
                     if (view.url != url) return@postDelayed
                     if (url.contains("iptv_player.html")) {
+                        forceIptvViewportFit(view)
                         val toolbarScale = prefs.getInt(SettingsActivity.KEY_TOOLBAR_SCALE, 100).coerceIn(50, 150)
                         view.evaluateJavascript("if (typeof window.restoreVideoAspectRatio === 'function') window.restoreVideoAspectRatio();", null)
                         view.evaluateJavascript("if (typeof window.setIptvToolbarScale === 'function') window.setIptvToolbarScale($toolbarScale);", null)
@@ -1088,6 +1093,53 @@ class CarPresentation(
         web.settings.useWideViewPort = true
         web.settings.loadWithOverviewMode = false
         web.settings.textZoom = 100
+    }
+
+    private fun forceIptvViewportFit(target: WebView = web) {
+        val url = target.url.orEmpty()
+        if (currentActiveAppId != "iptv" && !url.contains("iptv_player.html", ignoreCase = true)) return
+
+        try {
+            target.settings.useWideViewPort = true
+            target.settings.loadWithOverviewMode = false
+            target.setInitialScale(100)
+            target.evaluateJavascript(
+                """
+                (function() {
+                  try {
+                    var meta = document.querySelector('meta[name="viewport"]');
+                    if (meta) meta.setAttribute(
+                      'content',
+                      'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
+                    );
+                    var id = 'ttube-aa-iptv-viewport-v2';
+                    var style = document.getElementById(id);
+                    if (!style) {
+                      style = document.createElement('style');
+                      style.id = id;
+                      document.head.appendChild(style);
+                    }
+                    style.textContent = [
+                      'html,body{width:100vw!important;height:100vh!important;min-width:0!important;max-width:none!important;margin:0!important;padding:0!important;overflow:hidden!important;}',
+                      '.main-body{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;max-width:none!important;transform:none!important;}',
+                      '.player-section,.video-container{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;transform:none!important;}',
+                      'video#videoPlayer{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;margin:0!important;}'
+                    ].join('');
+                    document.documentElement.style.width = '100vw';
+                    document.documentElement.style.height = '100vh';
+                    document.body.style.width = '100vw';
+                    document.body.style.height = '100vh';
+                    return JSON.stringify({
+                      innerWidth: window.innerWidth,
+                      innerHeight: window.innerHeight,
+                      dpr: window.devicePixelRatio || 1
+                    });
+                  } catch (e) { return 'ERR:' + e; }
+                })();
+                """.trimIndent(),
+                null
+            )
+        } catch (_: Throwable) {}
     }
 
     fun isDayMode(): Boolean = SettingsActivity.resolveIsDay(context)
@@ -2412,6 +2464,10 @@ class CarPresentation(
         try {
             web.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             updateBrowserViewport()
+            if (currentActiveAppId == "iptv") {
+                forceIptvViewportFit(web)
+                web.postDelayed({ forceIptvViewportFit(web) }, 120L)
+            }
             web.requestLayout()
             val expectedAppId = currentActiveAppId
             root.post {
