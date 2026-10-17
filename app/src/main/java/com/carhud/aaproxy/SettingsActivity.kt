@@ -2487,6 +2487,8 @@ class SettingsActivity : AppCompatActivity() {
         val hostState = CarHostModeManager.state(this)
         val carApiLevel = prefs.getInt("car_app_api_level", 0)
         val runtimeHost = prefs.getString("car_host_runtime", "") ?: ""
+        val layoutClass = prefs.getString("car_layout_class", "") ?: ""
+        val normalizedLayoutWidth = prefs.getFloat("car_layout_normalized_width", 0f)
         val deviceId = LicenseManager.getDeviceId(this)
         val lastSyncMs = ScreenProfileReporter.getLastSyncTime(this)
         val lastSyncText = if (lastSyncMs > 0L) {
@@ -2598,6 +2600,20 @@ class SettingsActivity : AppCompatActivity() {
                 setTextColor(colorTextSecondary)
                 setPadding(0, dp(8), 0, 0)
             })
+
+            if (layoutClass.isNotBlank()) {
+                addView(TextView(this@SettingsActivity).apply {
+                    val normalized = if (normalizedLayoutWidth > 0f) {
+                        String.format(java.util.Locale.US, "%.0f", normalizedLayoutWidth)
+                    } else {
+                        "?"
+                    }
+                    text = "• Auto layout: $layoutClass • width@480h: $normalized"
+                    textSize = 10.8f
+                    setTextColor(Color.parseColor("#38BDF8"))
+                    setPadding(0, dp(3), 0, 0)
+                })
+            }
 
             addView(TextView(this@SettingsActivity).apply {
                 val desired = if (hostState.desired == CarHostModeManager.MODE_ULTRAWIDE) "Toàn màn hình" else "Chia đôi"
