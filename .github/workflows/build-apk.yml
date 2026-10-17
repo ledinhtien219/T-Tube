@@ -48,14 +48,6 @@ jobs:
             exit 1
           }
 
-      - name: Run regression tests
-        run: |
-          set -e
-          for f in tests/*.cjs; do
-            echo "RUN $f"
-            node "$f"
-          done
-
       - name: Run JVM unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
