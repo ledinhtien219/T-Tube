@@ -274,11 +274,19 @@ class CarDashboardView(
      * panel size so cars with AA margins/cropped projection (for example VF6)
      * do not inherit the wrong desktop-sized layout.
      */
-    fun applyAdaptiveScreen(widthPx: Int, heightPx: Int) {
+    fun applyAdaptiveScreen(
+        widthPx: Int,
+        heightPx: Int,
+        autoDetect: Boolean = true
+    ) {
         if (widthPx <= 0 || heightPx <= 0) return
         val density = context.resources.displayMetrics.density.coerceAtLeast(0.75f)
-        val widthDp = widthPx / density
-        val heightDp = heightPx / density
+
+        // When auto detection is disabled, restore the neutral dashboard
+        // baseline instead of leaving dimensions from the previously detected
+        // head unit stuck in the view hierarchy.
+        val widthDp = if (autoDetect) widthPx / density else 1024f
+        val heightDp = if (autoDetect) heightPx / density else 600f
 
         val compactWidth = widthDp < 820f
         val veryCompactWidth = widthDp < 700f
