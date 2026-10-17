@@ -60,6 +60,14 @@ jobs:
             exit 1
           }
 
+      - name: Check restored key against the published stable certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          CACHED_CERT=$(keytool -exportcert -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android 2>/dev/null | sha256sum | cut -d ' ' -f1)
+          echo "Restored key certificate SHA-256: $CACHED_CERT"
+          test "$CACHED_CERT" = "dbdb9e695d351e19899e17d9fd9258b11f9cc24ab6df386c21c138d5a70a3de2"
+
       - name: Run all regression and JVM tests
         run: |
           set -e
@@ -82,6 +90,8 @@ jobs:
           test -n "$APKSIGNER"
           OLD_CERT=$("$APKSIGNER" verify --print-certs /tmp/current-stable.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
           NEW_CERT=$("$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/TTube_v1.0.73_debug.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          echo "Published stable certificate: $OLD_CERT"
+          echo "Candidate certificate: $NEW_CERT"
           test -n "$OLD_CERT"
           test "$OLD_CERT" = "$NEW_CERT"
 
