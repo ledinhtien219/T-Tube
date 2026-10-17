@@ -29,23 +29,10 @@ index 207ebd1..e0bbc47 100644
  
      override fun onBackPressed() {
 diff --git a/app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt b/app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt
-index 4b181d3..a92a543 100644
+index 4b181d3..c23cb9f 100644
 --- a/app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt
 +++ b/app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt
-@@ -288,10 +288,8 @@ class CarDashboardView(
-         val widthDp = if (autoDetect) widthPx / density else 1024f
-         val heightDp = if (autoDetect) heightPx / density else 600f
- 
--        val viewportAspect = widthPx.toFloat() / heightPx.toFloat()
--        val ultrawideViewport = viewportAspect >= 1.85f
--        val compactWidth = !ultrawideViewport && widthDp < 820f
--        val veryCompactWidth = !ultrawideViewport && widthDp < 700f
-+        val compactWidth = widthDp < 820f
-+        val veryCompactWidth = widthDp < 700f
-         val compactHeight = heightDp < 430f
- 
-         val padH = when {
-@@ -834,7 +832,7 @@ class CarDashboardView(
+@@ -834,7 +834,7 @@ class CarDashboardView(
                  }
                  player.setOnPreparedListener {
                      applyVideoCenterCrop(it.videoWidth, it.videoHeight)
@@ -54,7 +41,7 @@ index 4b181d3..a92a543 100644
                  }
                  player.setOnErrorListener { _, _, _ ->
                      post { applyBugattiDefault() }
-@@ -988,17 +986,17 @@ class CarDashboardView(
+@@ -988,17 +988,17 @@ class CarDashboardView(
  
                  // Clock: 11:49
                  val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
@@ -76,7 +63,7 @@ index 4b181d3..a92a543 100644
  
                  timeHandler.postDelayed(this, 1000)
              }
-@@ -1159,6 +1157,36 @@ class CarDashboardView(
+@@ -1159,6 +1159,36 @@ class CarDashboardView(
          // No-op for launcher view
      }
  
