@@ -144,14 +144,22 @@ class CarPresentation(
         val oldUltra = isUltrawide
         val oldPortrait = isPortrait
 
-        carWidth = effectiveWidth
-        carHeight = effectiveHeight
-        aspectRatio = carWidth.toFloat() / carHeight.toFloat()
-        isUltrawide = aspectRatio >= 1.85f
-        isPortrait = aspectRatio < 0.95f
+        val profile = CarScreenClassifier.classify(effectiveWidth, effectiveHeight)
+        carWidth = profile.widthPx
+        carHeight = profile.heightPx
+        aspectRatio = profile.aspectRatio
+        isUltrawide = profile.ultrawide
+        isPortrait = profile.portrait
 
-        // Feed the actual AA viewport into every responsive subsystem.
-        dashboardView?.applyAdaptiveScreen(carWidth, carHeight)
+        // Auto-detect is now a real layout switch. When enabled, responsive
+        // chrome/dashboard follows the ACTUAL AA content viewport. When disabled,
+        // keep the legacy 800x480 dashboard geometry and respect manual toolbar
+        // positions instead of silently auto-adapting anyway.
+        val autoDetect = prefs.getBoolean(SettingsActivity.KEY_AUTO_DETECT_SCREEN, true)
+        dashboardView?.applyAdaptiveScreen(
+            if (autoDetect) carWidth else 800,
+            if (autoDetect) carHeight else 480
+        )
 
         lastAppliedScale = -1
         applyWebScaleForUrl(web.url)
@@ -192,16 +200,8 @@ class CarPresentation(
             .putInt("car_layout_width", carWidth)
             .putInt("car_layout_height", carHeight)
             .putFloat("car_layout_aspect", aspectRatio)
-            .putString(
-                "car_layout_class",
-                when {
-                    isPortrait -> "PORTRAIT"
-                    aspectRatio >= 2.40f -> "SUPER_ULTRAWIDE"
-                    isUltrawide -> "ULTRAWIDE"
-                    aspectRatio >= 1.55f -> "WIDE"
-                    else -> "COMPACT"
-                }
-            )
+            .putString("car_layout_class", profile.screenClass)
+            .putFloat("car_layout_normalized_width", profile.normalizedWidth)
             .apply()
     }
 
@@ -405,13 +405,15 @@ class CarPresentation(
         // Auto-detect car screen metrics and form-factor
         val metrics = android.util.DisplayMetrics()
         display.getRealMetrics(metrics)
-        carWidth = if (metrics.widthPixels > 0) metrics.widthPixels else 800
-        carHeight = if (metrics.heightPixels > 0) metrics.heightPixels else 480
+        val initialWidth = if (metrics.widthPixels > 0) metrics.widthPixels else 800
+        val initialHeight = if (metrics.heightPixels > 0) metrics.heightPixels else 480
         carDpi = if (metrics.densityDpi > 0) metrics.densityDpi else 160
-        aspectRatio = if (carHeight > 0) carWidth.toFloat() / carHeight.toFloat() else 1.777f
-
-        isUltrawide = (aspectRatio >= 1.85f)
-        isPortrait = (aspectRatio < 0.95f)
+        val initialProfile = CarScreenClassifier.classify(initialWidth, initialHeight)
+        carWidth = initialProfile.widthPx
+        carHeight = initialProfile.heightPx
+        aspectRatio = initialProfile.aspectRatio
+        isUltrawide = initialProfile.ultrawide
+        isPortrait = initialProfile.portrait
 
         // 1. YouTube WebView (Detach from old parent if any)
         (web.parent as? ViewGroup)?.removeView(web)
@@ -1161,7 +1163,6 @@ class CarPresentation(
             if (key == SystemVoiceModule.PREF_ENABLED) cancelSystemVoiceRequest()
             if (key == SettingsActivity.KEY_AUTO_DETECT_SCREEN) {
                 applyEffectiveViewportFromRoot(force = true)
-                dashboardView?.applyAdaptiveScreen(carWidth, carHeight)
             }
             if (key == SettingsActivity.KEY_DESKTOP_MODE && currentActiveAppId == "youtube") {
                 applyDesktopMode(web)
