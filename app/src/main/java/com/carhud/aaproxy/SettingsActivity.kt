@@ -2470,10 +2470,11 @@ class SettingsActivity : AppCompatActivity() {
 
         val ratioVal = if (h > 0) w.toFloat() / h.toFloat() else 1.71f
         val screenTypeName = when {
-            ratioVal >= 2.05f -> "Siêu rộng (Ultra-wide ~21:9)"
+            ratioVal >= 2.40f -> "Siêu rộng mở rộng (Super Ultra-wide)"
+            ratioVal >= 1.85f -> "Siêu rộng (Ultra-wide)"
             ratioVal >= 1.55f -> "Ngang chuẩn (Landscape 16:9)"
             ratioVal >= 1.25f -> "Ngang vuông (4:3 / 3:2)"
-            ratioVal <= 0.85f -> "Dọc xe hơi (Portrait)"
+            ratioVal <= 0.95f -> "Dọc xe hơi (Portrait)"
             else -> "Vuông chuẩn (~1:1)"
         }
         val densityFactor = String.format(java.util.Locale.US, "%.1f", dpi / 160f)
