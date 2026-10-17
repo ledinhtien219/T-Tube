@@ -45,6 +45,7 @@ class SettingsActivity : AppCompatActivity() {
         const val KEY_AUDIO_DUCKING = "audio_ducking_enabled"
         const val KEY_AUTO_FULLSCREEN = "auto_fullscreen_enabled"
         const val KEY_AUTO_DETECT_SCREEN = "auto_detect_screen_layout"
+        const val KEY_ULTRAWIDE_FULL_SURFACE = "ultrawide_full_surface"
         const val KEY_AUTO_RESUME_LAST_TRACK = "auto_resume_last_track"
         const val KEY_DEFAULT_TO_DASHBOARD = "default_to_dashboard"
         const val KEY_LAST_PLAYED_URL = "last_played_url"
@@ -702,6 +703,30 @@ class SettingsActivity : AppCompatActivity() {
                         key = KEY_AUTO_DETECT_SCREEN,
                         default = true
                     )
+                )
+
+                content.addView(
+                    createSwitchRow(
+                        title = "Ưu tiên toàn màn hình siêu rộng",
+                        subtitle = "Màn dài/Coolwalk: bật để dùng full-surface. Nếu đang kết nối AA, chế độ chỉ đổi sau khi ngắt rồi cắm lại.",
+                        key = KEY_ULTRAWIDE_FULL_SURFACE,
+                        default = false
+                    ) { enabled ->
+                        val result = CarHostModeManager.requestMode(this@SettingsActivity, enabled)
+                        val message = when (result) {
+                            CarHostModeManager.RequestResult.APPLIED ->
+                                if (enabled) {
+                                    "Đã chuẩn bị chế độ toàn màn hình. Cắm Android Auto để dùng."
+                                } else {
+                                    "Đã chuẩn bị chế độ chia đôi/tương thích."
+                                }
+                            CarHostModeManager.RequestResult.PENDING_DISCONNECT ->
+                                "Đã lưu lựa chọn. Hãy ngắt Android Auto hiện tại rồi cắm lại để chuyển chế độ an toàn."
+                            CarHostModeManager.RequestResult.ROLLED_BACK ->
+                                "Không chuyển được host. App đã tự quay về chế độ chia đôi an toàn."
+                        }
+                        Toast.makeText(this@SettingsActivity, message, Toast.LENGTH_LONG).show()
+                    }
                 )
 
                 content.addView(createCarScreenDetailsCard())
@@ -2458,6 +2483,9 @@ class SettingsActivity : AppCompatActivity() {
         val webH = prefs.getInt("car_screen_web_height", usableH)
         val refreshHz = prefs.getFloat("car_screen_refresh_rate", 0f)
         val screenSignature = prefs.getString("car_screen_signature", "") ?: ""
+        val hostState = CarHostModeManager.state(this)
+        val carApiLevel = prefs.getInt("car_app_api_level", 0)
+        val runtimeHost = prefs.getString("car_host_runtime", "") ?: ""
         val deviceId = LicenseManager.getDeviceId(this)
         val lastSyncMs = ScreenProfileReporter.getLastSyncTime(this)
         val lastSyncText = if (lastSyncMs > 0L) {
@@ -2569,6 +2597,30 @@ class SettingsActivity : AppCompatActivity() {
                 setTextColor(colorTextSecondary)
                 setPadding(0, dp(8), 0, 0)
             })
+
+            addView(TextView(this@SettingsActivity).apply {
+                val desired = if (hostState.desired == CarHostModeManager.MODE_ULTRAWIDE) "Toàn màn hình" else "Chia đôi"
+                val applied = if (hostState.applied == CarHostModeManager.MODE_ULTRAWIDE) "Toàn màn hình" else "Chia đôi"
+                val runtime = when (runtimeHost) {
+                    CarHostModeManager.MODE_ULTRAWIDE -> "full-surface"
+                    CarHostModeManager.MODE_STABLE -> "projection"
+                    else -> "chưa kết nối"
+                }
+                val pending = if (hostState.pending) " • đang chờ ngắt AA" else ""
+                text = "• Host AA: chọn $desired • áp dụng $applied • chạy $runtime$pending"
+                textSize = 10.8f
+                setTextColor(if (hostState.pending) Color.parseColor("#FBBF24") else Color.parseColor("#38BDF8"))
+                setPadding(0, dp(3), 0, 0)
+            })
+
+            if (carApiLevel > 0) {
+                addView(TextView(this@SettingsActivity).apply {
+                    text = "• Car App API: $carApiLevel"
+                    textSize = 10.8f
+                    setTextColor(colorTextSecondary)
+                    setPadding(0, dp(3), 0, 0)
+                })
+            }
 
             addView(TextView(this@SettingsActivity).apply {
                 val hz = if (refreshHz > 0f) String.format(java.util.Locale.US, "%.1f Hz", refreshHz) else "chưa rõ"
@@ -2701,7 +2753,13 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun createSwitchRow(title: String, subtitle: String, key: String, default: Boolean): LinearLayout {
+    private fun createSwitchRow(
+        title: String,
+        subtitle: String,
+        key: String,
+        default: Boolean,
+        onChanged: ((Boolean) -> Unit)? = null
+    ): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -2730,6 +2788,7 @@ class SettingsActivity : AppCompatActivity() {
                 isChecked = prefs.getBoolean(key, default)
                 setOnCheckedChangeListener { _, isChecked ->
                     prefs.edit().putBoolean(key, isChecked).apply()
+                    onChanged?.invoke(isChecked)
                 }
             }
             addView(sw)
