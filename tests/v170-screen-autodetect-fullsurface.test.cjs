@@ -28,6 +28,25 @@ assert.match(
   /key == SettingsActivity\.KEY_AUTO_DETECT_SCREEN[\s\S]*?applyEffectiveViewportFromRoot\(force = true\)/
 );
 
+assert.match(
+  presentation,
+  /CarScreenClassifier\.classify\(effectiveWidth, effectiveHeight\)/
+);
+assert.match(
+  presentation,
+  /CarScreenClassifier\.classify\(initialWidth, initialHeight\)/
+);
+
+const dashboard = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt',
+  'utf8'
+);
+const adaptiveBlock =
+  dashboard.match(/fun applyAdaptiveScreen\(widthPx: Int, heightPx: Int\)[\s\S]*?private fun refreshPinnedApps/)?.[0] || '';
+assert.match(adaptiveBlock, /CarScreenClassifier\.classify\(widthPx, heightPx\)/);
+assert.match(adaptiveBlock, /profile\.normalizedWidth/);
+assert.doesNotMatch(adaptiveBlock, /resources\.displayMetrics\.density/);
+
 // Empty non-loading Pane is illegal. Use a real zero-width row instead.
 assert.match(screen, /val invisiblePane = Pane\.Builder\(\)/);
 assert.match(screen, /addRow\([\s\S]*?Row\.Builder\(\)[\s\S]*?setTitle\("\\u200B"\)/);
@@ -44,4 +63,4 @@ assert.ok(restoreIndex >= 0, 'IPTV restore helper missing');
 assert.ok(viewportIndex > restoreIndex, 'IPTV viewport fit must run after aspect restore');
 assert.match(presentation, /onPageCommitVisible[\s\S]*?iptv_player\.html[\s\S]*?forceIptvViewportFit/);
 
-console.log('PASS v1.0.70 screen auto-detect + valid full-surface pane + IPTV viewport repair');
+console.log('PASS v1.0.70 DPI-independent screen auto-detect + valid full-surface pane + IPTV viewport repair');
