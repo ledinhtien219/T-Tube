@@ -327,6 +327,7 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CarHostModeManager.reconcileIfSafe(this)
         val exitFilter = IntentFilter(CarAppShutdownManager.ACTION_FULL_EXIT)
         ContextCompat.registerReceiver(this, exitReceiver, exitFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
         if (!LicenseManager.isLicensed(this)) {
