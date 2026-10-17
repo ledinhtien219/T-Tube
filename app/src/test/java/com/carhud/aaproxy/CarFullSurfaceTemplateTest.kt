@@ -6,7 +6,10 @@ import androidx.car.app.model.Row
 import androidx.car.app.navigation.model.MapTemplate
 import org.junit.Assert.assertNotNull
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class CarFullSurfaceTemplateTest {
     @Test
     fun zeroWidthPaneRowBuildsWithoutPaneStateException() {
