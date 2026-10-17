@@ -24,6 +24,7 @@ class CarHudAutoService : CarAppService() {
     override fun onCreate() {
         super.onCreate()
         try {
+            CarDisconnectWatchdog.onProjectionServiceCreated(applicationContext)
             AppCrashHandler.init(applicationContext)
             CarTtsManager.init(applicationContext)
             CarTtsManager.startListeningToRepository()
@@ -34,13 +35,16 @@ class CarHudAutoService : CarAppService() {
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_POWER_DISCONNECTED)
                 addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+                addAction(UsbManager.ACTION_USB_ACCESSORY_DETACHED)
             }
             powerDisconnectReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
-                    Log.i("CarHudAutoService", "Cable unplugged event: ${intent?.action}")
-                    context?.let {
-                        CarAppShutdownManager.shutdownCompletely(it.applicationContext, "Cable unplugged (${intent?.action})")
-                    }
+                    val action = intent?.action ?: return
+                    Log.i("CarHudAutoService", "Cable unplugged event: $action")
+                    CarDisconnectWatchdog.onCableDetachBroadcast(
+                        (context ?: applicationContext).applicationContext,
+                        action
+                    )
                 }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -57,9 +61,10 @@ class CarHudAutoService : CarAppService() {
         try {
             powerDisconnectReceiver?.let { unregisterReceiver(it) }
             powerDisconnectReceiver = null
-        } catch (e: Exception) {}
+        } catch (_: Exception) {}
+        CarDisconnectWatchdog.onProjectionServiceDestroyed(applicationContext)
         super.onDestroy()
-        CarAppShutdownManager.shutdownCompletely(applicationContext, "CarHudAutoService onDestroy (Android Auto Disconnected)")
+        // Service recreation/app switching is not a physical cable disconnect.
     }
 
     override fun createHostValidator(): HostValidator {
