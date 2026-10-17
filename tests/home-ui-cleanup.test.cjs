@@ -44,7 +44,8 @@ assert.match(projectionHost, /hideMenuButton\(\)/);
 // Full-surface mode uses a valid MapTemplate on Car API 5+ with no ActionStrip.
 // Legacy hosts keep the old transparent NavigationTemplate fallback.
 assert.match(screen, /carContext\.carAppApiLevel >= 5/);
-assert.match(screen, /MapTemplate\.Builder\(\)[\s\S]*?setPane\(Pane\.Builder\(\)\.build\(\)\)[\s\S]*?setHeader/);
+assert.match(screen, /val invisiblePane = Pane\.Builder\(\)[\s\S]*?Row\.Builder\(\)[\s\S]*?setTitle\("\\u200B"\)/);
+assert.match(screen, /MapTemplate\.Builder\(\)[\s\S]*?setPane\(invisiblePane\)[\s\S]*?setHeader/);
 assert.match(screen, /Header\.Builder\(\)[\s\S]*?setTitle\("\\u200B"\)/);
 assert.match(screen, /NavigationTemplate\.Builder\(\)[\s\S]*?setActionStrip\(hiddenActionStrip\)/);
 
