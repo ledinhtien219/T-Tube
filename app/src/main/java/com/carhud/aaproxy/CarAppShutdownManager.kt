@@ -24,6 +24,13 @@ object CarAppShutdownManager {
         if (isShuttingDown) return
         isShuttingDown = true
         CarDisconnectWatchdog.resetAfterShutdown()
+        // Physical disconnect is the safe point to apply a pending host change.
+        // The next AA connection will discover exactly one enabled entry.
+        try {
+            CarHostModeManager.applyPendingAfterDisconnect(context.applicationContext)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error applying pending Android Auto host mode", e)
+        }
         Log.i(TAG, "Shutting down application completely. Reason: $reason")
 
         try {
@@ -55,6 +62,11 @@ object CarAppShutdownManager {
                 context.stopService(Intent(context, CarHudProjectionService::class.java))
             } catch (e: Exception) {
                 Log.e(TAG, "Error stopping CarHudProjectionService", e)
+            }
+            try {
+                context.stopService(Intent(context, CarHudAutoService::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Error stopping CarHudAutoService", e)
             }
             try {
                 // Release MediaSession + foreground notification synchronously
