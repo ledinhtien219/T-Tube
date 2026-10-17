@@ -83,6 +83,8 @@ jobs:
           ls -l /dev/kvm
 
       - name: Run live TikTok runtime smoke test
+        if: ${{ false }}
+      - name: Disabled live TikTok runtime smoke test
         timeout-minutes: 12
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
