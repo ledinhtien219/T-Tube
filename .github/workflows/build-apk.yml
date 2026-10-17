@@ -118,6 +118,7 @@ jobs:
       # APK is intentionally uploaded only after the live Android/WebView smoke
       # test succeeds. A black/empty TikTok feed or search blocks distribution.
       - name: Upload APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: TTube-v1.0.70-build261-APK
