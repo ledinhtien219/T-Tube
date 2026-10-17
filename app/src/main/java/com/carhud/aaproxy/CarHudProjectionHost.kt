@@ -247,6 +247,8 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
                     .putInt("car_screen_height", height)
                     .putInt("car_screen_dpi", dpi)
                     .putBoolean("car_screen_connected", true)
+                    .putString("car_host_runtime", CarHostModeManager.MODE_STABLE)
+                    .putInt("car_app_api_level", 0)
                     .apply()
             } catch (_: Exception) {}
         } catch (e: Exception) {
