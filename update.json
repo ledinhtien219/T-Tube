@@ -1,12 +1,15 @@
 {
   "channel": "stable",
   "approved": true,
-  "versionCode": 261,
-  "versionName": "1.0.70",
-  "downloadUrl": "https://github.com/ledinhtien219/THTV/releases/download/v1.0.70/TTube_v1.0.70_debug.apk",
-  "approvedCommit": "c93861b615e48460f43fd6591c09c54c9748b80c",
-  "approvedAt": "2026-10-16T02:25:13+00:00",
+  "versionCode": 264,
+  "versionName": "1.0.73",
+  "downloadUrl": "https://github.com/ledinhtien219/T-Tube/releases/download/v1.0.73/TTube_v1.0.73_debug.apk",
+  "approvedCommit": "54dc98b61db0df2dff7cff24a0f4f591199f36f9",
+  "approvedAt": "2026-10-17T04:37:32+00:00",
   "changelog": [
-    "Bug fix"
+    "Sửa nhận diện DPI và viewport video theo màn xe.",
+    "Cải thiện chuyển app: tránh tải trang trùng và callback cũ.",
+    "Khôi phục vị trí video một lần, giữ trạng thái tạm dừng.",
+    "Giảm dựng lại thanh điều khiển và đọc lại ảnh nền."
   ]
 }
