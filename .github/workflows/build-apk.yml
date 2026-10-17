@@ -2,7 +2,7 @@ name: Build T Tube v1.0.70 APK
 
 on:
   push:
-    branches: [ "main", "test/ttube-v1.0.70-apk" ]
+    branches: [ "main", "test/ttube-v1.0.70-apk", "test/v1.0.73-perf-official" ]
   workflow_dispatch:
 
 permissions:
@@ -20,6 +20,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Apply official v1.0.73 performance patch
+        run: git apply --check ci/v1.0.73-perf-official.patch && git apply ci/v1.0.73-perf-official.patch
 
       - name: Prepare checked-in v1.0.70 source
         shell: bash
