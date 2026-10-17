@@ -15,6 +15,9 @@ import androidx.car.app.SurfaceContainer
 import androidx.car.app.model.Action
 import androidx.car.app.model.ActionStrip
 import androidx.car.app.model.CarColor
+import androidx.car.app.model.Header
+import androidx.car.app.model.Pane
+import androidx.car.app.navigation.model.MapTemplate
 import androidx.car.app.navigation.model.NavigationTemplate
 import androidx.car.app.model.Template
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -87,6 +90,10 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     override fun onStableAreaChanged(stableArea: Rect) {}
 
     override fun onSurfaceDestroyed(surfaceContainer: SurfaceContainer) {
+        CarDisconnectWatchdog.onProjectionLifecycleEnded(
+            carContext,
+            "full-surface SurfaceContainer destroyed"
+        )
         handler.post {
             try {
                 // User switched to Maps/Waze/Android Auto home. Keep the Presentation and
@@ -163,6 +170,7 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
             presentation = pres
 
             CarMediaManager.setCarConnectionState(true)
+            CarDisconnectWatchdog.onProjectionConnected(carContext)
             CarMediaManager.carScreenWidth = width
             CarMediaManager.carScreenHeight = height
             CarMediaManager.carScreenDpi = dpi
@@ -180,6 +188,8 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
                     .putInt("car_screen_height", height)
                     .putInt("car_screen_dpi", dpi)
                     .putBoolean("car_screen_connected", true)
+                    .putString("car_host_runtime", CarHostModeManager.MODE_ULTRAWIDE)
+                    .putInt("car_app_api_level", carContext.carAppApiLevel)
                     .apply()
             } catch (e: Exception) {}
 
@@ -202,11 +212,22 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     }
 
     override fun onGetTemplate(): Template {
-        // NavigationTemplate keeps the custom Surface behavior used by the
-        // original v1.0.39 dashboard. Android Auto requires one action in the
-        // strip, so provide a zero-width action with a fully transparent
-        // background instead of BACK. This avoids both the host BACK button and
-        // the "No items" content overlay from list-based templates.
+        // API 5+ supports MapTemplate without an ActionStrip. The previous
+        // experiment crashed because MapTemplate requires both Pane and Header;
+        // provide valid empty map content plus a zero-width header here.
+        if (carContext.carAppApiLevel >= 5) {
+            return MapTemplate.Builder()
+                .setPane(Pane.Builder().build())
+                .setHeader(
+                    Header.Builder()
+                        .setTitle("\u200B")
+                        .build()
+                )
+                .build()
+        }
+
+        // Legacy Car API hosts require NavigationTemplate and a non-empty
+        // ActionStrip. Keep the smallest possible transparent placeholder.
         val transparent = CarColor.createCustom(0x00000000, 0x00000000)
         val hiddenActionStrip = ActionStrip.Builder()
             .addAction(
