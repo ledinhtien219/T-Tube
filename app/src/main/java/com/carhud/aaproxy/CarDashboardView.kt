@@ -276,13 +276,15 @@ class CarDashboardView(
      */
     fun applyAdaptiveScreen(widthPx: Int, heightPx: Int) {
         if (widthPx <= 0 || heightPx <= 0) return
-        val density = context.resources.displayMetrics.density.coerceAtLeast(0.75f)
-        val widthDp = widthPx / density
-        val heightDp = heightPx / density
 
-        val compactWidth = widthDp < 820f
-        val veryCompactWidth = widthDp < 700f
-        val compactHeight = heightDp < 430f
+        // Use the AA viewport itself, not the phone/VirtualDisplay density.
+        // Projection mode can inherit the phone DPI, which previously made
+        // 770x460 and 1196x460 look like the same compact screen.
+        val profile = CarScreenClassifier.classify(widthPx, heightPx)
+        val designWidth = profile.normalizedWidth
+        val compactWidth = profile.compactWidth
+        val veryCompactWidth = profile.veryCompactWidth
+        val compactHeight = profile.compactHeight
 
         val padH = when {
             veryCompactWidth -> 10
@@ -299,7 +301,7 @@ class CarDashboardView(
                 when {
                     veryCompactWidth -> 6
                     compactWidth -> 18
-                    widthDp < 1000f -> 42
+                    designWidth < 1000f -> 42
                     else -> 95
                 }
             )
@@ -311,7 +313,7 @@ class CarDashboardView(
                 when {
                     veryCompactWidth -> 130
                     compactWidth -> 160
-                    widthDp < 1000f -> 190
+                    designWidth < 1000f -> 190
                     else -> 220
                 }
             )
@@ -344,7 +346,7 @@ class CarDashboardView(
                 when {
                     veryCompactWidth -> 210
                     compactWidth -> 260
-                    widthDp < 1000f -> 320
+                    designWidth < 1000f -> 320
                     else -> 360
                 }
             )
