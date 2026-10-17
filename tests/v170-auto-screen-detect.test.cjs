@@ -41,5 +41,9 @@ assert.match(
 );
 assert.match(dashboard, /if \(autoDetect\) widthPx \/ density else 1024f/);
 assert.match(dashboard, /if \(autoDetect\) heightPx \/ density else 600f/);
+assert.match(dashboard, /val ultrawideViewport = viewportAspect >= 1\.85f/);
+assert.match(dashboard, /val compactWidth = !ultrawideViewport && widthDp < 820f/);
+assert.match(settings, /ratioVal >= 2\.40f -> "Siêu rộng mở rộng \(Super Ultra-wide\)"/);
+assert.match(settings, /ratioVal >= 1\.85f -> "Siêu rộng \(Ultra-wide\)"/);
 
-console.log('PASS v1.0.70 auto screen detect: switch drives adaptive layout and auto toolbar placement');
+console.log('PASS v1.0.70 auto screen detect: switch drives adaptive layout and runtime-aligned screen classification');
