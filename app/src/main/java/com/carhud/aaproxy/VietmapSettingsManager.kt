@@ -12,7 +12,6 @@ object VietmapSettingsManager {
     const val KEY_SOURCE_MODE = "pref_vietmap_source_mode" // "auto", "app", "gps"
     const val KEY_OVERSPEED_OFFSET = "pref_vietmap_overspeed_offset" // 0, 5, 10 km/h
     const val KEY_VOICE_ALERT = "pref_vietmap_voice_alert" // Boolean
-    const val KEY_CARD_SIZE = "pref_vietmap_card_size" // "large", "compact"
 
     fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
