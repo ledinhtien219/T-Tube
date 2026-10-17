@@ -644,6 +644,10 @@ class CarPresentation(
                 super.onPageCommitVisible(view, url)
                 applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
                 TikTokWebPolicy.fitLayout(view, url)
+                if (url.contains("iptv_player.html", ignoreCase = true)) {
+                    view.post { forceIptvViewportFit(view) }
+                    view.postDelayed({ forceIptvViewportFit(view) }, 180L)
+                }
             }
 
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
@@ -683,11 +687,16 @@ class CarPresentation(
                 view.postDelayed({
                     if (view.url != url) return@postDelayed
                     if (url.contains("iptv_player.html")) {
-                        forceIptvViewportFit(view)
                         val toolbarScale = prefs.getInt(SettingsActivity.KEY_TOOLBAR_SCALE, 100).coerceIn(50, 150)
                         view.evaluateJavascript("if (typeof window.restoreVideoAspectRatio === 'function') window.restoreVideoAspectRatio();", null)
                         view.evaluateJavascript("if (typeof window.setIptvToolbarScale === 'function') window.setIptvToolbarScale($toolbarScale);", null)
                         view.evaluateJavascript("if (typeof window.setIptvTheme === 'function') window.setIptvTheme(${if (isDay) "true" else "false"});", null)
+                        // The restore helpers above can rewrite player/container sizing.
+                        // Enforce the Android Auto viewport afterwards and again
+                        // after the page has settled to avoid the tiny top-left player.
+                        view.postDelayed({ forceIptvViewportFit(view) }, 80L)
+                        view.postDelayed({ forceIptvViewportFit(view) }, 320L)
+                        view.postDelayed({ forceIptvViewportFit(view) }, 900L)
                     } else if (isYouTube) {
                         YouTubePlayerHelper.setVideoAspectRatio(view, savedAspect)
                     }
