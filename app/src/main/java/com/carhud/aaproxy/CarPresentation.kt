@@ -1150,6 +1150,10 @@ class CarPresentation(
             key?.startsWith("car_layout_") == true || key?.startsWith("screen_profile_") == true) return
         mainHandler.post {
             if (key == SystemVoiceModule.PREF_ENABLED) cancelSystemVoiceRequest()
+            if (key == SettingsActivity.KEY_AUTO_DETECT_SCREEN) {
+                applyEffectiveViewportFromRoot(force = true)
+                dashboardView?.applyAdaptiveScreen(carWidth, carHeight)
+            }
             if (key == SettingsActivity.KEY_DESKTOP_MODE && currentActiveAppId == "youtube") {
                 applyDesktopMode(web)
                 val isDesktop = prefs.getBoolean(SettingsActivity.KEY_DESKTOP_MODE, false)
@@ -1367,11 +1371,19 @@ class CarPresentation(
 
         val autoDetect = prefs.getBoolean(SettingsActivity.KEY_AUTO_DETECT_SCREEN, true)
         val configuredPos = prefs.getString(SettingsActivity.KEY_TOOLBAR_POSITION, "bottom") ?: "bottom"
-        val positionKey = when {
-            configuredPos == "auto" -> {
-                if (isPortrait) "bottom" else "left"
+        val positionKey = if (autoDetect) {
+            // Auto mode is the source of truth for form-factor placement.
+            // Users who want the manual position can disable screen auto-detect.
+            when {
+                isPortrait -> "bottom"
+                isUltrawide -> "left"
+                else -> "bottom"
             }
-            else -> configuredPos
+        } else {
+            when (configuredPos) {
+                "auto" -> if (isPortrait) "bottom" else "left"
+                else -> configuredPos
+            }
         }
         val isHorizontal = (positionKey == "bottom")
 
@@ -1529,7 +1541,13 @@ class CarPresentation(
         }
         sidebarContainer = wrapper
 
-        val webAppPos = prefs.getString(SettingsActivity.KEY_WEBAPP_TOOLBAR_POSITION, "left") ?: "left"
+        val configuredWebAppPos =
+            prefs.getString(SettingsActivity.KEY_WEBAPP_TOOLBAR_POSITION, "left") ?: "left"
+        val webAppPos = if (autoDetect) {
+            if (isPortrait) "top" else "left"
+        } else {
+            configuredWebAppPos
+        }
         val isLeftSidebar = (targetGravity and Gravity.HORIZONTAL_GRAVITY_MASK == Gravity.START)
         val initialLeftMargin = dp(6)
 
