@@ -12,8 +12,8 @@ android {
         applicationId = "com.tcar.auto"
         minSdk = 29
         targetSdk = 35
-        versionCode = 261
-        versionName = "1.0.70"
+        versionCode = 264
+        versionName = "1.0.73"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -47,6 +47,10 @@ android {
             )
         }
         debug {
+            // Allow emulator checks alongside an installed APK signed by another key.
+            if (providers.gradleProperty("isolatedRuntimeTest").orNull == "true") {
+                applicationIdSuffix = ".runtimetest"
+            }
             isDebuggable = true
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("stableCi")

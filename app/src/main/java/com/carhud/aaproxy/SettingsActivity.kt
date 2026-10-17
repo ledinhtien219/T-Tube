@@ -2451,6 +2451,7 @@ class SettingsActivity : AppCompatActivity() {
         val w = prefs.getInt("car_screen_width", if (CarMediaManager.carScreenWidth > 0) CarMediaManager.carScreenWidth else 1024)
         val h = prefs.getInt("car_screen_height", if (CarMediaManager.carScreenHeight > 0) CarMediaManager.carScreenHeight else 600)
         val dpi = prefs.getInt("car_screen_dpi", if (CarMediaManager.carScreenDpi > 0) CarMediaManager.carScreenDpi else 160)
+        val dpiSource = prefs.getString("car_screen_dpi_source", "")
         val isConnected = prefs.getBoolean("car_screen_connected", CarMediaManager.isCarConnected)
         val usableW = prefs.getInt("car_screen_usable_width", w)
         val usableH = prefs.getInt("car_screen_usable_height", h)
@@ -2579,6 +2580,16 @@ class SettingsActivity : AppCompatActivity() {
                 textSize = 10.8f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(if (autoDetectEnabled) Color.parseColor("#4ADE80") else colorTextSecondary)
+                setPadding(0, dp(3), 0, 0)
+            })
+            addView(TextView(this@SettingsActivity).apply {
+                text = when (dpiSource) {
+                    "estimated_surface" -> "• DPI hiển thị: ước tính theo vùng chiếu (xe chưa cung cấp DPI)"
+                    "host_display", "host_configuration", "host_surface" -> "• DPI hiển thị: lấy từ màn xe"
+                    else -> "• DPI hiển thị: kết nối lại xe để cập nhật"
+                }
+                textSize = 10.8f
+                setTextColor(colorTextSecondary)
                 setPadding(0, dp(3), 0, 0)
             })
 

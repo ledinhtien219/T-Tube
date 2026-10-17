@@ -17,7 +17,7 @@ assert.match(media, /fun saveWebAppSession\(appId: String, web: WebView\?\)/);
 assert.match(media, /web\.saveState\(state\)/);
 assert.match(media, /scrollX = web\.scrollX/);
 assert.match(media, /scrollY = web\.scrollY/);
-assert.match(media, /videoPositionSec = if \(appId == "youtube"\) currentPositionSec else 0/);
+assert.match(media, /videoPositionSec = if \(appId == "youtube" && extractYouTubeVideoId\(url\) != null\) currentPositionSec else 0/);
 
 assert.match(media, /fun restoreWebAppSession\(appId: String, web: WebView\?\): Boolean/);
 assert.match(media, /web\.restoreState\(android\.os\.Bundle\(session\.state\)\)/);

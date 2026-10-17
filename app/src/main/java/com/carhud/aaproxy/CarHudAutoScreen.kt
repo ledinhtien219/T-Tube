@@ -25,6 +25,7 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     private var virtualDisplay: VirtualDisplay? = null
     private var presentation: CarPresentation? = null
     private var carSurface: Surface? = null
+    private var lastSetupKey = ""
     private val handler = Handler(Looper.getMainLooper())
 
     private var nativeInput: CarInputSession? = null
@@ -73,12 +74,19 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
 
     override fun onSurfaceAvailable(surfaceContainer: SurfaceContainer) {
         carSurface = surfaceContainer.surface
-        val width = if (surfaceContainer.width > 0) surfaceContainer.width else 800
-        val height = if (surfaceContainer.height > 0) surfaceContainer.height else 480
-        val dpi = if (surfaceContainer.dpi > 0) surfaceContainer.dpi else 160
+        val width = surfaceContainer.width
+        val height = surfaceContainer.height
+        if (width <= 0 || height <= 0) return
+        val density = ProjectionMetrics.resolve(
+            width,
+            height,
+            surfaceContainer.dpi,
+            "host_surface"
+        )
+        val dpi = density.dpi
 
         handler.post {
-            setupPresentation(carSurface, width, height, dpi)
+            setupPresentation(carSurface, width, height, dpi, density.source)
             try { invalidate() } catch (e: Exception) {}
         }
     }
@@ -87,6 +95,8 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
     override fun onStableAreaChanged(stableArea: Rect) {}
 
     override fun onSurfaceDestroyed(surfaceContainer: SurfaceContainer) {
+        // The host may hand back the same Surface; always rebuild after a destroy.
+        lastSetupKey = ""
         handler.post {
             try {
                 // User switched to Maps/Waze/Android Auto home. Keep the Presentation and
@@ -136,8 +146,11 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
         }
     }
 
-    private fun setupPresentation(surface: Surface?, width: Int, height: Int, dpi: Int) {
+    private fun setupPresentation(surface: Surface?, width: Int, height: Int, dpi: Int, densitySource: String) {
         if (surface == null || !surface.isValid) return
+
+        val setupKey = "${System.identityHashCode(surface)}|$width|$height|$dpi"
+        if (setupKey == lastSetupKey && virtualDisplay != null && presentation != null) return
 
         try {
             // CRITICAL FIX: NEVER reuse VirtualDisplay if it was headless (surface=null). 
@@ -157,10 +170,11 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
             )
             virtualDisplay = vd
 
-            val persistentWeb = CarMediaManager.getPersistentCarWebView(carContext)
+            val persistentWeb = CarMediaManager.getPersistentCarWebView(carContext.createDisplayContext(vd.display))
             val pres = CarPresentation(carContext, vd.display, persistentWeb)
             pres.show()
             presentation = pres
+            lastSetupKey = setupKey
 
             CarMediaManager.setCarConnectionState(true)
             CarMediaManager.carScreenWidth = width
@@ -179,6 +193,7 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
                     .putInt("car_screen_width", width)
                     .putInt("car_screen_height", height)
                     .putInt("car_screen_dpi", dpi)
+                    .putString("car_screen_dpi_source", densitySource)
                     .putBoolean("car_screen_connected", true)
                     .apply()
             } catch (e: Exception) {}
@@ -197,6 +212,7 @@ class CarHudAutoScreen(carContext: CarContext) : Screen(carContext), SurfaceCall
             presentation = null
             virtualDisplay?.release()
             virtualDisplay = null
+            lastSetupKey = ""
             CarMediaManager.setCarConnectionState(false)
         } catch (e: Exception) {}
     }

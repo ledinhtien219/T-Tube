@@ -162,8 +162,8 @@ object ScreenProfileReporter {
 
         val rootWidth = root.width.takeIf { it > 0 } ?: carWidth
         val rootHeight = root.height.takeIf { it > 0 } ?: carHeight
-        val usableWidth = (rootWidth - insetLeft - insetRight).coerceAtLeast(1)
-        val usableHeight = (rootHeight - insetTop - insetBottom).coerceAtLeast(1)
+        val usableWidth = rootWidth
+        val usableHeight = rootHeight
         val webWidth = webView.width.takeIf { it > 0 } ?: usableWidth
         val webHeight = webView.height.takeIf { it > 0 } ?: usableHeight
 

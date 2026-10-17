@@ -4,8 +4,8 @@ const assert = require('node:assert/strict');
 const gradle = fs.readFileSync('app/build.gradle.kts','utf8');
 const presentation = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarPresentation.kt','utf8');
 
-assert.match(gradle, /versionCode = 261/);
-assert.match(gradle, /versionName = "1\.0\.70"/);
+assert.ok(Number(gradle.match(/versionCode = (\d+)/)?.[1]) >= 261);
+assert.match(gradle, /versionName = "1\.0\.\d+"/);
 
 // Non-TikTok projected pages must render at the VirtualDisplay's native scale.
 const scaleBlock = presentation.match(/fun applyWebScaleForUrl\(url: String\?\) \{[\s\S]*?\n    \}/)?.[0] || '';

@@ -4,6 +4,7 @@ import com.carhud.app.R
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.MutableContextWrapper
 import android.graphics.Bitmap
 
 import android.os.Build
@@ -51,6 +52,7 @@ object CarMediaManager {
 
     @SuppressLint("StaticFieldLeak")
     private var carWebView: WebView? = null
+    private var carRenderingContext: Context? = null
     @SuppressLint("StaticFieldLeak")
     private var phoneWebView: WebView? = null
     var mainActivityRoot: android.view.ViewGroup? = null
@@ -107,6 +109,7 @@ object CarMediaManager {
     )
 
     private val webAppSessions = mutableMapOf<String, WebAppSession>()
+    private val sessionTransitions = WebTransitionState()
     private fun isUrlCompatibleWithApp(appId: String, url: String): Boolean {
         val value = url.trim()
         if (value.isBlank() || value == "about:blank") return false
@@ -125,6 +128,7 @@ object CarMediaManager {
     }
 
     fun saveWebAppSession(appId: String, web: WebView?) {
+        sessionTransitions.begin(appId)
         if (web == null || appId !in setOf("web", "youtube", "tiktok", "iptv")) return
         try {
             val url = web.url.orEmpty()
@@ -137,7 +141,7 @@ object CarMediaManager {
                 url = url,
                 scrollX = web.scrollX,
                 scrollY = web.scrollY,
-                videoPositionSec = if (appId == "youtube") currentPositionSec else 0,
+                videoPositionSec = if (appId == "youtube" && extractYouTubeVideoId(url) != null) currentPositionSec else 0,
                 wasPlaying = appId == "youtube" && isPlaying
             )
             synchronized(webAppSessions) {
@@ -164,6 +168,8 @@ object CarMediaManager {
             clearWebAppSession(appId)
             return false
         }
+        val restoreGeneration = sessionTransitions.begin(appId)
+        val restoredVideoId = if (appId == "youtube") extractYouTubeVideoId(session.url) else null
 
         return try {
             web.stopLoading()
@@ -172,25 +178,42 @@ object CarMediaManager {
                 web.loadUrl(session.url)
             }
 
-            val restoreViewport = Runnable {
-                try {
+            val restoreViewport = object : Runnable {
+                var attempts = 0
+                var scrolled = false
+                override fun run() {
+                  try {
                     // A restore is delayed because WebView history/video state settles
                     // asynchronously. Do not let an old callback mutate the page after
                     // the driver has already switched to another app.
-                    if (activeAppId != appId || getPersistentWebView() !== web) return@Runnable
-                    web.scrollTo(session.scrollX, session.scrollY)
-                    if (appId == "youtube" && session.videoPositionSec > 0) {
-                        YouTubePlayerHelper.seekTo(web, session.videoPositionSec.toLong())
-                        if (session.wasPlaying) {
-                            userWantsPlayback = true
-                            YouTubePlayerHelper.resumePlayback(web)
+                    if (!sessionTransitions.owns(restoreGeneration, appId) ||
+                        activeAppId != appId || getPersistentWebView() !== web) return
+                    if (!isUrlCompatibleWithApp(appId, web.url.orEmpty())) return
+                    if (restoredVideoId != null && extractYouTubeVideoId(web.url) != restoredVideoId) return
+                    if (web.progress < 100 && attempts++ < 40) {
+                        web.postDelayed(this, 150L)
+                        return
+                    }
+                    if (!scrolled) {
+                        web.scrollTo(session.scrollX, session.scrollY)
+                        scrolled = true
+                    }
+                    if (appId != "youtube" || session.videoPositionSec <= 0) return
+                    web.evaluateJavascript("Boolean((document.querySelector('video') || {}).readyState >= 1 || typeof (document.getElementById('movie_player') || {}).seekTo === 'function')") { ready ->
+                        if (!sessionTransitions.owns(restoreGeneration, appId) || activeAppId != appId || getPersistentWebView() !== web) return@evaluateJavascript
+                        if (restoredVideoId != null && extractYouTubeVideoId(web.url) != restoredVideoId) return@evaluateJavascript
+                        if (ready == "true") {
+                            // Apply exactly once when a player exists, not three timed seeks.
+                            YouTubePlayerHelper.seekTo(web, session.videoPositionSec.toLong())
+                            if (session.wasPlaying && userWantsPlayback) YouTubePlayerHelper.resumePlayback(web)
+                        } else if (attempts++ < 40) {
+                            web.postDelayed(this, 150L)
                         }
                     }
-                } catch (_: Throwable) {}
+                  } catch (_: Throwable) {}
+                }
             }
-            web.postDelayed(restoreViewport, 450L)
-            web.postDelayed(restoreViewport, 1200L)
-            web.postDelayed(restoreViewport, 2400L)
+            web.postDelayed(restoreViewport, 150L)
             true
         } catch (_: Throwable) {
             false
@@ -366,17 +389,30 @@ object CarMediaManager {
 
     fun getPersistentCarWebView(context: Context): WebView {
         val appCtx = context.applicationContext
+        val targetDisplay = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) context.display
+            else (context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager).defaultDisplay
+        } catch (_: Exception) { null }
+        if (targetDisplay != null && targetDisplay.displayId != android.view.Display.DEFAULT_DISPLAY) {
+            carRenderingContext = appCtx.createDisplayContext(targetDisplay)
+        }
+        // Calls from media/background recovery may supply applicationContext. They
+        // must not reset a car WebView to the phone display's density.
+        val renderingContext = carRenderingContext ?: context
+        var densityState: android.os.Bundle? = null
+        var densityUrl: String? = null
+        carWebView?.takeIf { ProjectionWebViewFactory.needsRecreation(it, renderingContext) }?.let { old ->
+            densityUrl = old.url
+            densityState = android.os.Bundle().also { old.saveState(it) }
+            saveWebAppSession(activeAppId, old)
+            (old.parent as? ViewGroup)?.removeView(old)
+            old.stopLoading()
+            old.destroy()
+            carWebView = null
+        }
         if (carWebView == null) {
-            val displayCtx = try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    context.createDisplayContext(context.display)
-                } else {
-                    context
-                }
-            } catch (e: Exception) {
-                context
-            }
-            val web = BackgroundAudioWebView(displayCtx)
+            val displayCtx = renderingContext
+            val web = ProjectionWebViewFactory.create(displayCtx)
             carWebView = web
 
             web.settings.apply {
@@ -474,14 +510,21 @@ object CarMediaManager {
             val autoResume = prefs.getBoolean(SettingsActivity.KEY_AUTO_RESUME_LAST_TRACK, true)
             val lastUrl = prefs.getString(SettingsActivity.KEY_LAST_PLAYED_URL, null)
             val defaultHome = if (isDesktop) "https://www.youtube.com" else "https://m.youtube.com"
-            val initialUrl = if (autoResume && !lastUrl.isNullOrBlank() && lastUrl.contains("watch")) {
+            val initialUrl = if (densityState == null && autoResume && !lastUrl.isNullOrBlank() && lastUrl.contains("watch")) {
                 userWantsPlayback = true
                 lastUrl
             } else {
                 defaultHome
             }
-            currentLoadingUrl = initialUrl
-            web.loadUrl(initialUrl)
+            if (densityState != null && !densityUrl.isNullOrBlank()) {
+                currentLoadingUrl = densityUrl
+                if (!restoreWebAppSession(activeAppId, web) && web.restoreState(densityState!!) == null) {
+                    web.loadUrl(densityUrl!!)
+                }
+            } else {
+                currentLoadingUrl = initialUrl
+                web.loadUrl(initialUrl)
+            }
 
             registerService(appCtx)
         } else {
@@ -509,6 +552,9 @@ object CarMediaManager {
             (carWebView?.parent as? android.view.ViewGroup)?.removeView(carWebView)
         } catch (e: Exception) {}
 
+        // Keep playback/session state while rebinding resources to the current car
+        // display. Otherwise a cached WebView keeps the previous car/phone density.
+        (carWebView!!.context as? MutableContextWrapper)?.baseContext = renderingContext
         return carWebView!!
     }
 

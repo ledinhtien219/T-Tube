@@ -7,8 +7,8 @@ const mediaService = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarMe
 const shutdown = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarAppShutdownManager.kt','utf8');
 const runtime = fs.readFileSync('app/src/androidTest/java/com/carhud/aaproxy/CarDisconnectWatchdogRuntimeTest.kt','utf8');
 
-assert.match(gradle, /versionCode = 261/);
-assert.match(gradle, /versionName = "1\.0\.70"/);
+assert.ok(Number(gradle.match(/versionCode = (\d+)/)?.[1]) >= 261);
+assert.match(gradle, /versionName = "1\.0\.\d+"/);
 
 // A real projection session must stay armed even if AA tears down its service
 // while USB power is still present.

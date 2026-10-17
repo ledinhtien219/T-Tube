@@ -4,12 +4,17 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.Configuration
 import android.graphics.Color
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.DisplayMetrics
+import android.view.Display
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.Surface
@@ -100,6 +105,23 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
     private var virtualDisplay: VirtualDisplay? = null
     private var presentation: CarPresentation? = null
 
+    // surfaceCreated + surfaceChanged both fire on start, and some head units repeat
+    // surfaceChanged with identical geometry. Rebuilding the VirtualDisplay/Presentation
+    // each time flashes the background and can leave video black or restarted.
+    private var lastSetupKey = ""
+    private var hostConfiguration: Configuration? = null
+    private val displayHandler = Handler(Looper.getMainLooper())
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) {}
+        override fun onDisplayRemoved(displayId: Int) {}
+        override fun onDisplayChanged(displayId: Int) {
+            if (::surfaceView.isInitialized && surfaceView.display?.displayId == displayId) {
+                val frame = surfaceView.holder.surfaceFrame
+                setupPresentation(surfaceView.holder.surface, frame.width(), frame.height())
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -126,6 +148,8 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
             )
         )
         setContentView(root)
+        (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
+            .registerDisplayListener(displayListener, displayHandler)
 
         gestureDetector = GestureDetector(
             this,
@@ -170,9 +194,7 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         val frame = holder.surfaceFrame
-        val width = frame.width().takeIf { it > 0 } ?: 800
-        val height = frame.height().takeIf { it > 0 } ?: 480
-        setupPresentation(holder.surface, width, height)
+        setupPresentation(holder.surface, frame.width(), frame.height())
     }
 
     override fun surfaceChanged(
@@ -183,12 +205,14 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
     ) {
         setupPresentation(
             holder.surface,
-            width.takeIf { it > 0 } ?: 800,
-            height.takeIf { it > 0 } ?: 480
+            width,
+            height
         )
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        // The same Surface object can come back after destroy; force a full rebuild then.
+        lastSetupKey = ""
         CarDisconnectWatchdog.onProjectionLifecycleEnded(this, "projection surface destroyed")
         try {
             virtualDisplay?.setSurface(null)
@@ -208,8 +232,48 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
         } catch (_: Exception) {}
     }
 
+    private fun resolveDensity(width: Int, height: Int): ProjectionMetrics.Density {
+        val target = surfaceView.display
+        // Never use DEFAULT_DISPLAY: it commonly identifies the phone, not the car.
+        if (target != null && target.displayId != Display.DEFAULT_DISPLAY) {
+            val metrics = DisplayMetrics()
+            @Suppress("DEPRECATION")
+            target.getRealMetrics(metrics)
+            if (metrics.densityDpi in 72..960) {
+                return ProjectionMetrics.resolve(width, height, metrics.densityDpi, "host_display")
+            }
+        }
+        val config = hostConfiguration ?: resources.configuration
+        val phone = applicationContext.resources.configuration
+        val differsFromPhone = config.densityDpi != phone.densityDpi ||
+            config.screenWidthDp != phone.screenWidthDp || config.screenHeightDp != phone.screenHeightDp
+        if (differsFromPhone && ProjectionMetrics.matchesViewport(
+                width, height, config.screenWidthDp, config.screenHeightDp, config.densityDpi
+            )) {
+            return ProjectionMetrics.resolve(width, height, config.densityDpi, "host_configuration")
+        }
+        return ProjectionMetrics.resolve(width, height)
+    }
+
+    override fun onConfigurationChanged(newConfiguration: Configuration) {
+        super.onConfigurationChanged(newConfiguration)
+        hostConfiguration = Configuration(newConfiguration)
+        if (::surfaceView.isInitialized) {
+            surfaceView.post {
+                val frame = surfaceView.holder.surfaceFrame
+                setupPresentation(surfaceView.holder.surface, frame.width(), frame.height())
+                presentation?.onCarConfigurationChanged(newConfiguration)
+            }
+        }
+    }
+
     private fun setupPresentation(surface: Surface?, width: Int, height: Int) {
-        if (surface == null || !surface.isValid) return
+        if (surface == null || !surface.isValid || width <= 0 || height <= 0) return
+
+        val density = resolveDensity(width, height)
+        val dpi = density.dpi
+        val setupKey = "${System.identityHashCode(surface)}|$width|$height|$dpi"
+        if (setupKey == lastSetupKey && virtualDisplay != null && presentation != null) return
 
         try {
             presentation?.dismiss()
@@ -217,7 +281,6 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
             virtualDisplay?.release()
             virtualDisplay = null
 
-            val dpi = resources.displayMetrics.densityDpi.takeIf { it > 0 } ?: 160
             val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
             val vd = dm.createVirtualDisplay(
                 "TTubeProjectionDisplay",
@@ -229,10 +292,12 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
             )
             virtualDisplay = vd
 
-            val persistentWeb = CarMediaManager.getPersistentCarWebView(this)
+            val persistentWeb = CarMediaManager.getPersistentCarWebView(createDisplayContext(vd.display))
             val p = CarPresentation(this, vd.display, persistentWeb)
             p.show()
             presentation = p
+            lastSetupKey = setupKey
+            Log.i("CarHudProjection", "Surface=${width}x$height dpi=$dpi source=${density.source}")
 
             CarMediaManager.setCarConnectionState(true)
             CarDisconnectWatchdog.onProjectionConnected(this)
@@ -246,6 +311,7 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
                     .putInt("car_screen_width", width)
                     .putInt("car_screen_height", height)
                     .putInt("car_screen_dpi", dpi)
+                    .putString("car_screen_dpi_source", density.source)
                     .putBoolean("car_screen_connected", true)
                     .apply()
             } catch (_: Exception) {}
@@ -260,12 +326,14 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager).unregisterDisplayListener(displayListener)
         CarDisconnectWatchdog.onProjectionLifecycleEnded(this, "projection activity destroyed")
         try {
             presentation?.dismiss()
             presentation = null
             virtualDisplay?.release()
             virtualDisplay = null
+            lastSetupKey = ""
             CarMediaManager.setCarConnectionState(false)
         } catch (_: Exception) {}
         super.onDestroy()

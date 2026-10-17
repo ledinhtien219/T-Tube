@@ -356,6 +356,7 @@ object YouTubePlayerHelper {
         'html:not(.carhud-auto-screen) .compact-media-item-byline, html:not(.carhud-auto-screen) .media-item-byline, html:not(.carhud-auto-screen) .small-text, .carhud-phone .compact-media-item-byline, .carhud-phone .media-item-byline, .carhud-phone .small-text { font-size: 12px !important; margin-top: 2px !important; padding: 0 10px !important; color: #94A3B8 !important; -webkit-text-fill-color: #94A3B8 !important; } ' +
         '.carhud-force-fullscreen, .carhud-force-fullscreen body, .carhud-force-fullscreen html, .carhud-force-fullscreen ytm-app, .carhud-force-fullscreen #app, .carhud-force-fullscreen .page-container, .carhud-force-fullscreen ytm-watch { position: fixed !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; background: #000000 !important; } ' +
         '.carhud-force-fullscreen #player-container-id, .carhud-force-fullscreen .player-container, .carhud-force-fullscreen ytm-player, .carhud-force-fullscreen .player-size, .carhud-force-fullscreen #movie_player, .carhud-force-fullscreen .html5-video-player, .carhud-force-fullscreen .html5-video-container { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; margin: 0 !important; padding: 0 !important; background: #000000 !important; z-index: 9999 !important; } ' +
+        '.carhud-force-fullscreen ytm-watch, .carhud-force-fullscreen #player-container-id, .carhud-force-fullscreen .player-container, .carhud-force-fullscreen ytm-player, .carhud-force-fullscreen .player-size, .carhud-force-fullscreen #movie_player, .carhud-force-fullscreen .html5-video-player, .carhud-force-fullscreen .html5-video-container, .carhud-force-fullscreen ytm-app, .carhud-force-fullscreen #app, .carhud-force-fullscreen .page-container { transform: none !important; contain: none !important; filter: none !important; will-change: auto !important; perspective: none !important; } ' +
         '.carhud-force-fullscreen video { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; margin: auto !important; object-fit: contain !important; display: block !important; visibility: visible !important; opacity: 1 !important; background: #000000 !important; z-index: 10000 !important; pointer-events: auto !important; } ' +
         '.carhud-force-fullscreen .ytp-chrome-bottom, .carhud-force-fullscreen .ytp-chrome-top, .carhud-force-fullscreen .ytp-large-play-button, .carhud-force-fullscreen .player-control-play-pause-icon, .carhud-force-fullscreen .ytp-cued-thumbnail-overlay, .carhud-force-fullscreen .ytp-ad-player-overlay, .carhud-force-fullscreen .ytp-ad-skip-button-container, .carhud-force-fullscreen .ytp-ad-skip-button, .carhud-force-fullscreen .videoAdUiSkipButton, .carhud-force-fullscreen ytm-play-button { z-index: 20000 !important; pointer-events: auto !important; } ' +
         '.carhud-force-fullscreen .watch-below-the-fold, .carhud-force-fullscreen ytm-item-section-renderer, .carhud-force-fullscreen ytm-watch-metadata, .carhud-force-fullscreen ytm-mobile-topbar-renderer { display: none !important; } ' +
@@ -869,6 +870,60 @@ object YouTubePlayerHelper {
             } catch(e) {}
         }
 
+        function enforceVideoFill() {
+            try {
+                var now = Date.now();
+                if (window.__carhudFillCheckAt && now - window.__carhudFillCheckAt < 800) return;
+                window.__carhudFillCheckAt = now;
+                var v = document.querySelector('#movie_player video, .html5-video-player video, ytm-player video') || document.querySelector('video');
+                if (!v) return;
+                var vw = window.innerWidth, vh = window.innerHeight;
+                if (!(vw > 0 && vh > 0)) return;
+                var mode = window.__carhud_aspect_mode || 'contain';
+                if (mode === '4:3' || mode === '21:9') return;
+                window.__carhudPinned = window.__carhudPinned || [];
+                var el = v.parentElement;
+                while (el && el !== document.documentElement) {
+                    var cs = window.getComputedStyle(el);
+                    if ((cs.transform && cs.transform !== 'none') || (cs.contain && cs.contain !== 'none') || (cs.filter && cs.filter !== 'none') || cs.willChange === 'transform') {
+                        el.style.setProperty('transform', 'none', 'important');
+                        el.style.setProperty('contain', 'none', 'important');
+                        el.style.setProperty('filter', 'none', 'important');
+                        el.style.setProperty('will-change', 'auto', 'important');
+                        if (window.__carhudPinned.indexOf(el) < 0) window.__carhudPinned.push(el);
+                    }
+                    el = el.parentElement;
+                }
+                var r = v.getBoundingClientRect();
+                if (r.width < vw * 0.9 || r.height < vh * 0.9) {
+                    el = v.parentElement;
+                    while (el && el !== document.documentElement) {
+                        el.style.setProperty('width', '100%', 'important');
+                        el.style.setProperty('height', '100%', 'important');
+                        el.style.setProperty('max-width', 'none', 'important');
+                        el.style.setProperty('max-height', 'none', 'important');
+                        if (window.__carhudPinned.indexOf(el) < 0) window.__carhudPinned.push(el);
+                        el = el.parentElement;
+                    }
+                    v.style.setProperty('width', '100%', 'important');
+                    v.style.setProperty('height', '100%', 'important');
+                    v.style.setProperty('object-fit', mode === 'cover' ? 'cover' : (mode === 'fill' ? 'fill' : 'contain'), 'important');
+                }
+            } catch(e) {}
+        }
+
+        function releaseVideoFill() {
+            try {
+                var list = window.__carhudPinned || [];
+                for (var i = 0; i < list.length; i++) {
+                    ['transform', 'contain', 'filter', 'will-change', 'width', 'height', 'max-width', 'max-height'].forEach(function(n) {
+                        list[i].style.removeProperty(n);
+                    });
+                }
+                window.__carhudPinned = [];
+            } catch(e) {}
+        }
+
         function handleWatchPage() {
             try {
                 var currentHref = window.location.href.split('&')[0];
@@ -885,6 +940,7 @@ object YouTubePlayerHelper {
                     if (!document.body.classList.contains('carhud-force-fullscreen')) {
                         document.body.classList.add('carhud-force-fullscreen');
                     }
+                    enforceVideoFill();
 
                     var currentUrl = currentHref;
                     if (window.__carhudLastWatchUrl !== currentUrl) {
@@ -917,6 +973,7 @@ object YouTubePlayerHelper {
                 } else {
                     document.documentElement.classList.remove('carhud-force-fullscreen');
                     document.body.classList.remove('carhud-force-fullscreen');
+                    releaseVideoFill();
                     try {
                         var v = document.querySelector('video');
                         if (v) {
@@ -1699,16 +1756,9 @@ object YouTubePlayerHelper {
                         var aspect = $aspectRatio;
 
                         var isAutoMode = (window.AndroidVoice && window.AndroidVoice.isAuto && window.AndroidVoice.isAuto());
-                        var targetWidth;
-                        if (!isAutoMode) {
-                            targetWidth = 'device-width';
-                        } else if (isUltra) {
-                            targetWidth = 840;
-                        } else if (isPort) {
-                            targetWidth = 500;
-                        } else {
-                            targetWidth = 720;
-                        }
+                        // The car display context supplies the CSS pixel density.
+                        // Fixed 500/720/840 widths override that and zoom each car differently.
+                        var targetWidth = 'device-width';
 
                         function applyCarViewport() {
                             var meta = document.querySelector('meta[name="viewport"]');
@@ -1747,8 +1797,8 @@ object YouTubePlayerHelper {
                             html.classList.add('carhud-phone');
                         }
                         if (carW > 0 && carH > 0) {
-                            html.style.setProperty('--carhud-screen-w', carW + 'px');
-                            html.style.setProperty('--carhud-screen-h', carH + 'px');
+                            html.style.setProperty('--carhud-screen-w', (carW * 160 / cDpi) + 'px');
+                            html.style.setProperty('--carhud-screen-h', (carH * 160 / cDpi) + 'px');
                             html.style.setProperty('--carhud-aspect-ratio', aspect);
                         }
                     } catch(e) {}

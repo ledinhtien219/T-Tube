@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Presentation
 import android.content.Context
 import android.content.Intent
+import android.content.MutableContextWrapper
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.Bitmap
@@ -42,7 +43,7 @@ class CarPresentation(
     private val existingWebView: WebView? = null
 ) : Presentation(android.view.ContextThemeWrapper(context, R.style.Theme_CarHud), display, R.style.Theme_CarHud), SharedPreferences.OnSharedPreferenceChangeListener {
 
-    private var web: WebView = existingWebView ?: BackgroundAudioWebView(try { context.createDisplayContext(display) } catch (e: Exception) { context }).apply {
+    private var web: WebView = existingWebView ?: BackgroundAudioWebView(this.context).apply {
         setLayerType(View.LAYER_TYPE_HARDWARE, null)
     }
     private lateinit var root: FrameLayout
@@ -96,6 +97,15 @@ class CarPresentation(
     private var currentActiveAppId: String = "youtube"
     // WebView restoreState/loadUrl is asynchronous; current URL may still belong to the previous app.
     private var pendingSessionRestoreAppId: String? = null
+    private val appTransitions = WebTransitionState()
+    private var pendingNavigationUrl: String? = null
+    private var pendingNavigationRecovery: Runnable? = null
+    private var fullscreenChromeAppId: String? = null
+    private var navigationFailed = false
+    private val mobileUserAgent by lazy {
+        android.webkit.WebSettings.getDefaultUserAgent(context)
+            .replace("; wv", "").replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
+    }
     private val mainHandler = Handler(Looper.getMainLooper())
 
     // Prevent repeated play/resume commands when Android Auto recreates the surface
@@ -127,14 +137,10 @@ class CarPresentation(
     private fun applyEffectiveViewportFromRoot(force: Boolean = false) {
         if (!::root.isInitialized || root.width <= 0 || root.height <= 0) return
 
-        val insets = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) root.rootWindowInsets else null
-        val insetLeft = insets?.systemWindowInsetLeft ?: 0
-        val insetTop = insets?.systemWindowInsetTop ?: 0
-        val insetRight = insets?.systemWindowInsetRight ?: 0
-        val insetBottom = insets?.systemWindowInsetBottom ?: 0
-
-        val effectiveWidth = (root.width - insetLeft - insetRight).coerceAtLeast(1)
-        val effectiveHeight = (root.height - insetTop - insetBottom).coerceAtLeast(1)
+        // root is already laid out inside the window's content area. Subtracting
+        // system insets again double-counts AA chrome on cropped/split displays.
+        val effectiveWidth = root.width
+        val effectiveHeight = root.height
         val key = "$effectiveWidth|$effectiveHeight|$carDpi"
         if (!force && key == lastEffectiveViewportKey) return
         lastEffectiveViewportKey = key
@@ -212,9 +218,11 @@ class CarPresentation(
         if (now - lastGlobalAutoResumeAt < 3000L) return
 
         autoResumePending = true
+        val resumeGeneration = appTransitions.generation
         target.postDelayed({
+            if (appTransitions.generation != resumeGeneration) return@postDelayed
             autoResumePending = false
-            if (currentActiveAppId != "youtube" ||
+            if (!appTransitions.owns(resumeGeneration, "youtube") || currentActiveAppId != "youtube" ||
                 CarMediaManager.activeAppId != "youtube" ||
                 CarMediaManager.getPersistentWebView() !== target
             ) return@postDelayed
@@ -353,6 +361,7 @@ class CarPresentation(
         if (existingWebView != null && !web.url.isNullOrBlank()) {
             currentActiveAppId = CarMediaManager.activeAppId
         }
+        appTransitions.begin(currentActiveAppId)
         CarMediaManager.activeVoiceManager = voiceManager
         voiceManager.prewarm()
         CarMediaManager.registerVoiceListener(voiceListener)
@@ -407,6 +416,7 @@ class CarPresentation(
         carWidth = if (metrics.widthPixels > 0) metrics.widthPixels else 800
         carHeight = if (metrics.heightPixels > 0) metrics.heightPixels else 480
         carDpi = if (metrics.densityDpi > 0) metrics.densityDpi else 160
+        (web.context as? MutableContextWrapper)?.baseContext = context
         aspectRatio = if (carHeight > 0) carWidth.toFloat() / carHeight.toFloat() else 1.777f
 
         isUltrawide = (aspectRatio >= 1.85f)
@@ -611,18 +621,9 @@ class CarPresentation(
 
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                if (view !== web || !isCurrentAppPage(url)) return
                 TikTokWebPolicy.applyRenderingPolicy(view, url)
-                val pending = pendingSessionRestoreAppId
-                if (pending != null) {
-                    val matches = when (pending) {
-                        "youtube" -> url.contains("youtube.com", true) || url.contains("youtu.be", true)
-                        "tiktok" -> url.contains("tiktok.com", true)
-                        "iptv" -> url.contains("iptv_player.html", true)
-                        "web" -> !(url.contains("youtube.com", true) || url.contains("youtu.be", true) || url.contains("tiktok.com", true) || url.contains("iptv_player.html", true))
-                        else -> true
-                    }
-                    if (matches) pendingSessionRestoreAppId = null
-                }
+                // Starting navigation does not mean the new document is visible.
                 browserLoading = true
                 updateBrowserToolbar(url)
                 applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
@@ -632,6 +633,7 @@ class CarPresentation(
 
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                 super.doUpdateVisitedHistory(view, url, isReload)
+                if (view !== web || !isCurrentAppPage(url)) return
                 updateBrowserToolbar(url)
                 if (view != null) {
                     applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
@@ -641,12 +643,18 @@ class CarPresentation(
 
             override fun onPageCommitVisible(view: WebView, url: String) {
                 super.onPageCommitVisible(view, url)
+                if (view !== web || !isCurrentAppPage(url)) return
+                finishPendingNavigation()
                 applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
                 TikTokWebPolicy.fitLayout(view, url)
             }
 
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 super.onReceivedError(view, request, error)
+                if (view === web && request?.isForMainFrame == true && isCurrentAppPage(request.url.toString())) {
+                    finishPendingNavigation()
+                    navigationFailed = true
+                }
                 if (request?.isForMainFrame == true && currentActiveAppId == "web") {
                     browserLoading = false
                     updateBrowserToolbar()
@@ -656,6 +664,8 @@ class CarPresentation(
 
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
+                if (view !== web || view.url != url || !isCurrentAppPage(url)) return
+                finishPendingNavigation()
                 if (currentActiveAppId == "web" && browserNeedsHistoryReset && view.url == url) {
                     view.clearHistory()
                     browserNeedsHistoryReset = false
@@ -679,8 +689,9 @@ class CarPresentation(
                 view.evaluateJavascript(pageInputScript + "\nwindow.__thtvPageInput.install();", null)
                 val autoResume = prefs.getBoolean(SettingsActivity.KEY_AUTO_RESUME_LAST_TRACK, true)
                 val savedAspect = prefs.getString(if (web.url?.contains("iptv_player.html") == true) IptvAspectRatio.PREF else "car_video_aspect_mode", "fill") ?: "fill"
+                val pageGeneration = appTransitions.generation
                 view.postDelayed({
-                    if (view.url != url) return@postDelayed
+                    if (view.url != url || appTransitions.generation != pageGeneration) return@postDelayed
                     if (url.contains("iptv_player.html")) {
                         val toolbarScale = prefs.getInt(SettingsActivity.KEY_TOOLBAR_SCALE, 100).coerceIn(50, 150)
                         view.evaluateJavascript("if (typeof window.restoreVideoAspectRatio === 'function') window.restoreVideoAspectRatio();", null)
@@ -861,6 +872,7 @@ class CarPresentation(
             (web.parent as? ViewGroup)?.removeView(web)
         } catch (e: Exception) {}
         root.addView(web, 0, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        web.dispatchConfigurationChanged(context.resources.configuration)
         root.addView(dash, 1, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
         if (CarMediaManager.isWebShowingFullscreen) {
@@ -2219,6 +2231,18 @@ class CarPresentation(
     }
 
     fun switchWebApp(app: WebAppItem, embedded: Boolean = false, startUrl: String? = null) {
+        // Repeated taps while the same app is loading must not restart its request.
+        if (!navigationFailed && app.id == currentActiveAppId && startUrl == null &&
+            (pendingSessionRestoreAppId == app.id || isCurrentAppPage(web.url))) {
+            if (isDashboardShowing) showWebFullscreen(app) else showBars()
+            return
+        }
+        val switchGeneration = appTransitions.begin(app.id)
+        val retryFailedNavigation = navigationFailed
+        navigationFailed = false
+        pendingNavigationRecovery?.let { web.removeCallbacks(it) }
+        pendingNavigationRecovery = null
+        autoResumePending = false
         hideVideoQualityMenu()
         cancelSystemVoiceRequest()
         val previousAppId = currentActiveAppId
@@ -2270,8 +2294,7 @@ class CarPresentation(
         } else if (isDesktop) {
             web.settings.userAgentString = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
         } else {
-            val defaultUa = android.webkit.WebSettings.getDefaultUserAgent(context)
-            web.settings.userAgentString = defaultUa.replace("; wv", "").replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
+            if (web.settings.userAgentString != mobileUserAgent) web.settings.userAgentString = mobileUserAgent
         }
 
         web.settings.javaScriptEnabled = true
@@ -2292,6 +2315,8 @@ class CarPresentation(
 
         // Hide dashboard/wallpaper before any restore/load can paint.
         prepareFullscreenTransition()
+        pendingNavigationUrl = homeUrl
+        pendingSessionRestoreAppId = app.id
 
         val restoredSession = if (canRestoreSession) {
             CarMediaManager.restoreWebAppSession(app.id, web)
@@ -2300,8 +2325,9 @@ class CarPresentation(
         }
         if (restoredSession) {
             pendingSessionRestoreAppId = app.id
-            web.postDelayed({
-                if (pendingSessionRestoreAppId != app.id || currentActiveAppId != app.id) return@postDelayed
+            val recovery = Runnable {
+                if (!appTransitions.owns(switchGeneration, app.id) ||
+                    pendingSessionRestoreAppId != app.id || currentActiveAppId != app.id) return@Runnable
                 val current = web.url.orEmpty()
                 val matches = when (app.id) {
                     "youtube" -> current.contains("youtube.com", true) || current.contains("youtu.be", true)
@@ -2322,15 +2348,20 @@ class CarPresentation(
                 } else {
                     pendingSessionRestoreAppId = null
                 }
-            }, 3200L)
+            }
+            pendingNavigationRecovery = recovery
+            // Do not replace a slow but valid restoring page with YouTube home.
+            // Recovery is only relevant if restoreState left us on the wrong app.
+            web.postDelayed(recovery, 8000L)
         }
 
-        val shouldNavigateFresh = startUrl != null ||
+        val shouldNavigateFresh = startUrl != null || retryFailedNavigation ||
             (isChangingApp && !restoredSession) ||
             (!isChangingApp && !isAlreadyLoaded)
         if (shouldNavigateFresh) {
-            pendingSessionRestoreAppId = null
+            pendingSessionRestoreAppId = app.id
             TikTokWebPolicy.configure(web, homeUrl)
+            web.stopLoading()
             web.loadUrl(homeUrl)
         }
 
@@ -2343,11 +2374,38 @@ class CarPresentation(
     val isShowingDashboard: Boolean
         get() = isDashboardShowing
 
+    private fun isCurrentAppPage(url: String?): Boolean {
+        if (url.isNullOrBlank() || url == "about:blank") return false
+        val uri = runCatching { android.net.Uri.parse(url) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase(java.util.Locale.ROOT)
+        val youtube = host == "youtube.com" || host.endsWith(".youtube.com") || host == "youtu.be"
+        val tiktok = host == "tiktok.com" || host.endsWith(".tiktok.com")
+        return when (currentActiveAppId) {
+            "youtube" -> youtube || host == "accounts.google.com" || host == "myaccount.google.com"
+            "tiktok" -> tiktok
+            "iptv" -> uri.scheme == "file" && uri.path == "/android_asset/iptv_player.html"
+            "web" -> !youtube && !tiktok && uri.scheme in setOf("http", "https")
+            else -> {
+                val expected = android.net.Uri.parse(CarMediaManager.lastEmbeddedApp?.url ?: pendingNavigationUrl ?: return false)
+                if (expected.scheme == "file") uri.scheme == "file" && uri.path == expected.path
+                else host.isNotBlank() && host == expected.host?.lowercase(java.util.Locale.ROOT)
+            }
+        }
+    }
+
+    private fun finishPendingNavigation() {
+        pendingSessionRestoreAppId = null
+        pendingNavigationUrl = null
+        pendingNavigationRecovery?.let { web.removeCallbacks(it) }
+        pendingNavigationRecovery = null
+    }
+
     private fun ensureCorrectFullscreenAppPage() {
         val currentUrl = web.url.orEmpty()
         if (pendingSessionRestoreAppId == currentActiveAppId) {
             return
         }
+        if (isCurrentAppPage(currentUrl)) return
         when (currentActiveAppId) {
             "youtube" -> {
                 val isYoutubePage = currentUrl.contains("youtube.com", true) || currentUrl.contains("youtu.be", true)
@@ -2372,7 +2430,7 @@ class CarPresentation(
         CarMediaManager.isEmbeddedAppShowing = false
         dashboardView?.detachEmbeddedWeb()
         dashboardView?.visibility = View.GONE
-        web.setBackgroundColor(if (isDayMode()) Color.WHITE else Color.BLACK)
+        web.setBackgroundColor(if (effectiveWebThemeIsDay(pendingNavigationUrl)) Color.WHITE else Color.BLACK)
         web.visibility = View.VISIBLE
         web.alpha = 1f
         web.bringToFront()
@@ -2393,16 +2451,25 @@ class CarPresentation(
         web.evaluateJavascript("window.isDashboardMode = false;", null)
         
         ensureCorrectFullscreenAppPage()
-        applyWebScaleForUrl(web.url ?: app?.url)
-        applyUniversalWebTheme(web, effectiveWebThemeIsDay(web.url ?: app?.url))
+        val visibleTargetUrl = pendingNavigationUrl ?: web.url ?: app?.url
+        applyWebScaleForUrl(visibleTargetUrl)
+        applyUniversalWebTheme(web, effectiveWebThemeIsDay(visibleTargetUrl))
         dashboardView?.detachEmbeddedWeb()
         dashboardView?.visibility = View.GONE
         web.visibility = View.VISIBLE
         web.alpha = 1f
         web.bringToFront()
         topToolbarContainer?.visibility = View.VISIBLE
-        rebuildSidebar()
-        rebuildTopToolbar()
+        val chromeMissing = when (currentActiveAppId) {
+            "web" -> topToolbarContainer == null
+            "youtube", "tiktok" -> sidebarContainer == null && prefs.getBoolean(MainActivity.PREF_SHOW_BOTTOM_NAV, true)
+            else -> false
+        }
+        if (fullscreenChromeAppId != currentActiveAppId || chromeMissing) {
+            rebuildSidebar()
+            rebuildTopToolbar()
+            fullscreenChromeAppId = currentActiveAppId
+        }
         sidebarContainer?.visibility = View.VISIBLE
         if (isHudOverlayEnabled()) {
             if (hudOverlay == null) setupHudOverlay()
@@ -2422,8 +2489,9 @@ class CarPresentation(
             updateBrowserViewport()
             web.requestLayout()
             val expectedAppId = currentActiveAppId
+            val fullscreenGeneration = appTransitions.generation
             root.post {
-                if (currentActiveAppId != expectedAppId || CarMediaManager.activeAppId != expectedAppId) {
+                if (appTransitions.generation != fullscreenGeneration || currentActiveAppId != expectedAppId || CarMediaManager.activeAppId != expectedAppId) {
                     return@post
                 }
                 try {
@@ -4684,6 +4752,9 @@ class CarPresentation(
     private fun detachInputCallbacks() {
         if (inputCallbacksDetached) return
         inputCallbacksDetached = true
+        appTransitions.begin("")
+        pendingNavigationRecovery?.let { web.removeCallbacks(it) }
+        pendingNavigationRecovery = null
         if (keyboardPresentation.get() === this) keyboardPresentation.clear()
         voiceManager.stop()
         if (CarMediaManager.activeVoiceManager === voiceManager) CarMediaManager.activeVoiceManager = null

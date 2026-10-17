@@ -704,12 +704,22 @@ class CarDashboardView(
         }
     }
 
+    private var staticWallpaperSignature: String? = null
     fun updateWallpaper() {
-        stopDynamicWallpaper()
-        forceWallpaperLayersFullscreen()
-
         val rawType = prefs.getString(PREF_WALLPAPER_TYPE, WALLPAPER_BUGATTI) ?: WALLPAPER_BUGATTI
         val type = if (rawType == "homer") WALLPAPER_BUGATTI else rawType
+        val customPath = prefs.getString(PREF_CUSTOM_WALLPAPER_PATH, null)
+        val customKind = prefs.getString(PREF_CUSTOM_WALLPAPER_KIND, WALLPAPER_KIND_IMAGE)
+        val isStatic = type != WALLPAPER_CUSTOM || customKind == WALLPAPER_KIND_IMAGE
+        val signature = if (type == WALLPAPER_CUSTOM) {
+            val file = customPath?.let(::File)
+            "$type|$customPath|${file?.lastModified()}|${file?.length()}"
+        } else type
+        // Returning home must not decode the same image or restart its layers.
+        if (isStatic && staticWallpaperSignature == signature) return
+        staticWallpaperSignature = if (isStatic) signature else null
+        stopDynamicWallpaper()
+        forceWallpaperLayersFullscreen()
         when (type) {
             WALLPAPER_BUGATTI -> showStaticWallpaper(R.drawable.bg_wallpaper_bugatti)
             WALLPAPER_SILVER -> showStaticWallpaper(R.drawable.bg_wallpaper_silver)
