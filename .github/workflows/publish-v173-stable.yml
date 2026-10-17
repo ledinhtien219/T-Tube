@@ -88,12 +88,26 @@ jobs:
           curl -fL --retry 3 "$(jq -r '.downloadUrl' /tmp/current-stable.json)" -o /tmp/current-stable.apk
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
           test -n "$APKSIGNER"
-          OLD_CERT=$("$APKSIGNER" verify --print-certs /tmp/current-stable.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
-          NEW_CERT=$("$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/TTube_v1.0.73_debug.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
-          echo "Published stable certificate: $OLD_CERT"
-          echo "Candidate certificate: $NEW_CERT"
-          test -n "$OLD_CERT"
-          test "$OLD_CERT" = "$NEW_CERT"
+          export APKSIGNER
+          python3 - <<'PY'
+          import os, re, subprocess
+          def certificate(path):
+              report = subprocess.check_output([os.environ["APKSIGNER"], "verify", "--print-certs", path], text=True)
+              print(report)
+              for line in report.splitlines():
+                  label = line.upper().replace("-", "").replace(" ", "").replace("_", "")
+                  if "CERTIFICATE" in label and "SHA256" in label:
+                      found = re.search(r"[0-9a-fA-F]{64}", line)
+                      if found:
+                          return found.group(0).lower()
+              raise SystemExit("No certificate SHA-256 digest in apksigner output")
+          old = certificate("/tmp/current-stable.apk")
+          new = certificate("app/build/outputs/apk/debug/TTube_v1.0.73_debug.apk")
+          expected = "dbdb9e695d351e19899e17d9fd9258b11f9cc24ab6df386c21c138d5a70a3de2"
+          if old != new or new != expected:
+              raise SystemExit(f"Stable signing mismatch: published={old}, candidate={new}")
+          print("Stable signing compatibility verified:", new)
+          PY
 
       - name: Enable KVM acceleration
         run: |
