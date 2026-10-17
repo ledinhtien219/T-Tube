@@ -1,0 +1,175 @@
+diff --git a/app/src/main/java/com/carhud/aaproxy/MainActivity.kt b/app/src/main/java/com/carhud/aaproxy/MainActivity.kt
+index 207ebd1..e0bbc47 100644
+--- a/app/src/main/java/com/carhud/aaproxy/MainActivity.kt
++++ b/app/src/main/java/com/carhud/aaproxy/MainActivity.kt
+@@ -2598,9 +2598,12 @@ class MainActivity : AppCompatActivity() {
+                 val cal = Calendar.getInstance()
+                 val now = cal.time
+ 
+-                phoneClockText.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
+-                phoneDateText.text = VietnameseLunarHelper.getFormattedSolarDate(cal)
+-                phoneLunarDateText.text = VietnameseLunarHelper.getFormattedLunarWithCanChi(cal)
++                val clockStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
++                if (phoneClockText.text.toString() != clockStr) phoneClockText.text = clockStr
++                val solarStr = VietnameseLunarHelper.getFormattedSolarDate(cal)
++                if (phoneDateText.text.toString() != solarStr) phoneDateText.text = solarStr
++                val lunarStr = VietnameseLunarHelper.getFormattedLunarWithCanChi(cal)
++                if (phoneLunarDateText.text.toString() != lunarStr) phoneLunarDateText.text = lunarStr
+                 updateGreetingText()
+ 
+                 mainHandler.postDelayed(this, 1000L)
+@@ -2611,7 +2614,8 @@ class MainActivity : AppCompatActivity() {
+ 
+     private fun updateGreetingText() {
+         val curName = prefs.getString(CarDashboardView.PREF_USER_NAME, CarDashboardView.DEFAULT_USER_NAME) ?: CarDashboardView.DEFAULT_USER_NAME
+-        phoneGreetingText.text = VietnameseLunarHelper.getGreeting(Calendar.getInstance(), curName)
++        val greeting = VietnameseLunarHelper.getGreeting(Calendar.getInstance(), curName)
++        if (phoneGreetingText.text.toString() != greeting) phoneGreetingText.text = greeting
+     }
+ 
+     override fun onBackPressed() {
+diff --git a/app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt b/app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt
+index 4b181d3..a92a543 100644
+--- a/app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt
++++ b/app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt
+@@ -288,10 +288,8 @@ class CarDashboardView(
+         val widthDp = if (autoDetect) widthPx / density else 1024f
+         val heightDp = if (autoDetect) heightPx / density else 600f
+ 
+-        val viewportAspect = widthPx.toFloat() / heightPx.toFloat()
+-        val ultrawideViewport = viewportAspect >= 1.85f
+-        val compactWidth = !ultrawideViewport && widthDp < 820f
+-        val veryCompactWidth = !ultrawideViewport && widthDp < 700f
++        val compactWidth = widthDp < 820f
++        val veryCompactWidth = widthDp < 700f
+         val compactHeight = heightDp < 430f
+ 
+         val padH = when {
+@@ -834,7 +832,7 @@ class CarDashboardView(
+                 }
+                 player.setOnPreparedListener {
+                     applyVideoCenterCrop(it.videoWidth, it.videoHeight)
+-                    it.start()
++                    if (isShown) it.start()
+                 }
+                 player.setOnErrorListener { _, _, _ ->
+                     post { applyBugattiDefault() }
+@@ -988,17 +986,17 @@ class CarDashboardView(
+ 
+                 // Clock: 11:49
+                 val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
+-                clockText.text = timeStr
++                setTextIfChanged(clockText, timeStr)
+ 
+                 // Greeting: Chào buổi trưa, Phạm Nam
+                 val userName = prefs.getString(PREF_USER_NAME, DEFAULT_USER_NAME) ?: DEFAULT_USER_NAME
+-                greetingText.text = VietnameseLunarHelper.getGreeting(cal, userName)
++                setTextIfChanged(greetingText, VietnameseLunarHelper.getGreeting(cal, userName))
+ 
+                 // Date: Thứ Ba, 15/09/2026
+-                dateText.text = VietnameseLunarHelper.getFormattedSolarDate(cal)
++                setTextIfChanged(dateText, VietnameseLunarHelper.getFormattedSolarDate(cal))
+ 
+                 // Lunar Date: ÂL: 05/08 - Năm Bính Ngọ
+-                lunarDateText.text = VietnameseLunarHelper.getFormattedLunarWithCanChi(cal)
++                setTextIfChanged(lunarDateText, VietnameseLunarHelper.getFormattedLunarWithCanChi(cal))
+ 
+                 timeHandler.postDelayed(this, 1000)
+             }
+@@ -1159,6 +1157,36 @@ class CarDashboardView(
+         // No-op for launcher view
+     }
+ 
++    // TextView.setText always relayouts and redraws, even for identical text. Writing the same
++    // string every second forced a new projected frame each second for no visible change.
++    private fun setTextIfChanged(view: TextView, value: CharSequence) {
++        if (view.text.toString() != value.toString()) view.text = value
++    }
++
++    // The animated/video wallpaper must not keep decoding and redrawing while a fullscreen app
++    // covers the dashboard: it competes with the app's own video and keeps the phone hot.
++    private fun setWallpaperPlaying(playing: Boolean) {
++        try {
++            animatedWallpaper?.let { if (playing) it.start() else it.stop() }
++        } catch (_: Throwable) {
++        }
++        try {
++            wallpaperPlayer?.let { p ->
++                if (playing) {
++                    if (!p.isPlaying) p.start()
++                } else if (p.isPlaying) {
++                    p.pause()
++                }
++            }
++        } catch (_: Throwable) {
++        }
++    }
++
++    override fun onVisibilityChanged(changedView: View, visibility: Int) {
++        super.onVisibilityChanged(changedView, visibility)
++        if (changedView === this) setWallpaperPlaying(visibility == View.VISIBLE)
++    }
++
+     override fun onDetachedFromWindow() {
+         super.onDetachedFromWindow()
+         prefs.unregisterOnSharedPreferenceChangeListener(prefListener)
+diff --git a/app/src/main/java/com/carhud/aaproxy/SmoothMarqueeTextView.kt b/app/src/main/java/com/carhud/aaproxy/SmoothMarqueeTextView.kt
+index b42c538..2e19a7d 100644
+--- a/app/src/main/java/com/carhud/aaproxy/SmoothMarqueeTextView.kt
++++ b/app/src/main/java/com/carhud/aaproxy/SmoothMarqueeTextView.kt
+@@ -47,6 +47,15 @@ class SmoothMarqueeTextView @JvmOverloads constructor(
+ 
+     private var isFrameScheduled = false
+ 
++    // Redraw at ~30 fps instead of every vsync: each redraw is a new frame the car stream must
++    // encode, and 60 fps of tiny text movement kept the phone hot for no visible benefit.
++    private val minDrawIntervalNanos = 32_000_000L
++    private var lastDrawNanos = 0L
++
++    // Rest at the start of every loop so the title is readable and the screen can go idle.
++    private val loopRestMs: Long = 3000L
++    private val resumeRunnable = Runnable { scheduleNextFrame() }
++
+     init {
+         paint.flags = paint.flags or Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG
+         paint.isAntiAlias = true
+@@ -115,6 +124,7 @@ class SmoothMarqueeTextView @JvmOverloads constructor(
+     }
+ 
+     private fun stopFrameSchedule() {
++        removeCallbacks(resumeRunnable)
+         if (isFrameScheduled) {
+             isFrameScheduled = false
+             Choreographer.getInstance().removeFrameCallback(this)
+@@ -127,7 +137,9 @@ class SmoothMarqueeTextView @JvmOverloads constructor(
+ 
+         val nowMs = SystemClock.uptimeMillis()
+         if (nowMs < initialPauseUntilTimeMs) {
+-            scheduleNextFrame()
++            lastFrameTimeNanos = 0L
++            removeCallbacks(resumeRunnable)
++            postDelayed(resumeRunnable, initialPauseUntilTimeMs - nowMs)
+             return
+         }
+ 
+@@ -138,9 +150,18 @@ class SmoothMarqueeTextView @JvmOverloads constructor(
+ 
+             val cycleLength = textWidth + gapBetweenRepetitions
+             if (scrollOffset >= cycleLength) {
+-                scrollOffset -= cycleLength
++                scrollOffset = 0f
++                initialPauseUntilTimeMs = nowMs + loopRestMs
++                invalidate()
++                lastDrawNanos = frameTimeNanos
++                lastFrameTimeNanos = 0L
++                postDelayed(resumeRunnable, loopRestMs)
++                return
++            }
++            if (frameTimeNanos - lastDrawNanos >= minDrawIntervalNanos) {
++                lastDrawNanos = frameTimeNanos
++                invalidate()
+             }
+-            invalidate()
+         }
+         lastFrameTimeNanos = frameTimeNanos
+         scheduleNextFrame()

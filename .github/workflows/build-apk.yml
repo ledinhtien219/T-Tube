@@ -21,6 +21,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Apply v1.0.74 performance test patch
+        run: git apply --check ci/v1.0.74-perf.patch && git apply ci/v1.0.74-perf.patch
+
       - name: Prepare checked-in v1.0.70 source
         shell: bash
         run: |
