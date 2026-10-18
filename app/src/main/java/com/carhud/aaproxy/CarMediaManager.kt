@@ -92,6 +92,20 @@ object CarMediaManager {
     var isWebShowingFullscreen = false
     var isEmbeddedAppShowing = true
     var activeAppId: String = "youtube"
+        private set
+    private var mediaOwnerGeneration: Long = 0L
+
+    fun switchActiveApp(appId: String) {
+        if (activeAppId == appId) return
+        mediaOwnerGeneration += 1L
+        activeAppId = appId
+        cancelPendingSteeringNext()
+        // A delayed callback from the previous shared-WebView page must never own
+        // transport state after an app switch.
+        userWantsPlayback = false
+        setPlaybackState(false)
+    }
+
     data class EditorDraft(val appId: String, val page: String?, val mode: String, val text: String)
     var editorDraft: EditorDraft? = null
     private var phoneEditor: Pair<String, CarInputSession>? = null
@@ -309,23 +323,27 @@ object CarMediaManager {
 
     fun setupAndroidVoiceBridge(web: WebView, context: Context, isAuto: Boolean = false) {
         val appCtx = context.applicationContext
+        val bridgeAppId = activeAppId
+        val bridgeGeneration = mediaOwnerGeneration
+        fun ownsMedia(): Boolean =
+            bridgeGeneration == mediaOwnerGeneration && bridgeAppId == activeAppId && getActiveWebView() === web
         web.addJavascriptInterface(object : Any() {
             @android.webkit.JavascriptInterface
             fun isAuto(): Boolean = isAuto
 
             @android.webkit.JavascriptInterface
             fun onPlaybackStateChanged(playing: Boolean) {
-                mainHandler.post { setPlaybackState(playing) }
+                mainHandler.post { if (ownsMedia()) setPlaybackState(playing) }
             }
 
             @android.webkit.JavascriptInterface
             fun onTrackChanged(title: String, artist: String) {
-                mainHandler.post { updateTrack(title, artist, null) }
+                mainHandler.post { if (ownsMedia()) updateTrack(title, artist, null) }
             }
 
             @android.webkit.JavascriptInterface
             fun onTrackChanged(title: String, artist: String, thumbUrl: String) {
-                mainHandler.post { updateTrack(title, artist, thumbUrl) }
+                mainHandler.post { if (ownsMedia()) updateTrack(title, artist, thumbUrl) }
             }
 
             @android.webkit.JavascriptInterface
@@ -337,17 +355,20 @@ object CarMediaManager {
             @android.webkit.JavascriptInterface
             fun onVideoTimeUpdate(currentSec: Int, totalSec: Int, formattedTime: String) {
                 mainHandler.post {
-                    updatePlaybackProgress(currentSec, totalSec)
+                    if (ownsMedia()) updatePlaybackProgress(currentSec, totalSec)
                 }
             }
 
             @android.webkit.JavascriptInterface
             fun onUserSelectedVideo(url: String) {
+                if (!ownsMedia()) return
                 userWantsPlayback = true
                 saveLastPlayedUrl(appCtx, url)
                 mainHandler.post {
-                    ensureAudioFocus()
-                    acquireWakeLock(appCtx)
+                    if (ownsMedia()) {
+                        ensureAudioFocus()
+                        acquireWakeLock(appCtx)
+                    }
                 }
             }
 
