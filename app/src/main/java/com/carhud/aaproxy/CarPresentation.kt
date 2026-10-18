@@ -328,7 +328,7 @@ class CarPresentation(
                 }
                 currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(web.url) -> {
                     currentActiveAppId = "tiktok"
-                    CarMediaManager.activeAppId = "tiktok"
+                    CarMediaManager.switchActiveApp("tiktok")
                     val target = TikTokWebPolicy.searchUrl(query)
                     TikTokWebPolicy.configure(web, target)
                     if (isDashboardShowing) showWebFullscreen()
@@ -2095,7 +2095,7 @@ class CarPresentation(
         if ((currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(web.url)) && !isDashboardShowing) {
             YouTubePlayerHelper.setDuckingVolume(web, 1.0f)
             currentActiveAppId = "tiktok"
-            CarMediaManager.activeAppId = "tiktok"
+            CarMediaManager.switchActiveApp("tiktok")
             val target = TikTokWebPolicy.searchUrl(query)
             TikTokWebPolicy.configure(web, target)
             web.loadUrl(target)
@@ -2267,7 +2267,7 @@ class CarPresentation(
         }
         currentActiveAppId = app.id
         WebAppManager.setActiveAppId(context, app.id)
-        CarMediaManager.activeAppId = app.id
+        CarMediaManager.switchActiveApp(app.id)
         CarMediaManager.lastEmbeddedApp = app
         CarMediaManager.isEmbeddedAppShowing = false
 
@@ -3390,7 +3390,7 @@ class CarPresentation(
         if (searchOverlayMode == "tiktok") {
             cancelSystemVoiceRequest()
             currentActiveAppId = "tiktok"
-            CarMediaManager.activeAppId = "tiktok"
+            CarMediaManager.switchActiveApp("tiktok")
             if (isDashboardShowing) showWebFullscreen()
             val target = TikTokWebPolicy.searchUrl(q)
             TikTokWebPolicy.configure(web, target)
@@ -3409,7 +3409,7 @@ class CarPresentation(
         if (searchOverlayMode != "youtube" || (currentActiveAppId != "youtube" && !youtubeVisible)) return
         if (youtubeVisible) {
             currentActiveAppId = "youtube"
-            CarMediaManager.activeAppId = "youtube"
+            CarMediaManager.switchActiveApp("youtube")
         }
         prepareManualYouTubeSearch()
         if (isDashboardShowing) {
@@ -3450,7 +3450,7 @@ class CarPresentation(
             webKeyboardTargetPending = false
             web.evaluateJavascript("if(window.__thtvPageInput) window.__thtvPageInput.clear();", null)
             currentActiveAppId = "youtube"
-            CarMediaManager.activeAppId = "youtube"
+            CarMediaManager.switchActiveApp("youtube")
             prepareManualYouTubeSearch()
             hideSearchOverlay()
             YouTubePlayerHelper.search(web, cleanValue, autoPlayFirst = false)
@@ -4705,19 +4705,22 @@ class CarPresentation(
         // this app. The live WebView is still kept running below, while this
         // snapshot is a fallback if the host recreates the surface/renderer.
         CarMediaManager.saveWebAppSession(currentActiveAppId, web)
-        // Keep the persistent WebView attached to the Presentation window while Android Auto
-        // temporarily hides our surface (for example when switching to Maps/Waze). Detaching it
-        // makes Chromium treat the page as background/off-screen and can suspend YouTube/HLS audio.
+        // Do not force Chromium/WebView to stay resumed when T Tube loses the foreground.
+        // Keeping it resumed here makes Chromium retain AUDIOFOCUS_GAIN and blocks external
+        // players such as Zing MP3 or SoundCloud. Background playback is preserved only when
+        // the user explicitly enabled it and T Tube is actually playing.
         try {
             val mediaWeb = web
-            if (mediaWeb is BackgroundAudioWebView) mediaWeb.enableBackgroundAudio = true
-            mediaWeb.visibility = View.VISIBLE
-            mediaWeb.onResume()
-            mediaWeb.resumeTimers()
-            if (CarMediaManager.isPlaying || CarMediaManager.userWantsPlayback) {
+            val backgroundAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
+            if (backgroundAudio && CarMediaManager.isPlaying && CarMediaManager.userWantsPlayback) {
+                if (mediaWeb is BackgroundAudioWebView) mediaWeb.enableBackgroundAudio = true
                 CarMediaManager.registerService(context)
                 CarMediaManager.acquireWakeLock(context)
-                CarMediaManager.ensureAudioFocus()
+            } else {
+                if (mediaWeb is BackgroundAudioWebView) mediaWeb.enableBackgroundAudio = false
+                CarMediaManager.pausePlayback()
+                mediaWeb.onPause()
+                CarMediaManager.releaseWakeLock()
             }
         } catch (_: Exception) {}
         super.onStop()
