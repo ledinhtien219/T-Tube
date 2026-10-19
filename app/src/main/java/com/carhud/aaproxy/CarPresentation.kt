@@ -4289,6 +4289,10 @@ class CarPresentation(
     }
 
     private fun showKeyboardOverlayInternal(requestNative: Boolean = true, showKeys: Boolean = true) {
+        // Manual input takes ownership over any in-flight voice recognition.
+        voiceManager.cancelListening()
+        YouTubePlayerHelper.setDuckingVolume(web, 1.0f)
+
         if (requestNative && prefs.getString("car_keyboard_input_mode", "native") != "thtv") {
             val input = createEditorInput()
             activeCarInput = input
