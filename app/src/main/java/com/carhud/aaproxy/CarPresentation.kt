@@ -2109,6 +2109,7 @@ class CarPresentation(
                 CarMediaManager.ensureAudioFocus()
                 CarMediaManager.acquireWakeLock(context)
                 switchWebApp(youtube, startUrl = target)
+                CarMediaManager.userWantsPlayback = true
                 SystemVoiceModule.report(context, if (canResume) "Đang mở bài nhạc gần nhất." else "Đang tìm nhạc: $query")
                 if (!canResume) {
                     systemVoiceSearchPending = true
@@ -2208,9 +2209,11 @@ class CarPresentation(
             val target = "https://m.youtube.com/results?search_query=" +
                 android.net.Uri.encode(mediaQuery)
             switchWebApp(ytApp, embedded = isDashboardShowing, startUrl = target)
+            CarMediaManager.userWantsPlayback = true
             pendingVoiceYoutubeQuery = mediaQuery
             pendingVoiceYoutubeGeneration = appTransitions.generation
         } else {
+            CarMediaManager.userWantsPlayback = true
             if (isDashboardShowing && (dashboardView?.isEmbeddedAppShowing() != true)) {
                 showWebFullscreen()
             }
@@ -2223,6 +2226,7 @@ class CarPresentation(
 
     fun playTvChannel(channelName: String) {
         cancelSystemVoiceRequest()
+        CarMediaManager.userWantsPlayback = true
         val iptvApp = WebAppManager.getAllApps(context).find { it.id == "iptv" }
             ?: WebAppManager.DEFAULT_APPS.find { it.id == "iptv" }
             ?: return
@@ -2248,6 +2252,7 @@ class CarPresentation(
             }
         } else {
             switchWebApp(iptvApp.copy(url = targetUrl), embedded = isDashboardShowing)
+            CarMediaManager.userWantsPlayback = true
         }
     }
 
