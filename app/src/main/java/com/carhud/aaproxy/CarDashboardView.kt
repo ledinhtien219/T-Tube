@@ -861,7 +861,7 @@ class CarDashboardView(
                 }
                 player.setOnPreparedListener {
                     applyVideoCenterCrop(it.videoWidth, it.videoHeight)
-                    it.start()
+                    if (isShown) it.start()
                 }
                 player.setOnErrorListener { _, _, _ ->
                     post { applyBugattiDefault() }
@@ -1015,17 +1015,17 @@ class CarDashboardView(
 
                 // Clock: 11:49
                 val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
-                clockText.text = timeStr
+                setTextIfChanged(clockText, timeStr)
 
                 // Greeting: Chào buổi trưa, Phạm Nam
                 val userName = prefs.getString(PREF_USER_NAME, DEFAULT_USER_NAME) ?: DEFAULT_USER_NAME
-                greetingText.text = VietnameseLunarHelper.getGreeting(cal, userName)
+                setTextIfChanged(greetingText, VietnameseLunarHelper.getGreeting(cal, userName))
 
                 // Date: Thứ Ba, 15/09/2026
-                dateText.text = VietnameseLunarHelper.getFormattedSolarDate(cal)
+                setTextIfChanged(dateText, VietnameseLunarHelper.getFormattedSolarDate(cal))
 
                 // Lunar Date: ÂL: 05/08 - Năm Bính Ngọ
-                lunarDateText.text = VietnameseLunarHelper.getFormattedLunarWithCanChi(cal)
+                setTextIfChanged(lunarDateText, VietnameseLunarHelper.getFormattedLunarWithCanChi(cal))
 
                 timeHandler.postDelayed(this, 1000)
             }
@@ -1184,6 +1184,34 @@ class CarDashboardView(
 
     override fun scrollTo(x: Int, y: Int) {
         // No-op for launcher view
+    }
+
+    // Avoid relayout/redraw when clock/date/greeting text did not change.
+    private fun setTextIfChanged(view: TextView, value: CharSequence) {
+        if (view.text.toString() != value.toString()) view.text = value
+    }
+
+    // Stop animated/video wallpaper while fullscreen apps cover the dashboard.
+    private fun setWallpaperPlaying(playing: Boolean) {
+        try {
+            animatedWallpaper?.let { if (playing) it.start() else it.stop() }
+        } catch (_: Throwable) {
+        }
+        try {
+            wallpaperPlayer?.let { p ->
+                if (playing) {
+                    if (!p.isPlaying) p.start()
+                } else if (p.isPlaying) {
+                    p.pause()
+                }
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
+    override fun onVisibilityChanged(changedView: View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        if (changedView === this) setWallpaperPlaying(visibility == View.VISIBLE)
     }
 
     override fun onDetachedFromWindow() {
