@@ -2,6 +2,7 @@
 # Gate retry after v1.0.74 regression expectations were updated for hard app ownership.
 # Retry 2: remaining legacy TikTok restore assertions aligned with v1.0.74.
 # Retry 3: legacy keyboard/search assertions aligned with strict app ownership.
+# Retry 4: legacy TikTok smoothness/browser ownership assertions aligned.
 name: Publish T Tube v1.0.74 Stable
 
 on:
