@@ -1,5 +1,6 @@
 # Source files verified against local Git blob hashes before stable publication.
 # Gate retry after v1.0.74 regression expectations were updated for hard app ownership.
+# Retry 2: remaining legacy TikTok restore assertions aligned with v1.0.74.
 name: Publish T Tube v1.0.74 Stable
 
 on:
