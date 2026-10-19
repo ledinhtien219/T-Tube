@@ -1,15 +1,15 @@
 {
   "channel": "stable",
   "approved": true,
-  "versionCode": 264,
-  "versionName": "1.0.73",
-  "downloadUrl": "https://github.com/ledinhtien219/T-Tube/releases/download/v1.0.73/TTube_v1.0.73_debug.apk",
-  "approvedCommit": "54dc98b61db0df2dff7cff24a0f4f591199f36f9",
-  "approvedAt": "2026-10-17T04:37:32+00:00",
+  "versionCode": 269,
+  "versionName": "1.0.74",
+  "downloadUrl": "https://github.com/ledinhtien219/T-Tube/releases/download/v1.0.74/TTube_v1.0.74_debug.apk",
+  "approvedCommit": "3e97ba560a399a08c6e6c9c1e1e42371ce783404",
+  "approvedAt": "2026-10-19T07:47:20+00:00",
   "changelog": [
-    "Sửa nhận diện DPI và viewport video theo màn xe.",
-    "Cải thiện chuyển app: tránh tải trang trùng và callback cũ.",
-    "Khôi phục vị trí video một lần, giữ trạng thái tạm dừng.",
-    "Giảm dựng lại thanh điều khiển và đọc lại ảnh nền."
+    "Khóa chuyển app để YouTube, IPTV, TikTok và Trình duyệt không lẫn trạng thái.",
+    "Tìm kiếm nhập tay/giọng nói bám đúng app đang active và hủy callback cũ khi đổi app.",
+    "Sửa toolbar ẩn/hiện không phản hồi do race animation.",
+    "Giảm nóng và cải thiện audio coexistence với ứng dụng nghe nhạc khác."
   ]
 }
