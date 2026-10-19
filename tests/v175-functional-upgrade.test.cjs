@@ -17,7 +17,7 @@ assert.match(car, /CarMediaManager\.switchActiveApp\(app\.id\)/);
 // YouTube can resume the exact video/position without restoring shared WebView history.
 assert.match(car, /private var youtubeResumeUrl: String\? = null/);
 assert.match(car, /private var youtubeResumeSec = 0/);
-assert.match(car, /youtubeResumePlaying = CarMediaManager\.userWantsPlayback/);
+assert.match(car, /youtubeResumePlaying = CarMediaManager\.isPlaying/);
 assert.match(car, /"youtube" -> \(if \(isChangingApp\) consumeYouTubeResumeUrl\(\) else null\)/);
 assert.match(car, /appendQueryParameter\("t", "\$\{sec\}s"\)/);
 assert.match(car, /pauseAfterYouTubeRestore = !playing/);
