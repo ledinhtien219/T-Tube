@@ -10,7 +10,7 @@ const apps = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/WebAppModel.k
 assert.ok(Number(gradle.match(/versionCode = (\d+)/)?.[1]) >= 261);
 
 // Native tiktok.com desktop web owns feed, scrolling, video navigation and search.
-assert.match(tiktok, /POLICY_VERSION = 15/);
+assert.match(tiktok, /POLICY_VERSION = 16/);
 assert.match(tiktok, /DESKTOP_UA/);
 assert.match(tiktok, /Chrome\/128\.0\.0\.0 Safari\/537\.36/);
 assert.match(tiktok, /"https:\/\/www\.tiktok\.com\/search\?q=" \+ Uri\.encode/);
