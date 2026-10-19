@@ -47,6 +47,11 @@ class SmoothMarqueeTextView @JvmOverloads constructor(
 
     private var isFrameScheduled = false
 
+    private val minDrawIntervalNanos = 32_000_000L
+    private var lastDrawNanos = 0L
+    private val loopRestMs: Long = 3000L
+    private val resumeRunnable = Runnable { scheduleNextFrame() }
+
     init {
         paint.flags = paint.flags or Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG
         paint.isAntiAlias = true
@@ -115,6 +120,7 @@ class SmoothMarqueeTextView @JvmOverloads constructor(
     }
 
     private fun stopFrameSchedule() {
+        removeCallbacks(resumeRunnable)
         if (isFrameScheduled) {
             isFrameScheduled = false
             Choreographer.getInstance().removeFrameCallback(this)
@@ -127,7 +133,9 @@ class SmoothMarqueeTextView @JvmOverloads constructor(
 
         val nowMs = SystemClock.uptimeMillis()
         if (nowMs < initialPauseUntilTimeMs) {
-            scheduleNextFrame()
+            lastFrameTimeNanos = 0L
+            removeCallbacks(resumeRunnable)
+            postDelayed(resumeRunnable, initialPauseUntilTimeMs - nowMs)
             return
         }
 
@@ -138,9 +146,18 @@ class SmoothMarqueeTextView @JvmOverloads constructor(
 
             val cycleLength = textWidth + gapBetweenRepetitions
             if (scrollOffset >= cycleLength) {
-                scrollOffset -= cycleLength
+                scrollOffset = 0f
+                initialPauseUntilTimeMs = nowMs + loopRestMs
+                invalidate()
+                lastDrawNanos = frameTimeNanos
+                lastFrameTimeNanos = 0L
+                postDelayed(resumeRunnable, loopRestMs)
+                return
             }
-            invalidate()
+            if (frameTimeNanos - lastDrawNanos >= minDrawIntervalNanos) {
+                lastDrawNanos = frameTimeNanos
+                invalidate()
+            }
         }
         lastFrameTimeNanos = frameTimeNanos
         scheduleNextFrame()
