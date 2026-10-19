@@ -36,8 +36,10 @@ assert.doesNotMatch(tiktok, /data-ttube-login-wall/);
 
 // Opening TikTok starts from a clean tiktok.com home while cookies remain available.
 assert.match(apps, /url = "https:\/\/www\.tiktok\.com\/"[\s\S]*?isDesktop = true/);
-// Reopening a native TikTok feed/search must keep that page instead of loading home again.
+// Repeated taps on the already-active TikTok app keep the current page, while
+// cross-app restore remains disabled so stale history cannot resurrect another app.
 assert.match(main, /"tiktok" -> TikTokWebPolicy\.isTikTok\(current\)/);
-assert.match(car, /app\.id != "tiktok"[\s\S]*?CarMediaManager\.hasWebAppSession/);
+assert.match(car, /app\.id == currentActiveAppId && startUrl == null/);
+assert.match(car, /val canRestoreSession = false/);
 
 console.log('PASS v1.0.70 build 261: native TikTok desktop web + clean home + web-only redirects');
