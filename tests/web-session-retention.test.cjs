@@ -29,7 +29,7 @@ assert.match(media, /YouTubePlayerHelper\.seekTo\(web, session\.videoPositionSec
 // restored across app switches because stale history can resurrect the old app.
 assert.match(presentation, /val canRestoreSession = false/);
 assert.doesNotMatch(presentation, /CarMediaManager\.saveWebAppSession\(previousAppId, web\)/);
-assert.doesNotMatch(presentation, /CarMediaManager\.restoreWebAppSession\(app\.id, web\)/);
+assert.match(presentation, /val restoredSession = if \(canRestoreSession\) \{[\s\S]*?CarMediaManager\.restoreWebAppSession\(app\.id, web\)[\s\S]*?\} else \{[\s\S]*?false/);
 assert.match(presentation, /isUrlForApp\(app, currentUrl\)/);
 assert.match(presentation, /web\.clearHistory\(\)/);
 assert.match(presentation, /shouldNavigateFresh/);
