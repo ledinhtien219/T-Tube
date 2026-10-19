@@ -37,9 +37,9 @@ assert.match(presentation, /params\.rightMargin = 0/);
 assert.doesNotMatch(presentation, /effectiveCarDpi[\s\S]*?effectivePhoneDpi[\s\S]*?scalePercent/);
 assert.doesNotMatch(presentation, /effectiveCarDpi \/ effectivePhoneDpi/);
 
-// TikTok uses a consistent desktop identity, but build 253 deliberately
-// avoids restoring stale TikTok WebView state. Cookies still keep login.
-assert.match(presentation, /app\.id != "tiktok"/);
+// TikTok uses a consistent desktop identity. v1.0.74 hard-isolates all
+// app ownership instead of special-casing TikTok restore logic.
+assert.match(presentation, /val canRestoreSession = false/);
 assert.match(presentation, /TikTokWebPolicy\.configure\(web, startUrl \?: app\.url\)/);
 assert.match(manager, /url = "https:\/\/www\.tiktok\.com\/"[\s\S]*?isDesktop = true/);
 
@@ -55,4 +55,4 @@ assert.match(dashboard, /private fun refreshPinnedApps\(\)/);
 assert.match(dashboard, /WebAppManager\.getPinnedDashboardApps\(context\)/);
 assert.match(dashboard, /setOnClickListener \{ onAppClick\(app\) \}/);
 
-console.log('PASS v1.0.46: v1.0.39 AA host preserved + TikTok desktop-web/browser fixes + dashboard pin switches');
+console.log('PASS legacy AA host + TikTok desktop-web/browser fixes + dashboard pin switches under hard ownership');
