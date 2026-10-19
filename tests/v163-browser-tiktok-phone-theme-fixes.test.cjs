@@ -22,9 +22,10 @@ const layout = fs.readFileSync(
   'utf8'
 );
 
-// TikTok owns its toolbar search instead of being classified as the generic browser.
-assert.match(presentation, /currentActiveAppId == "tiktok" \|\| TikTokWebPolicy\.isTikTok\(url\)/);
-assert.match(presentation, /val tiktokActive = currentActiveAppId == "tiktok" \|\| TikTokWebPolicy\.isTikTok\(web\.url\)/);
+// TikTok owns its toolbar search by selected app ownership. Stale WebView
+// pixels/URLs must never reclassify the active app during a transition.
+assert.match(presentation, /return currentActiveAppId !in setOf\("youtube", "iptv", "tiktok"\)/);
+assert.match(presentation, /val tiktokActive = currentActiveAppId == "tiktok"/);
 assert.match(presentation, /searchOverlayMode = if \(tiktokActive\) "tiktok" else "youtube"/);
 
 // TikTok search is left to the real desktop website.
@@ -54,4 +55,4 @@ assert.match(main, /R\.id\.phoneDisplayToggleCard/);
 assert.match(main, /R\.id\.phoneThemeCard/);
 assert.match(main, /stylePhoneDynamicCard\(itemView\)/);
 
-console.log('PASS browser theme + TikTok native search + phone day-mode regressions');
+console.log('PASS browser theme + owner-bound TikTok search + phone day-mode regressions');
