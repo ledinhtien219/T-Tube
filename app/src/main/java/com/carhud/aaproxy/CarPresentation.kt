@@ -102,6 +102,9 @@ class CarPresentation(
     private var pendingNavigationRecovery: Runnable? = null
     private var fullscreenChromeAppId: String? = null
     private var navigationFailed = false
+    private var appSwitchSnapshot: ImageView? = null
+    private var appSwitchBitmap: Bitmap? = null
+    private var appSwitchSnapshotGeneration = 0L
     private val mobileUserAgent by lazy {
         android.webkit.WebSettings.getDefaultUserAgent(context)
             .replace("; wv", "").replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
@@ -645,6 +648,7 @@ class CarPresentation(
                 super.onPageCommitVisible(view, url)
                 if (view !== web || !isCurrentAppPage(url)) return
                 finishPendingNavigation()
+                hideAppSwitchSnapshot()
                 applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
                 TikTokWebPolicy.fitLayout(view, url)
             }
@@ -653,6 +657,7 @@ class CarPresentation(
                 super.onReceivedError(view, request, error)
                 if (view === web && request?.isForMainFrame == true && isCurrentAppPage(request.url.toString())) {
                     finishPendingNavigation()
+                    hideAppSwitchSnapshot()
                     navigationFailed = true
                 }
                 if (request?.isForMainFrame == true && currentActiveAppId == "web") {
@@ -666,9 +671,15 @@ class CarPresentation(
                 super.onPageFinished(view, url)
                 if (view !== web || view.url != url || !isCurrentAppPage(url)) return
                 finishPendingNavigation()
+                hideAppSwitchSnapshot()
                 if (currentActiveAppId == "web" && browserNeedsHistoryReset && view.url == url) {
                     view.clearHistory()
                     browserNeedsHistoryReset = false
+                }
+                if (currentActiveAppId == "iptv" && url.contains("iptv_player.html", true)) {
+                    // IPTV is a local app shell; never retain shared WebView history
+                    // from TikTok/YouTube or Back can jump into the wrong app.
+                    view.clearHistory()
                 }
                 browserLoading = false
                 updateBrowserToolbar(view.url ?: url)
@@ -1725,7 +1736,7 @@ class CarPresentation(
     }
 
     fun showBars() {
-        if (isWebVideoFullscreen || (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) ||
+        if ((::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) ||
             appGridOverlay?.visibility == View.VISIBLE || addAppOverlay?.visibility == View.VISIBLE) return
         updateYouTubeHomeObstacles()
         // IPTV has its own on-screen controls. Keep the native Android Auto
@@ -2248,11 +2259,13 @@ class CarPresentation(
         val previousAppId = currentActiveAppId
         val isChangingApp = previousAppId != app.id
         if (isChangingApp) {
+            if (!isDashboardShowing) showAppSwitchSnapshot(switchGeneration)
             CarMediaManager.cancelPendingSteeringNext()
             CarMediaManager.saveWebAppSession(previousAppId, web)
         }
         val canRestoreSession = isChangingApp &&
             app.id != "tiktok" &&
+            app.id != "iptv" &&
             startUrl == null &&
             CarMediaManager.hasWebAppSession(app.id)
         if (isChangingApp) {
@@ -2307,10 +2320,10 @@ class CarPresentation(
 
         applyWebScaleForUrl(app.url)
 
-        val homeUrl = startUrl ?: if (app.id == "youtube") {
-            if (isDesktop) "https://www.youtube.com" else "https://m.youtube.com"
-        } else {
-            app.url
+        val homeUrl = startUrl ?: when (app.id) {
+            "youtube" -> if (isDesktop) "https://www.youtube.com" else "https://m.youtube.com"
+            "iptv" -> "file:///android_asset/iptv_player.html"
+            else -> app.url
         }
 
         // Hide dashboard/wallpaper before any restore/load can paint.
@@ -2400,6 +2413,52 @@ class CarPresentation(
         pendingNavigationRecovery = null
     }
 
+    private fun showAppSwitchSnapshot(generation: Long) {
+        hideAppSwitchSnapshot()
+        if (!::root.isInitialized || root.width <= 0 || root.height <= 0) return
+        try {
+            val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
+            root.draw(android.graphics.Canvas(bitmap))
+            val overlay = ImageView(context).apply {
+                scaleType = ImageView.ScaleType.FIT_XY
+                isClickable = false
+                isFocusable = false
+                setImageBitmap(bitmap)
+            }
+            appSwitchBitmap = bitmap
+            appSwitchSnapshot = overlay
+            appSwitchSnapshotGeneration = generation
+            root.addView(
+                overlay,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
+            overlay.bringToFront()
+            root.postDelayed({
+                if (appSwitchSnapshotGeneration == generation) hideAppSwitchSnapshot()
+            }, 2500L)
+        } catch (_: Throwable) {
+            hideAppSwitchSnapshot()
+        }
+    }
+
+    private fun hideAppSwitchSnapshot() {
+        val overlay = appSwitchSnapshot
+        appSwitchSnapshot = null
+        if (overlay != null) {
+            try {
+                overlay.setImageDrawable(null)
+                (overlay.parent as? ViewGroup)?.removeView(overlay)
+            } catch (_: Throwable) {}
+        }
+        try {
+            appSwitchBitmap?.takeIf { !it.isRecycled }?.recycle()
+        } catch (_: Throwable) {}
+        appSwitchBitmap = null
+    }
+
     private fun ensureCorrectFullscreenAppPage() {
         val currentUrl = web.url.orEmpty()
         if (pendingSessionRestoreAppId == currentActiveAppId) {
@@ -2480,6 +2539,7 @@ class CarPresentation(
         }
         showBars()
         resetAutoHideTimer()
+        appSwitchSnapshot?.bringToFront()
 
         // Restore dimensions and rendering state when entering fullscreen.
         // Do not blindly play every <video>: that made a deliberately paused
