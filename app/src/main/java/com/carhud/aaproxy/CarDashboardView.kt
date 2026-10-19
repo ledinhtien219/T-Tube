@@ -399,9 +399,9 @@ class CarDashboardView(
             return
         }
 
-        // Grow the pinned-app strip only as apps are added. This makes new tiles
-        // advance toward the mini-player instead of stacking or overlapping.
-        val desiredWidthDp = count * (dashboardCardWidthDp + dashboardCardGapDp)
+        // Exact content width: gaps exist only BETWEEN cards, never after the last one.
+        val desiredWidthDp = count * dashboardCardWidthDp +
+            (count - 1).coerceAtLeast(0) * dashboardCardGapDp
         val m3uSpaceDp = if (cardM3u?.visibility == View.VISIBLE) {
             dashboardCardWidthDp + dashboardCardGapDp
         } else 0
@@ -428,7 +428,7 @@ class CarDashboardView(
         dynamicPinnedCards.clear()
 
         val apps = WebAppManager.getPinnedDashboardApps(context)
-        apps.forEach { app ->
+        apps.forEachIndexed { index, app ->
             val card = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
@@ -441,8 +441,11 @@ class CarDashboardView(
                 )
                 isClickable = true
                 isFocusable = true
-                layoutParams = LinearLayout.LayoutParams(dp(92), dp(82)).apply {
-                    marginEnd = dp(10)
+                layoutParams = LinearLayout.LayoutParams(
+                    dp(dashboardCardWidthDp),
+                    dp(dashboardCardHeightDp)
+                ).apply {
+                    marginEnd = if (index < apps.lastIndex) dp(dashboardCardGapDp) else 0
                 }
 
                 val icon = ImageView(context).apply {
@@ -454,7 +457,8 @@ class CarDashboardView(
                         setImageResource(app.iconRes)
                     }
                 }
-                addView(icon, LinearLayout.LayoutParams(dp(48), dp(48)))
+                val iconSizeDp = if (dashboardCardHeightDp < 74) 40 else 48
+                addView(icon, LinearLayout.LayoutParams(dp(iconSizeDp), dp(iconSizeDp)))
 
                 contentDescription = app.name
                 addView(TextView(context).apply {
