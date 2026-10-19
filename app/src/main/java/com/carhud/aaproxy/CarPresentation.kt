@@ -2258,7 +2258,7 @@ class CarPresentation(
         val previousAppId = currentActiveAppId
         val isChangingApp = previousAppId != app.id
         if (isChangingApp) {
-            if (!isDashboardShowing) showAppSwitchShield(switchGeneration)
+            showAppSwitchShield(switchGeneration)
             CarMediaManager.cancelPendingSteeringNext()
             CarMediaManager.saveWebAppSession(previousAppId, web)
         }
@@ -2270,11 +2270,9 @@ class CarPresentation(
             browserNeedsHistoryReset = app.id == "web" && !canRestoreSession
         }
         val currentUrl = web.url ?: ""
-        val isYouTubeApp = (app.id == "youtube" || app.url.contains("youtube.com") || app.url.contains("youtu.be"))
-        val isAlreadyLoaded = if (isYouTubeApp) {
-            currentUrl.contains("youtube.com") || currentUrl.contains("youtu.be")
-        } else {
-            (currentActiveAppId == app.id) && currentUrl.isNotEmpty() && currentUrl != "about:blank"
+        val isAlreadyLoaded = isUrlForApp(app, currentUrl)
+        if (!isChangingApp && !isAlreadyLoaded && !isDashboardShowing) {
+            showAppSwitchShield(switchGeneration)
         }
         currentActiveAppId = app.id
         WebAppManager.setActiveAppId(context, app.id)
@@ -2372,7 +2370,7 @@ class CarPresentation(
             pendingSessionRestoreAppId = app.id
             TikTokWebPolicy.configure(web, homeUrl)
             web.stopLoading()
-            if (isChangingApp) {
+            if (isChangingApp || !isAlreadyLoaded) {
                 try {
                     web.clearHistory()
                     web.clearMatches()
@@ -2389,6 +2387,27 @@ class CarPresentation(
 
     val isShowingDashboard: Boolean
         get() = isDashboardShowing
+
+    private fun isUrlForApp(app: WebAppItem, url: String?): Boolean {
+        if (url.isNullOrBlank() || url == "about:blank") return false
+        val uri = runCatching { android.net.Uri.parse(url) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase(java.util.Locale.ROOT)
+        val youtube = host == "youtube.com" || host.endsWith(".youtube.com") || host == "youtu.be"
+        val tiktok = host == "tiktok.com" || host.endsWith(".tiktok.com")
+        return when (app.id) {
+            "youtube" -> youtube || host == "accounts.google.com" || host == "myaccount.google.com"
+            "tiktok" -> tiktok
+            "iptv" -> uri.scheme == "file" && uri.path == "/android_asset/iptv_player.html"
+            "web" -> !youtube && !tiktok &&
+                !(uri.scheme == "file" && uri.path == "/android_asset/iptv_player.html") &&
+                uri.scheme in setOf("http", "https")
+            else -> {
+                val expected = runCatching { android.net.Uri.parse(app.url) }.getOrNull() ?: return false
+                if (expected.scheme == "file") uri.scheme == "file" && uri.path == expected.path
+                else host.isNotBlank() && host == expected.host?.lowercase(java.util.Locale.ROOT)
+            }
+        }
+    }
 
     private fun isCurrentAppPage(url: String?): Boolean {
         if (url.isNullOrBlank() || url == "about:blank") return false
