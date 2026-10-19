@@ -78,28 +78,29 @@
 
 ---
 
-## 📸 Giao diện
+## 📸 Giao diện T Tube v1.0.74
 
 ### 🏎️ Android Auto / màn hình xe
 
 <div align="center">
 
-| 🖥️ Dashboard buồng lái | 🚗 Hiển thị thực tế trên xe |
-| :---: | :---: |
-| <img src="docs/images/thtv_aa_dashboard.png" width="450" alt="Android Auto Dashboard" /> | <img src="docs/images/thtv_aa_real_car.jpg" width="450" alt="Real Car Screen" /> |
-| *Dashboard đa phương tiện, GPS speed, YouTube, IPTV, WebApp, HUD cảnh báo* | *T Tube chạy trên Android Auto / Screen Projection* |
+<img src="docs/images/ttube_aa_dashboard.jpg" width="760" alt="T Tube v1.0.74 Android Auto Dashboard" />
+
+*Dashboard T Tube v1.0.74: đồng hồ, lịch âm, thời tiết, HUD tốc độ, tìm kiếm, YouTube, IPTV, Trình duyệt và mini player.*
 
 </div>
 
-### 📱 Ứng dụng điện thoại
+### 📱 Cài đặt trên điện thoại
 
 <div align="center">
 
-| 🏠 Điều khiển chính | 📺 IPTV | ⚙️ Cài đặt |
-| :---: | :---: | :---: |
-| <img src="docs/images/thtv_phone_main.png" width="280" alt="Phone Main Screen" /> | <img src="docs/images/thtv_phone_iptv.png" width="280" alt="Phone IPTV Screen" /> | <img src="docs/images/thtv_phone_settings.png" width="280" alt="Phone Settings Screen" /> |
+<img src="docs/images/ttube_phone_settings.jpg" width="420" alt="T Tube v1.0.74 phone dashboard pin settings" />
+
+*Quản lý ứng dụng hiển thị trên Dashboard Android Auto: ghim/bỏ ghim YouTube Pro, IPTV Truyền hình và Trình duyệt Web.*
 
 </div>
+
+> Các ảnh trên là giao diện **T Tube v1.0.74** hiện tại. Phần ảnh THTV cũ đã được loại khỏi README để tránh nhầm với phiên bản hiện hành.
 
 ---
 
