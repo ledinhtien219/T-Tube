@@ -41,6 +41,6 @@ assert.doesNotMatch(main, /btnHomeZalo|Nhóm Zalo/);
 
 // Normal CI now runs the Kotlin/JVM unit suite before distributing the APK.
 assert.match(workflow, /\.\/gradlew testDebugUnitTest --stacktrace/);
-assert.match(workflow, /TTube-v1\\.0\\.(?:70|75)-build(?:261|270)-APK/);
+assert.match(workflow, /TTube-v1\.0\.(?:70|75)-build(?:261|270)-APK/);
 
 console.log('PASS v1.0.75 build 270: no Zalo group UI + license/wakelock/cable/Waze/CI hardening');
