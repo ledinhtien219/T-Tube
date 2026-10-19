@@ -747,9 +747,19 @@ class CarPresentation(
                 isWebVideoFullscreen = true
                 customViewCallback = callback
                 web.visibility = View.GONE
+                sidebarContainer?.animate()?.cancel()
+                topToolbarContainer?.animate()?.cancel()
+                youtubeSeekContainer?.animate()?.cancel()
                 sidebarContainer?.visibility = View.GONE
                 topToolbarContainer?.visibility = View.GONE
                 root.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                // Fullscreen video can consume touch before the WebView listener sees it.
+                // Presentation.dispatchTouchEvent still handles normal taps; this is a
+                // second path so any touch on the custom video reliably reveals controls.
+                view?.setOnTouchListener { _, event ->
+                    if (event.actionMasked == MotionEvent.ACTION_DOWN) onUserInteraction()
+                    false
+                }
             }
 
             override fun onHideCustomView() {
@@ -1730,6 +1740,7 @@ class CarPresentation(
     }
 
     private val autoHideHandler = Handler(Looper.getMainLooper())
+    private var barsVisibilityGeneration = 0L
     private val hideBarsRunnable = Runnable {
         hideBars()
     }
@@ -1741,35 +1752,43 @@ class CarPresentation(
         // IPTV has its own on-screen controls. Keep the native Android Auto
         // navigation/control pill hidden for the whole IPTV session.
         if (isDashboardShowing || currentActiveAppId == "iptv") {
+            sidebarContainer?.animate()?.cancel()
+            topToolbarContainer?.animate()?.cancel()
+            youtubeSeekContainer?.animate()?.cancel()
             sidebarContainer?.visibility = View.GONE
             topToolbarContainer?.visibility = View.GONE
             hideYouTubeSeekOverlayImmediately()
             autoHideHandler.removeCallbacks(hideBarsRunnable)
             return
         }
+
+        // Invalidate any pending hide-animation end actions. The old code only
+        // checked visibility, so a tap during fade-out could be ignored and the
+        // previous endAction would still set the toolbar GONE afterwards.
+        barsVisibilityGeneration += 1L
+        autoHideHandler.removeCallbacks(hideBarsRunnable)
+
         sidebarContainer?.let { sidebar ->
-            if (sidebar.visibility != View.VISIBLE) {
-                sidebar.bringToFront()
-                sidebar.visibility = View.VISIBLE
-                sidebar.alpha = 0f
-                sidebar.animate().alpha(1f).setDuration(200).start()
-            }
+            sidebar.animate().cancel()
+            sidebar.bringToFront()
+            sidebar.alpha = 1f
+            sidebar.visibility = View.VISIBLE
         }
         youtubeSeekContainer?.let { seek ->
-            if (shouldShowYouTubeSeekOverlay() && seek.visibility != View.VISIBLE) {
+            seek.animate().cancel()
+            if (shouldShowYouTubeSeekOverlay()) {
                 seek.bringToFront()
+                seek.alpha = 1f
                 seek.visibility = View.VISIBLE
-                seek.alpha = 0f
-                seek.animate().alpha(1f).setDuration(200).start()
+            } else {
+                seek.visibility = View.GONE
             }
         }
         topToolbarContainer?.let { topBar ->
-            if (topBar.visibility != View.VISIBLE) {
-                topBar.bringToFront()
-                topBar.visibility = View.VISIBLE
-                topBar.alpha = 0f
-                topBar.animate().alpha(1f).setDuration(200).start()
-            }
+            topBar.animate().cancel()
+            topBar.bringToFront()
+            topBar.alpha = 1f
+            topBar.visibility = View.VISIBLE
         }
         resetAutoHideTimer()
     }
@@ -1779,24 +1798,35 @@ class CarPresentation(
         // Never auto-hide them while their app is visible.
         if ((currentActiveAppId == "web" || currentActiveAppId == "tiktok") && !isDashboardShowing) return
         if (youtubeSeekDragging) return
+        val hideGeneration = ++barsVisibilityGeneration
+
         sidebarContainer?.let { sidebar ->
+            sidebar.animate().cancel()
             if (sidebar.visibility == View.VISIBLE) {
                 sidebar.animate().alpha(0f).setDuration(200).withEndAction {
-                    sidebar.visibility = View.GONE
+                    if (barsVisibilityGeneration == hideGeneration) {
+                        sidebar.visibility = View.GONE
+                    }
                 }.start()
             }
         }
         youtubeSeekContainer?.let { seek ->
+            seek.animate().cancel()
             if (seek.visibility == View.VISIBLE) {
                 seek.animate().alpha(0f).setDuration(200).withEndAction {
-                    seek.visibility = View.GONE
+                    if (barsVisibilityGeneration == hideGeneration) {
+                        seek.visibility = View.GONE
+                    }
                 }.start()
             }
         }
         topToolbarContainer?.let { topBar ->
+            topBar.animate().cancel()
             if (topBar.visibility == View.VISIBLE) {
                 topBar.animate().alpha(0f).setDuration(200).withEndAction {
-                    topBar.visibility = View.GONE
+                    if (barsVisibilityGeneration == hideGeneration) {
+                        topBar.visibility = View.GONE
+                    }
                 }.start()
             }
         }
