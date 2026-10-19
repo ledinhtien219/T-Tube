@@ -21,20 +21,22 @@ assert.match(tiktok, /MutationObserver/);
 assert.doesNotMatch(tiktok, /ttube-tiktok-video-only/);
 assert.doesNotMatch(tiktok, /guestQueue/);
 
-// THTV keyboard search may not silently fail on a stale currentActiveAppId.
-assert.match(presentation, /val youtubeVisible = currentUrl\.contains\("youtube\.com"/);
+// v1.0.74 search is bound to the selected app owner. A stale rendered
+// YouTube frame must not reclaim ownership after the user switches elsewhere.
 assert.match(presentation, /searchOverlayMode != "youtube"/);
-assert.match(presentation, /currentActiveAppId = "youtube"/);
-assert.match(presentation, /CarMediaManager\.activeAppId = "youtube"/);
+assert.match(presentation, /currentActiveAppId != "youtube"/);
+assert.match(presentation, /CarMediaManager\.activeAppId != "youtube"/);
+assert.match(presentation, /isUrlForApp\(youtubeApp, web\.url\)/);
+assert.match(presentation, /switchWebApp\(youtubeApp, embedded = isDashboardShowing, startUrl = target\)/);
 assert.match(presentation, /YouTubePlayerHelper\.search\(web, q, autoPlayFirst = false\)/);
 
 // Native Android Auto keyboard: page URL equality only applies to DOM-bound web input.
 const submitBlock = presentation.match(/onSubmit = \{ value, complete ->[\s\S]*?onCancel =/s)?.[0] || '';
 assert.notEqual(submitBlock, '');
-assert.match(submitBlock, /val youtubeSession = mode == \"youtube\"/);
-assert.match(submitBlock, /CarMediaManager\.activeAppId != owner && !youtubeSession/);
+assert.match(submitBlock, /CarMediaManager\.activeAppId != owner \|\| currentActiveAppId != owner/);
 assert.match(submitBlock, /else if \(mode == "web"\)[\s\S]*?if \(web\.url != page\)/);
-assert.doesNotMatch(submitBlock, /CarMediaManager\.activeAppId != owner \|\| web\.url != page/);
+assert.match(submitBlock, /it\.currentActiveAppId == owner[\s\S]*?CarMediaManager\.activeAppId == owner/);
+assert.doesNotMatch(submitBlock, /youtubeSession/);
 
 // Only one live host gets a native input session; stale screen input is replaced and released.
 assert.match(media, /val listener = carNativeSearchListeners\.lastOrNull\(\) \?: return false/);
@@ -44,4 +46,4 @@ assert.match(auto, /CarSearchScreen\(carContext, input\) \{/);
 assert.match(search, /private val onClosed: \(\) -> Unit = \{\}/);
 assert.match(search, /onClosed\(\)/);
 
-console.log('PASS v1.0.63: TikTok native web + YouTube submit + native Android Auto keyboard');
+console.log('PASS keyboard ownership: TikTok native web + strict YouTube submit + native Android Auto keyboard');
