@@ -2325,7 +2325,7 @@ class CarPresentation(
             if (leavingUrl.contains("youtube.com/watch", true)) {
                 youtubeResumeUrl = leavingUrl
                 youtubeResumeSec = youtubeLastSec
-                youtubeResumePlaying = CarMediaManager.userWantsPlayback
+                youtubeResumePlaying = CarMediaManager.isPlaying
             }
         }
         if (app.id == "youtube" && startUrl != null) {
