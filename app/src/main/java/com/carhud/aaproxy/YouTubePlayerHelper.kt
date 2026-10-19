@@ -2297,6 +2297,12 @@ object YouTubePlayerHelper {
         }
     }
 
+    fun autoPlayFirstSearchResult(view: WebView?) {
+        if (view == null) return
+        val generation = searchGeneration.incrementAndGet()
+        scheduleAutoPlayFirstSearchResult(view, generation)
+    }
+
     fun cancelSearchAutoPlay(view: WebView?) {
         searchGeneration.incrementAndGet()
         try {
