@@ -1,4 +1,5 @@
 # Source files verified against local Git blob hashes before stable publication.
+# Gate retry after v1.0.74 regression expectations were updated for hard app ownership.
 name: Publish T Tube v1.0.74 Stable
 
 on:
