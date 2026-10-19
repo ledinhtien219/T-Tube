@@ -158,10 +158,13 @@ class CarDashboardView(
     private var cardM3u: LinearLayout? = null
     private lateinit var cardYoutube: LinearLayout
     private lateinit var cardBrowser: LinearLayout
-    private lateinit var cardBookmark: LinearLayout
     private var pinnedAppsScroll: View? = null
     private var pinnedAppsRow: LinearLayout? = null
     private val dynamicPinnedCards = mutableListOf<LinearLayout>()
+    private var dashboardViewportWidthDp = 1024f
+    private var dashboardCardWidthDp = 92
+    private var dashboardCardHeightDp = 82
+    private var dashboardCardGapDp = 10
 
     // Favorite Channels row
     private var favChannelsScroll: View? = null
@@ -239,7 +242,6 @@ class CarDashboardView(
         cardM3u = findViewById(R.id.cardM3u)
         cardYoutube = findViewById(R.id.cardYoutube)
         cardBrowser = findViewById(R.id.cardBrowser)
-        cardBookmark = findViewById(R.id.cardBookmark)
         pinnedAppsScroll = findViewById(R.id.pinnedAppsScroll)
         pinnedAppsRow = findViewById(R.id.pinnedAppsRow)
 
@@ -336,7 +338,7 @@ class CarDashboardView(
         val cardHeight = if (compactHeight) 68 else if (compactWidth) 74 else 82
         val cardGap = if (compactWidth) 6 else 10
 
-        listOfNotNull(cardM3u, cardBookmark).plus(dynamicPinnedCards).forEach { card ->
+        listOfNotNull(cardM3u).plus(dynamicPinnedCards).forEach { card ->
             val lp = card.layoutParams as? LinearLayout.LayoutParams ?: return@forEach
             lp.width = dp(cardWidth)
             lp.height = dp(cardHeight)
@@ -349,17 +351,11 @@ class CarDashboardView(
             }
         }
 
-        pinnedAppsScroll?.layoutParams = pinnedAppsScroll?.layoutParams?.apply {
-            width = dp(
-                when {
-                    veryCompactWidth -> 210
-                    compactWidth -> 260
-                    widthDp < 1000f -> 320
-                    else -> 360
-                }
-            )
-            height = dp(cardHeight)
-        }
+        dashboardViewportWidthDp = widthDp
+        dashboardCardWidthDp = cardWidth
+        dashboardCardHeightDp = cardHeight
+        dashboardCardGapDp = cardGap
+        updatePinnedAppsWidth()
 
         (miniPlayerCard.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
             lp.height = dp(cardHeight)
@@ -395,13 +391,44 @@ class CarDashboardView(
         dashboardMainContent.requestLayout()
     }
 
+    private fun updatePinnedAppsWidth() {
+        val scroll = pinnedAppsScroll ?: return
+        val count = pinnedAppsRow?.childCount ?: 0
+        if (count <= 0) {
+            scroll.visibility = View.GONE
+            return
+        }
+
+        // Exact content width: gaps exist only BETWEEN cards, never after the last one.
+        val desiredWidthDp = count * dashboardCardWidthDp +
+            (count - 1).coerceAtLeast(0) * dashboardCardGapDp
+        val m3uSpaceDp = if (cardM3u?.visibility == View.VISIBLE) {
+            dashboardCardWidthDp + dashboardCardGapDp
+        } else 0
+        val minPlayerWidthDp = when {
+            dashboardViewportWidthDp < 700f -> 210
+            dashboardViewportWidthDp < 820f -> 250
+            else -> 300
+        }
+        val maxStripWidthDp = (
+            dashboardViewportWidthDp.toInt() - minPlayerWidthDp - m3uSpaceDp - 24
+        ).coerceAtLeast(dashboardCardWidthDp + dashboardCardGapDp)
+
+        scroll.layoutParams = scroll.layoutParams.apply {
+            width = dp(desiredWidthDp.coerceAtMost(maxStripWidthDp))
+            height = dp(dashboardCardHeightDp)
+        }
+        scroll.visibility = View.VISIBLE
+        scroll.requestLayout()
+    }
+
     private fun refreshPinnedApps() {
         val row = pinnedAppsRow ?: return
         row.removeAllViews()
         dynamicPinnedCards.clear()
 
         val apps = WebAppManager.getPinnedDashboardApps(context)
-        apps.forEach { app ->
+        apps.forEachIndexed { index, app ->
             val card = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
@@ -414,8 +441,11 @@ class CarDashboardView(
                 )
                 isClickable = true
                 isFocusable = true
-                layoutParams = LinearLayout.LayoutParams(dp(92), dp(82)).apply {
-                    marginEnd = dp(10)
+                layoutParams = LinearLayout.LayoutParams(
+                    dp(dashboardCardWidthDp),
+                    dp(dashboardCardHeightDp)
+                ).apply {
+                    marginEnd = if (index < apps.lastIndex) dp(dashboardCardGapDp) else 0
                 }
 
                 val icon = ImageView(context).apply {
@@ -427,7 +457,8 @@ class CarDashboardView(
                         setImageResource(app.iconRes)
                     }
                 }
-                addView(icon, LinearLayout.LayoutParams(dp(48), dp(48)))
+                val iconSizeDp = if (dashboardCardHeightDp < 74) 40 else 48
+                addView(icon, LinearLayout.LayoutParams(dp(iconSizeDp), dp(iconSizeDp)))
 
                 contentDescription = app.name
                 addView(TextView(context).apply {
@@ -462,7 +493,7 @@ class CarDashboardView(
             row.addView(card)
         }
 
-        pinnedAppsScroll?.visibility = if (apps.isEmpty()) View.GONE else View.VISIBLE
+        if (apps.isEmpty()) pinnedAppsScroll?.visibility = View.GONE else updatePinnedAppsWidth()
     }
 
     fun applyComponentVisibility() {
@@ -486,6 +517,7 @@ class CarDashboardView(
             if ((pinnedAppsRow?.childCount ?: 0) > 0) View.VISIBLE else View.GONE
 
         cardM3u?.visibility = if (showCardM3u) View.VISIBLE else View.GONE
+        updatePinnedAppsWidth()
         if (::miniPlayerCard.isInitialized) {
             miniPlayerCard.visibility = if (showMiniPlayer) View.VISIBLE else View.GONE
         }
@@ -628,11 +660,6 @@ class CarDashboardView(
             val browserApp = appList.find { it.id == "web" }
                 ?: WebAppManager.DEFAULT_APPS.first { it.id == "web" }
             onAppClick(browserApp)
-        }
-
-        // App 4: Dấu trang (Bookmarks / Quick links)
-        cardBookmark.setOnClickListener {
-            onAllAppsClick()
         }
 
         // Search Bar click
@@ -834,7 +861,7 @@ class CarDashboardView(
                 }
                 player.setOnPreparedListener {
                     applyVideoCenterCrop(it.videoWidth, it.videoHeight)
-                    it.start()
+                    if (isShown) it.start()
                 }
                 player.setOnErrorListener { _, _, _ ->
                     post { applyBugattiDefault() }
@@ -988,17 +1015,17 @@ class CarDashboardView(
 
                 // Clock: 11:49
                 val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
-                clockText.text = timeStr
+                setTextIfChanged(clockText, timeStr)
 
                 // Greeting: Chào buổi trưa, Phạm Nam
                 val userName = prefs.getString(PREF_USER_NAME, DEFAULT_USER_NAME) ?: DEFAULT_USER_NAME
-                greetingText.text = VietnameseLunarHelper.getGreeting(cal, userName)
+                setTextIfChanged(greetingText, VietnameseLunarHelper.getGreeting(cal, userName))
 
                 // Date: Thứ Ba, 15/09/2026
-                dateText.text = VietnameseLunarHelper.getFormattedSolarDate(cal)
+                setTextIfChanged(dateText, VietnameseLunarHelper.getFormattedSolarDate(cal))
 
                 // Lunar Date: ÂL: 05/08 - Năm Bính Ngọ
-                lunarDateText.text = VietnameseLunarHelper.getFormattedLunarWithCanChi(cal)
+                setTextIfChanged(lunarDateText, VietnameseLunarHelper.getFormattedLunarWithCanChi(cal))
 
                 timeHandler.postDelayed(this, 1000)
             }
@@ -1157,6 +1184,34 @@ class CarDashboardView(
 
     override fun scrollTo(x: Int, y: Int) {
         // No-op for launcher view
+    }
+
+    // Avoid relayout/redraw when clock/date/greeting text did not change.
+    private fun setTextIfChanged(view: TextView, value: CharSequence) {
+        if (view.text.toString() != value.toString()) view.text = value
+    }
+
+    // Stop animated/video wallpaper while fullscreen apps cover the dashboard.
+    private fun setWallpaperPlaying(playing: Boolean) {
+        try {
+            animatedWallpaper?.let { if (playing) it.start() else it.stop() }
+        } catch (_: Throwable) {
+        }
+        try {
+            wallpaperPlayer?.let { p ->
+                if (playing) {
+                    if (!p.isPlaying) p.start()
+                } else if (p.isPlaying) {
+                    p.pause()
+                }
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
+    override fun onVisibilityChanged(changedView: View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        if (changedView === this) setWallpaperPlaying(visibility == View.VISIBLE)
     }
 
     override fun onDetachedFromWindow() {

@@ -296,6 +296,15 @@ class VoiceSearchManager(
         try { old?.destroy() } catch (_: Exception) {}
     }
 
+    fun cancelListening() = onMain {
+        generation++
+        active = false
+        retryCount = 0
+        handler.removeCallbacksAndMessages(null)
+        try { recognizer?.cancel() } catch (_: Exception) {}
+        onStateChanged(State.IDLE, "")
+    }
+
     fun stop() = onMain {
         generation++
         active = false

@@ -177,33 +177,6 @@ object WebAppManager {
             colorHex = "#10B981"
         ),
         WebAppItem(
-            id = "maps",
-            name = "Google Maps",
-            url = "https://www.google.com/maps",
-            iconRes = R.drawable.ic_tab_globe,
-            isDesktop = false,
-            isBuiltIn = true,
-            colorHex = "#3B82F6"
-        ),
-        WebAppItem(
-            id = "zing",
-            name = "Zing MP3",
-            url = "https://zingmp3.vn",
-            iconRes = R.drawable.ic_app_zing,
-            isDesktop = false,
-            isBuiltIn = true,
-            colorHex = "#8B5CF6"
-        ),
-        WebAppItem(
-            id = "spotify",
-            name = "Spotify",
-            url = "https://open.spotify.com",
-            iconRes = R.drawable.ic_app_spotify,
-            isDesktop = false,
-            isBuiltIn = true,
-            colorHex = "#1DB954"
-        ),
-        WebAppItem(
             id = "tv360",
             name = "TV360 Trực tiếp",
             url = "https://tv360.vn",
@@ -230,15 +203,6 @@ object WebAppManager {
             isBuiltIn = true,
             colorHex = "#111827"
         ),
-        WebAppItem(
-            id = "news",
-            name = "Báo Mới",
-            url = "https://baomoi.com",
-            iconRes = R.drawable.ic_app_news,
-            isDesktop = false,
-            isBuiltIn = true,
-            colorHex = "#0EA5E9"
-        )
     )
 
     fun getCategoryName(appId: String): String {

@@ -102,6 +102,8 @@ class CarPresentation(
     private var pendingNavigationRecovery: Runnable? = null
     private var fullscreenChromeAppId: String? = null
     private var navigationFailed = false
+    private var appSwitchShield: View? = null
+    private var appSwitchShieldGeneration = 0L
     private val mobileUserAgent by lazy {
         android.webkit.WebSettings.getDefaultUserAgent(context)
             .replace("; wv", "").replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
@@ -111,6 +113,8 @@ class CarPresentation(
     // Prevent repeated play/resume commands when Android Auto recreates the surface
     // or YouTube briefly reports a paused/buffering state.
     private var autoResumePending = false
+    private var pendingVoiceYoutubeQuery: String? = null
+    private var pendingVoiceYoutubeGeneration: Long = -1L
 
     companion object {
         private var keyboardPresentation = java.lang.ref.WeakReference<CarPresentation>(null)
@@ -326,13 +330,11 @@ class CarPresentation(
                 currentActiveAppId == "iptv" -> {
                     playTvChannel(query)
                 }
-                currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(web.url) -> {
-                    currentActiveAppId = "tiktok"
-                    CarMediaManager.activeAppId = "tiktok"
+                currentActiveAppId == "tiktok" -> {
+                    val app = WebAppManager.getAllApps(context).find { it.id == "tiktok" }
+                        ?: WebAppManager.DEFAULT_APPS.first { it.id == "tiktok" }
                     val target = TikTokWebPolicy.searchUrl(query)
-                    TikTokWebPolicy.configure(web, target)
-                    if (isDashboardShowing) showWebFullscreen()
-                    web.loadUrl(target)
+                    switchWebApp(app, embedded = isDashboardShowing, startUrl = target)
                     hideSearchOverlay(notifyPhone = false)
                 }
                 isBrowserApp() -> {
@@ -645,6 +647,7 @@ class CarPresentation(
                 super.onPageCommitVisible(view, url)
                 if (view !== web || !isCurrentAppPage(url)) return
                 finishPendingNavigation()
+                hideAppSwitchShield()
                 applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
                 TikTokWebPolicy.fitLayout(view, url)
             }
@@ -653,6 +656,7 @@ class CarPresentation(
                 super.onReceivedError(view, request, error)
                 if (view === web && request?.isForMainFrame == true && isCurrentAppPage(request.url.toString())) {
                     finishPendingNavigation()
+                    hideAppSwitchShield()
                     navigationFailed = true
                 }
                 if (request?.isForMainFrame == true && currentActiveAppId == "web") {
@@ -666,9 +670,15 @@ class CarPresentation(
                 super.onPageFinished(view, url)
                 if (view !== web || view.url != url || !isCurrentAppPage(url)) return
                 finishPendingNavigation()
+                hideAppSwitchShield()
                 if (currentActiveAppId == "web" && browserNeedsHistoryReset && view.url == url) {
                     view.clearHistory()
                     browserNeedsHistoryReset = false
+                }
+                if (currentActiveAppId == "iptv" && url.contains("iptv_player.html", true)) {
+                    // IPTV is a local app shell; never retain shared WebView history
+                    // from TikTok/YouTube or Back can jump into the wrong app.
+                    view.clearHistory()
                 }
                 browserLoading = false
                 updateBrowserToolbar(view.url ?: url)
@@ -684,6 +694,18 @@ class CarPresentation(
                     YouTubePlayerHelper.inject(view, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
                     YouTubePlayerHelper.applyCarSearchHome(view)
                     updateYouTubeHomeObstacles()
+
+                    val voiceQuery = pendingVoiceYoutubeQuery
+                    if (!voiceQuery.isNullOrBlank() &&
+                        pendingVoiceYoutubeGeneration == appTransitions.generation &&
+                        CarMediaManager.activeAppId == "youtube" &&
+                        url.contains("/results", true) &&
+                        url.contains("search_query=", true)
+                    ) {
+                        pendingVoiceYoutubeQuery = null
+                        pendingVoiceYoutubeGeneration = -1L
+                        YouTubePlayerHelper.autoPlayFirstSearchResult(view)
+                    }
                 }
                 // Every embedded app uses the same text-only keyboard bridge.
                 view.evaluateJavascript(pageInputScript + "\nwindow.__thtvPageInput.install();", null)
@@ -737,9 +759,19 @@ class CarPresentation(
                 isWebVideoFullscreen = true
                 customViewCallback = callback
                 web.visibility = View.GONE
+                sidebarContainer?.animate()?.cancel()
+                topToolbarContainer?.animate()?.cancel()
+                youtubeSeekContainer?.animate()?.cancel()
                 sidebarContainer?.visibility = View.GONE
                 topToolbarContainer?.visibility = View.GONE
                 root.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                // Fullscreen video can consume touch before the WebView listener sees it.
+                // Presentation.dispatchTouchEvent still handles normal taps; this is a
+                // second path so any touch on the custom video reliably reveals controls.
+                view?.setOnTouchListener { _, event ->
+                    if (event.actionMasked == MotionEvent.ACTION_DOWN) onUserInteraction()
+                    false
+                }
             }
 
             override fun onHideCustomView() {
@@ -1720,46 +1752,55 @@ class CarPresentation(
     }
 
     private val autoHideHandler = Handler(Looper.getMainLooper())
+    private var barsVisibilityGeneration = 0L
     private val hideBarsRunnable = Runnable {
         hideBars()
     }
 
     fun showBars() {
-        if (isWebVideoFullscreen || (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) ||
+        if ((::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) ||
             appGridOverlay?.visibility == View.VISIBLE || addAppOverlay?.visibility == View.VISIBLE) return
         updateYouTubeHomeObstacles()
         // IPTV has its own on-screen controls. Keep the native Android Auto
         // navigation/control pill hidden for the whole IPTV session.
         if (isDashboardShowing || currentActiveAppId == "iptv") {
+            sidebarContainer?.animate()?.cancel()
+            topToolbarContainer?.animate()?.cancel()
+            youtubeSeekContainer?.animate()?.cancel()
             sidebarContainer?.visibility = View.GONE
             topToolbarContainer?.visibility = View.GONE
             hideYouTubeSeekOverlayImmediately()
             autoHideHandler.removeCallbacks(hideBarsRunnable)
             return
         }
+
+        // Invalidate any pending hide-animation end actions. The old code only
+        // checked visibility, so a tap during fade-out could be ignored and the
+        // previous endAction would still set the toolbar GONE afterwards.
+        barsVisibilityGeneration += 1L
+        autoHideHandler.removeCallbacks(hideBarsRunnable)
+
         sidebarContainer?.let { sidebar ->
-            if (sidebar.visibility != View.VISIBLE) {
-                sidebar.bringToFront()
-                sidebar.visibility = View.VISIBLE
-                sidebar.alpha = 0f
-                sidebar.animate().alpha(1f).setDuration(200).start()
-            }
+            sidebar.animate().cancel()
+            sidebar.bringToFront()
+            sidebar.alpha = 1f
+            sidebar.visibility = View.VISIBLE
         }
         youtubeSeekContainer?.let { seek ->
-            if (shouldShowYouTubeSeekOverlay() && seek.visibility != View.VISIBLE) {
+            seek.animate().cancel()
+            if (shouldShowYouTubeSeekOverlay()) {
                 seek.bringToFront()
+                seek.alpha = 1f
                 seek.visibility = View.VISIBLE
-                seek.alpha = 0f
-                seek.animate().alpha(1f).setDuration(200).start()
+            } else {
+                seek.visibility = View.GONE
             }
         }
         topToolbarContainer?.let { topBar ->
-            if (topBar.visibility != View.VISIBLE) {
-                topBar.bringToFront()
-                topBar.visibility = View.VISIBLE
-                topBar.alpha = 0f
-                topBar.animate().alpha(1f).setDuration(200).start()
-            }
+            topBar.animate().cancel()
+            topBar.bringToFront()
+            topBar.alpha = 1f
+            topBar.visibility = View.VISIBLE
         }
         resetAutoHideTimer()
     }
@@ -1769,24 +1810,35 @@ class CarPresentation(
         // Never auto-hide them while their app is visible.
         if ((currentActiveAppId == "web" || currentActiveAppId == "tiktok") && !isDashboardShowing) return
         if (youtubeSeekDragging) return
+        val hideGeneration = ++barsVisibilityGeneration
+
         sidebarContainer?.let { sidebar ->
+            sidebar.animate().cancel()
             if (sidebar.visibility == View.VISIBLE) {
                 sidebar.animate().alpha(0f).setDuration(200).withEndAction {
-                    sidebar.visibility = View.GONE
+                    if (barsVisibilityGeneration == hideGeneration) {
+                        sidebar.visibility = View.GONE
+                    }
                 }.start()
             }
         }
         youtubeSeekContainer?.let { seek ->
+            seek.animate().cancel()
             if (seek.visibility == View.VISIBLE) {
                 seek.animate().alpha(0f).setDuration(200).withEndAction {
-                    seek.visibility = View.GONE
+                    if (barsVisibilityGeneration == hideGeneration) {
+                        seek.visibility = View.GONE
+                    }
                 }.start()
             }
         }
         topToolbarContainer?.let { topBar ->
+            topBar.animate().cancel()
             if (topBar.visibility == View.VISIBLE) {
                 topBar.animate().alpha(0f).setDuration(200).withEndAction {
-                    topBar.visibility = View.GONE
+                    if (barsVisibilityGeneration == hideGeneration) {
+                        topBar.visibility = View.GONE
+                    }
                 }.start()
             }
         }
@@ -2057,6 +2109,7 @@ class CarPresentation(
                 CarMediaManager.ensureAudioFocus()
                 CarMediaManager.acquireWakeLock(context)
                 switchWebApp(youtube, startUrl = target)
+                CarMediaManager.userWantsPlayback = true
                 SystemVoiceModule.report(context, if (canResume) "Đang mở bài nhạc gần nhất." else "Đang tìm nhạc: $query")
                 if (!canResume) {
                     systemVoiceSearchPending = true
@@ -2092,13 +2145,12 @@ class CarPresentation(
     private fun handleVoiceQuery(query: String) {
         cancelSystemVoiceRequest()
 
-        if ((currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(web.url)) && !isDashboardShowing) {
+        if (currentActiveAppId == "tiktok" && !isDashboardShowing) {
             YouTubePlayerHelper.setDuckingVolume(web, 1.0f)
-            currentActiveAppId = "tiktok"
-            CarMediaManager.activeAppId = "tiktok"
+            val app = WebAppManager.getAllApps(context).find { it.id == "tiktok" }
+                ?: WebAppManager.DEFAULT_APPS.first { it.id == "tiktok" }
             val target = TikTokWebPolicy.searchUrl(query)
-            TikTokWebPolicy.configure(web, target)
-            web.loadUrl(target)
+            switchWebApp(app, embedded = false, startUrl = target)
             hideSearchOverlay()
             return
         }
@@ -2153,13 +2205,20 @@ class CarPresentation(
 
         if (currentActiveAppId != "youtube") {
             val ytApp = WebAppManager.getAllApps(context).find { it.id == "youtube" }
-                ?: WebAppManager.DEFAULT_APPS.first()
-            switchWebApp(ytApp, embedded = isDashboardShowing)
-        } else if (isDashboardShowing && (dashboardView?.isEmbeddedAppShowing() != true)) {
-            showWebFullscreen()
+                ?: WebAppManager.DEFAULT_APPS.first { it.id == "youtube" }
+            val target = "https://m.youtube.com/results?search_query=" +
+                android.net.Uri.encode(mediaQuery)
+            switchWebApp(ytApp, embedded = isDashboardShowing, startUrl = target)
+            CarMediaManager.userWantsPlayback = true
+            pendingVoiceYoutubeQuery = mediaQuery
+            pendingVoiceYoutubeGeneration = appTransitions.generation
+        } else {
+            CarMediaManager.userWantsPlayback = true
+            if (isDashboardShowing && (dashboardView?.isEmbeddedAppShowing() != true)) {
+                showWebFullscreen()
+            }
+            YouTubePlayerHelper.search(web, mediaQuery, autoPlayFirst = true)
         }
-
-        YouTubePlayerHelper.search(web, mediaQuery, autoPlayFirst = true)
         CarMediaManager.notifyVoiceState(VoiceSearchManager.State.SUCCESS, "Đang phát: $mediaQuery")
         updateVoiceState(VoiceSearchManager.State.SUCCESS, "Đang phát: $mediaQuery")
         hideSearchOverlay()
@@ -2167,6 +2226,7 @@ class CarPresentation(
 
     fun playTvChannel(channelName: String) {
         cancelSystemVoiceRequest()
+        CarMediaManager.userWantsPlayback = true
         val iptvApp = WebAppManager.getAllApps(context).find { it.id == "iptv" }
             ?: WebAppManager.DEFAULT_APPS.find { it.id == "iptv" }
             ?: return
@@ -2192,6 +2252,7 @@ class CarPresentation(
             }
         } else {
             switchWebApp(iptvApp.copy(url = targetUrl), embedded = isDashboardShowing)
+            CarMediaManager.userWantsPlayback = true
         }
     }
 
@@ -2213,21 +2274,9 @@ class CarPresentation(
     }
 
     private fun isBrowserApp(): Boolean {
-        val url = web.url.orEmpty()
-
-        // TikTok has its own search/back/navigation contract. Do not classify it
-        // as the generic browser merely because both are rendered by WebView.
-        if (currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(url)) return false
-        if (currentActiveAppId != "youtube" && currentActiveAppId != "iptv") return true
-
-        // The persistent WebView can outlive/recreate the Presentation. During
-        // that handoff the stored app id can briefly be stale. Trust the actual
-        // page too, so a visible Google/browser page can never be treated as
-        // YouTube just because currentActiveAppId still says "youtube".
-        if (url.isBlank() || url == "about:blank") return false
-        val isYoutubePage = url.contains("youtube.com", true) || url.contains("youtu.be", true)
-        val isIptvPage = url.contains("iptv_player.html", true)
-        return !isYoutubePage && !isIptvPage && !TikTokWebPolicy.isTikTok(url)
+        // Shared WebView pixels can lag behind ownership during navigation.
+        // Route controls/search by the app the user selected, never by a stale URL.
+        return currentActiveAppId !in setOf("youtube", "iptv", "tiktok")
     }
 
     fun switchWebApp(app: WebAppItem, embedded: Boolean = false, startUrl: String? = null) {
@@ -2237,7 +2286,25 @@ class CarPresentation(
             if (isDashboardShowing) showWebFullscreen(app) else showBars()
             return
         }
+        val previousAppId = currentActiveAppId
+        val isChangingApp = previousAppId != app.id
         val switchGeneration = appTransitions.begin(app.id)
+
+        // Cover the old page before any keyboard/chrome teardown can paint a frame.
+        if (isChangingApp || (!isUrlForApp(app, web.url) && !isDashboardShowing)) {
+            showAppSwitchShield(switchGeneration)
+        }
+
+        // Any input/voice task belongs to the app that started it.
+        // Switching app invalidates those tasks before the new owner is installed.
+        if (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) {
+            hideSearchOverlay()
+            appSwitchShield?.bringToFront()
+        }
+        voiceManager.cancelListening()
+        pendingVoiceYoutubeQuery = null
+        pendingVoiceYoutubeGeneration = -1L
+
         val retryFailedNavigation = navigationFailed
         navigationFailed = false
         pendingNavigationRecovery?.let { web.removeCallbacks(it) }
@@ -2245,29 +2312,24 @@ class CarPresentation(
         autoResumePending = false
         hideVideoQualityMenu()
         cancelSystemVoiceRequest()
-        val previousAppId = currentActiveAppId
-        val isChangingApp = previousAppId != app.id
         if (isChangingApp) {
             CarMediaManager.cancelPendingSteeringNext()
-            CarMediaManager.saveWebAppSession(previousAppId, web)
+            // Do not save the whole shared WebView here. Cross-app restore is disabled,
+            // and saveState() is expensive on the UI thread. Lifecycle shutdown still
+            // snapshots the active page when that fallback is actually needed.
         }
-        val canRestoreSession = isChangingApp &&
-            app.id != "tiktok" &&
-            startUrl == null &&
-            CarMediaManager.hasWebAppSession(app.id)
+        // Never restore a shared WebView history when changing app ownership.
+        // restoreState() can resurrect the previous app's rendered page/history
+        // (YouTube/TikTok/IPTV) and make the wrong app appear after a switch.
+        val canRestoreSession = false
         if (isChangingApp) {
             browserNeedsHistoryReset = app.id == "web" && !canRestoreSession
         }
         val currentUrl = web.url ?: ""
-        val isYouTubeApp = (app.id == "youtube" || app.url.contains("youtube.com") || app.url.contains("youtu.be"))
-        val isAlreadyLoaded = if (isYouTubeApp) {
-            currentUrl.contains("youtube.com") || currentUrl.contains("youtu.be")
-        } else {
-            (currentActiveAppId == app.id) && currentUrl.isNotEmpty() && currentUrl != "about:blank"
-        }
+        val isAlreadyLoaded = isUrlForApp(app, currentUrl)
         currentActiveAppId = app.id
         WebAppManager.setActiveAppId(context, app.id)
-        CarMediaManager.activeAppId = app.id
+        CarMediaManager.switchActiveApp(app.id)
         CarMediaManager.lastEmbeddedApp = app
         CarMediaManager.isEmbeddedAppShowing = false
 
@@ -2307,10 +2369,10 @@ class CarPresentation(
 
         applyWebScaleForUrl(app.url)
 
-        val homeUrl = startUrl ?: if (app.id == "youtube") {
-            if (isDesktop) "https://www.youtube.com" else "https://m.youtube.com"
-        } else {
-            app.url
+        val homeUrl = startUrl ?: when (app.id) {
+            "youtube" -> if (isDesktop) "https://www.youtube.com" else "https://m.youtube.com"
+            "iptv" -> "file:///android_asset/iptv_player.html"
+            else -> app.url
         }
 
         // Hide dashboard/wallpaper before any restore/load can paint.
@@ -2356,12 +2418,17 @@ class CarPresentation(
         }
 
         val shouldNavigateFresh = startUrl != null || retryFailedNavigation ||
-            (isChangingApp && !restoredSession) ||
-            (!isChangingApp && !isAlreadyLoaded)
+            isChangingApp || (!isChangingApp && !isAlreadyLoaded)
         if (shouldNavigateFresh) {
             pendingSessionRestoreAppId = app.id
             TikTokWebPolicy.configure(web, homeUrl)
             web.stopLoading()
+            if (isChangingApp || !isAlreadyLoaded) {
+                try {
+                    web.clearHistory()
+                    web.clearMatches()
+                } catch (_: Throwable) {}
+            }
             web.loadUrl(homeUrl)
         }
 
@@ -2373,6 +2440,27 @@ class CarPresentation(
 
     val isShowingDashboard: Boolean
         get() = isDashboardShowing
+
+    private fun isUrlForApp(app: WebAppItem, url: String?): Boolean {
+        if (url.isNullOrBlank() || url == "about:blank") return false
+        val uri = runCatching { android.net.Uri.parse(url) }.getOrNull() ?: return false
+        val host = uri.host.orEmpty().lowercase(java.util.Locale.ROOT)
+        val youtube = host == "youtube.com" || host.endsWith(".youtube.com") || host == "youtu.be"
+        val tiktok = host == "tiktok.com" || host.endsWith(".tiktok.com")
+        return when (app.id) {
+            "youtube" -> youtube || host == "accounts.google.com" || host == "myaccount.google.com"
+            "tiktok" -> tiktok
+            "iptv" -> uri.scheme == "file" && uri.path == "/android_asset/iptv_player.html"
+            "web" -> !youtube && !tiktok &&
+                !(uri.scheme == "file" && uri.path == "/android_asset/iptv_player.html") &&
+                uri.scheme in setOf("http", "https")
+            else -> {
+                val expected = runCatching { android.net.Uri.parse(app.url) }.getOrNull() ?: return false
+                if (expected.scheme == "file") uri.scheme == "file" && uri.path == expected.path
+                else host.isNotBlank() && host == expected.host?.lowercase(java.util.Locale.ROOT)
+            }
+        }
+    }
 
     private fun isCurrentAppPage(url: String?): Boolean {
         if (url.isNullOrBlank() || url == "about:blank") return false
@@ -2398,6 +2486,45 @@ class CarPresentation(
         pendingNavigationUrl = null
         pendingNavigationRecovery?.let { web.removeCallbacks(it) }
         pendingNavigationRecovery = null
+    }
+
+    private fun showAppSwitchShield(generation: Long) {
+        hideAppSwitchShield()
+        if (!::root.isInitialized) return
+        try {
+            val overlay = View(context).apply {
+                setBackgroundColor(Color.BLACK)
+                isClickable = false
+                isFocusable = false
+            }
+            appSwitchShield = overlay
+            appSwitchShieldGeneration = generation
+            root.addView(
+                overlay,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
+            overlay.bringToFront()
+            // Safety timeout only. Normally onPageCommitVisible of the new owner
+            // removes this shield as soon as its first frame is committed.
+            root.postDelayed({
+                if (appSwitchShieldGeneration == generation) hideAppSwitchShield()
+            }, 4000L)
+        } catch (_: Throwable) {
+            hideAppSwitchShield()
+        }
+    }
+
+    private fun hideAppSwitchShield() {
+        val overlay = appSwitchShield
+        appSwitchShield = null
+        if (overlay != null) {
+            try {
+                (overlay.parent as? ViewGroup)?.removeView(overlay)
+            } catch (_: Throwable) {}
+        }
     }
 
     private fun ensureCorrectFullscreenAppPage() {
@@ -2480,6 +2607,7 @@ class CarPresentation(
         }
         showBars()
         resetAutoHideTimer()
+        appSwitchShield?.bringToFront()
 
         // Restore dimensions and rendering state when entering fullscreen.
         // Do not blindly play every <video>: that made a deliberately paused
@@ -3388,34 +3516,33 @@ class CarPresentation(
         if (q.isEmpty()) return
 
         if (searchOverlayMode == "tiktok") {
+            if (currentActiveAppId != "tiktok" || CarMediaManager.activeAppId != "tiktok") return
             cancelSystemVoiceRequest()
-            currentActiveAppId = "tiktok"
-            CarMediaManager.activeAppId = "tiktok"
-            if (isDashboardShowing) showWebFullscreen()
+            val app = WebAppManager.getAllApps(context).find { it.id == "tiktok" }
+                ?: WebAppManager.DEFAULT_APPS.first { it.id == "tiktok" }
             val target = TikTokWebPolicy.searchUrl(q)
-            TikTokWebPolicy.configure(web, target)
-            web.loadUrl(target)
+            switchWebApp(app, embedded = isDashboardShowing, startUrl = target)
             hideSearchOverlay()
             return
         }
 
-        // The overlay mode is the source of truth. Android Auto may recreate the
-        // host surface and briefly leave currentActiveAppId stale even while the
-        // persistent WebView is visibly on YouTube. Never turn the Search button
-        // into a silent no-op in that state.
-        val currentUrl = web.url.orEmpty()
-        val youtubeVisible = currentUrl.contains("youtube.com", ignoreCase = true) ||
-            currentUrl.contains("youtu.be", ignoreCase = true)
-        if (searchOverlayMode != "youtube" || (currentActiveAppId != "youtube" && !youtubeVisible)) return
-        if (youtubeVisible) {
-            currentActiveAppId = "youtube"
-            CarMediaManager.activeAppId = "youtube"
-        }
+        // Search belongs strictly to the current app owner. Never let an old
+        // rendered frame reclaim ownership after the user has switched elsewhere.
+        if (searchOverlayMode != "youtube" ||
+            currentActiveAppId != "youtube" ||
+            CarMediaManager.activeAppId != "youtube"
+        ) return
+
+        val youtubeApp = WebAppManager.getAllApps(context).find { it.id == "youtube" }
+            ?: WebAppManager.DEFAULT_APPS.first { it.id == "youtube" }
         prepareManualYouTubeSearch()
-        if (isDashboardShowing) {
-            showWebFullscreen()
+        if (!isUrlForApp(youtubeApp, web.url)) {
+            val target = "https://m.youtube.com/results?search_query=" + android.net.Uri.encode(q)
+            switchWebApp(youtubeApp, embedded = isDashboardShowing, startUrl = target)
+        } else {
+            if (isDashboardShowing) showWebFullscreen()
+            YouTubePlayerHelper.search(web, q, autoPlayFirst = false)
         }
-        YouTubePlayerHelper.search(web, q, autoPlayFirst = false)
         if (broadcast) CarMediaManager.submitSearchQuery(q)
         hideSearchOverlay()
     }
@@ -3447,10 +3574,12 @@ class CarPresentation(
         val currentHost = try { android.net.Uri.parse(currentUrl).host.orEmpty().lowercase() } catch (_: Exception) { "" }
         val isYouTubePage = currentHost == "youtube.com" || currentHost.endsWith(".youtube.com") || currentHost == "youtu.be"
         if (performAction && isYouTubePage && cleanValue.isNotBlank()) {
+            if (currentActiveAppId != "youtube" || CarMediaManager.activeAppId != "youtube") {
+                onComplete?.invoke(false)
+                return
+            }
             webKeyboardTargetPending = false
             web.evaluateJavascript("if(window.__thtvPageInput) window.__thtvPageInput.clear();", null)
-            currentActiveAppId = "youtube"
-            CarMediaManager.activeAppId = "youtube"
             prepareManualYouTubeSearch()
             hideSearchOverlay()
             YouTubePlayerHelper.search(web, cleanValue, autoPlayFirst = false)
@@ -3464,6 +3593,10 @@ class CarPresentation(
         val isGooglePage = Regex("""https?://([a-z0-9-]+\.)?google\.[^/]+/""", RegexOption.IGNORE_CASE)
             .containsMatchIn(currentUrl)
         if (performAction && isGooglePage && cleanValue.isNotBlank()) {
+            if (!isBrowserApp() || CarMediaManager.activeAppId != currentActiveAppId) {
+                onComplete?.invoke(false)
+                return
+            }
             val targetUrl = BrowserNavigation.targetFor(cleanValue)
             if (targetUrl != null) {
                 webKeyboardTargetPending = false
@@ -3479,12 +3612,16 @@ class CarPresentation(
         // navigate to an empty shell. Use its web results route explicitly.
         val host = currentHost
         if (performAction && (host == "tiktok.com" || host.endsWith(".tiktok.com")) && cleanValue.isNotBlank()) {
+            if (currentActiveAppId != "tiktok" || CarMediaManager.activeAppId != "tiktok") {
+                onComplete?.invoke(false)
+                return
+            }
             webKeyboardTargetPending = false
             web.evaluateJavascript("if(window.__thtvPageInput) window.__thtvPageInput.clear();", null)
-            hideSearchOverlay()
+            val app = WebAppManager.getAllApps(context).find { it.id == "tiktok" }
+                ?: WebAppManager.DEFAULT_APPS.first { it.id == "tiktok" }
             val targetUrl = TikTokWebPolicy.searchUrl(cleanValue)
-            TikTokWebPolicy.configure(web, targetUrl)
-            web.loadUrl(targetUrl)
+            switchWebApp(app, embedded = isDashboardShowing, startUrl = targetUrl)
             onComplete?.invoke(true)
             return
         }
@@ -3956,7 +4093,7 @@ class CarPresentation(
     }
 
     fun showSearchOverlay() {
-        val tiktokActive = currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(web.url)
+        val tiktokActive = currentActiveAppId == "tiktok"
         if (!tiktokActive && isBrowserApp()) { showBrowserAddressOverlay(); return }
 
         // Opening a keyboard is an explicit manual action. It cancels delayed
@@ -4088,12 +4225,7 @@ class CarPresentation(
                 else -> "Nhập"
             },
             onSubmit = { value, complete ->
-                val currentPage = web.url.orEmpty()
-                val youtubeSession = mode == "youtube" && (
-                    currentPage.contains("youtube.com", ignoreCase = true) ||
-                        currentPage.contains("youtu.be", ignoreCase = true)
-                    )
-                if (CarMediaManager.activeAppId != owner && !youtubeSession) {
+                if (CarMediaManager.activeAppId != owner || currentActiveAppId != owner) {
                     complete(false)
                 } else if (mode == "web") {
                     // Captured page fields are tied to a concrete DOM/page token.
@@ -4112,8 +4244,8 @@ class CarPresentation(
                     // Native Android Auto submit is the final action for YouTube/address.
                     // Do not bounce back to a second in-app "Tìm" button.
                     val current = keyboardPresentation.get()?.takeIf {
-                        it.isShowing && it.web === web &&
-                            (it.currentActiveAppId == owner || youtubeSession)
+                        it.isShowing && it.web === web && it.currentActiveAppId == owner &&
+                            CarMediaManager.activeAppId == owner
                     }
                     if (current == null) {
                         complete(false)
@@ -4157,6 +4289,10 @@ class CarPresentation(
     }
 
     private fun showKeyboardOverlayInternal(requestNative: Boolean = true, showKeys: Boolean = true) {
+        // Manual input takes ownership over any in-flight voice recognition.
+        voiceManager.cancelListening()
+        YouTubePlayerHelper.setDuckingVolume(web, 1.0f)
+
         if (requestNative && prefs.getString("car_keyboard_input_mode", "native") != "thtv") {
             val input = createEditorInput()
             activeCarInput = input
@@ -4201,10 +4337,7 @@ class CarPresentation(
             topToolbarContainer?.visibility = View.GONE
             hideYouTubeSeekOverlayImmediately()
         } else {
-            sidebarContainer?.visibility = View.VISIBLE
-            sidebarContainer?.let { root.bringChildToFront(it) }
-            topToolbarContainer?.visibility = View.VISIBLE
-            topToolbarContainer?.let { root.bringChildToFront(it) }
+            showBars()
         }
         if (isHudOverlayEnabled()) {
             if (hudOverlay == null) setupHudOverlay()
@@ -4213,6 +4346,10 @@ class CarPresentation(
         } else {
             hudOverlay?.visibility = View.GONE
         }
+
+        // A queued dismiss callback can run during an app transition and bring
+        // old chrome/HUD to the front. Keep the neutral transition shield topmost.
+        appSwitchShield?.bringToFront()
 
         if (notifyPhone) {
             CarMediaManager.dismissSearch()
@@ -4705,19 +4842,22 @@ class CarPresentation(
         // this app. The live WebView is still kept running below, while this
         // snapshot is a fallback if the host recreates the surface/renderer.
         CarMediaManager.saveWebAppSession(currentActiveAppId, web)
-        // Keep the persistent WebView attached to the Presentation window while Android Auto
-        // temporarily hides our surface (for example when switching to Maps/Waze). Detaching it
-        // makes Chromium treat the page as background/off-screen and can suspend YouTube/HLS audio.
+        // Do not force Chromium/WebView to stay resumed when T Tube loses the foreground.
+        // Keeping it resumed here makes Chromium retain AUDIOFOCUS_GAIN and blocks external
+        // players such as Zing MP3 or SoundCloud. Background playback is preserved only when
+        // the user explicitly enabled it and T Tube is actually playing.
         try {
             val mediaWeb = web
-            if (mediaWeb is BackgroundAudioWebView) mediaWeb.enableBackgroundAudio = true
-            mediaWeb.visibility = View.VISIBLE
-            mediaWeb.onResume()
-            mediaWeb.resumeTimers()
-            if (CarMediaManager.isPlaying || CarMediaManager.userWantsPlayback) {
+            val backgroundAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
+            if (backgroundAudio && CarMediaManager.isPlaying && CarMediaManager.userWantsPlayback) {
+                if (mediaWeb is BackgroundAudioWebView) mediaWeb.enableBackgroundAudio = true
                 CarMediaManager.registerService(context)
                 CarMediaManager.acquireWakeLock(context)
-                CarMediaManager.ensureAudioFocus()
+            } else {
+                if (mediaWeb is BackgroundAudioWebView) mediaWeb.enableBackgroundAudio = false
+                CarMediaManager.pausePlayback()
+                mediaWeb.onPause()
+                CarMediaManager.releaseWakeLock()
             }
         } catch (_: Exception) {}
         super.onStop()

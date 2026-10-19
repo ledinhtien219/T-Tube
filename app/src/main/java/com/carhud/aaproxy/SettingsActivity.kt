@@ -40,13 +40,11 @@ class SettingsActivity : AppCompatActivity() {
 
     companion object {
         const val PREFS = "carhud_settings"
-        const val KEY_KEEP_SCREEN = "keep_screen_on"
         const val KEY_BACKGROUND_AUDIO = "background_audio_enabled"
         const val KEY_AUDIO_DUCKING = "audio_ducking_enabled"
         const val KEY_AUTO_FULLSCREEN = "auto_fullscreen_enabled"
         const val KEY_AUTO_DETECT_SCREEN = "auto_detect_screen_layout"
         const val KEY_AUTO_RESUME_LAST_TRACK = "auto_resume_last_track"
-        const val KEY_DEFAULT_TO_DASHBOARD = "default_to_dashboard"
         const val KEY_LAST_PLAYED_URL = "last_played_url"
         const val KEY_DESKTOP_MODE = "desktop_mode_enabled"
 
@@ -57,18 +55,11 @@ class SettingsActivity : AppCompatActivity() {
         const val KEY_DOCK_SCALE = "dock_scale" // 50 to 150 (percentage)
 
         // Button Toggles
-        const val KEY_SHOW_BROWSER = "toolbar_btn_browser"
-        const val KEY_SHOW_PLAYLIST_SCROLL = "toolbar_btn_playlist_scroll"
         const val KEY_SHOW_KEYBOARD_SEARCH = "toolbar_btn_search"
         const val KEY_SHOW_VOICE_SEARCH = "toolbar_btn_mic"
         const val KEY_SHOW_HOME = "toolbar_btn_home"
         const val KEY_SHOW_TV = "toolbar_btn_tv"
-        const val KEY_SHOW_DAY_NIGHT = "toolbar_btn_day_night"
         const val KEY_SHOW_BACK = "toolbar_btn_back"
-        const val KEY_SHOW_PLAY_PAUSE = "toolbar_btn_play_pause"
-        const val KEY_SHOW_NEXT = "toolbar_btn_next"
-        const val KEY_SHOW_FULLSCREEN = "toolbar_btn_fullscreen"
-        const val KEY_SHOW_SETTINGS = "toolbar_btn_settings"
         const val KEY_SHOW_TIME_PILL = "toolbar_btn_time_pill"
 
         // Steering Wheel Controls
@@ -705,15 +696,6 @@ class SettingsActivity : AppCompatActivity() {
                 )
 
                 content.addView(createCarScreenDetailsCard())
-
-                content.addView(
-                    createSwitchRow(
-                        title = "Mặc định mở Màn hình chính khi cắm xe",
-                        subtitle = "Luôn hiển thị Dashboard buồng lái 5 Card khi cắm điện thoại kết nối ô tô",
-                        key = KEY_DEFAULT_TO_DASHBOARD,
-                        default = true
-                    )
-                )
 
                 content.addView(createSeparator())
 
