@@ -29,14 +29,14 @@ assert.doesNotMatch(tiktok, /ttube-tiktok-video-only/);
 assert.doesNotMatch(tiktok, /guestQueue/);
 assert.doesNotMatch(tiktok, /collectPublicVideos/);
 
-// Preserve cookies, but do not restore stale TikTok WebView state.
+// Preserve cookies, but do not restore stale cross-app WebView state.
 assert.match(media, /"tiktok" -> value\.contains\("tiktok\.com", true\)/);
 assert.match(media, /setOf\("web", "youtube", "tiktok"(?:, "iptv")?\)/);
-assert.match(presentation, /app\.id != "tiktok"/);
+assert.match(presentation, /val canRestoreSession = false/);
 
 // Generic universal theme inversion observer must stand down on TikTok.
 assert.match(theme, /var tiktok = host === 'tiktok\.com'/);
 assert.match(theme, /if \(youtube \|\| tiktok \|\| iptv\)/);
 assert.match(theme, /window\.__carhudThemeObserver\.disconnect\(\)/);
 
-console.log('PASS TikTok desktop web policy + cookie retention + clean state');
+console.log('PASS TikTok desktop web policy + cookie retention + hard-isolated state');
