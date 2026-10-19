@@ -28,7 +28,7 @@ assert.match(presentation,/goBackWithinTikTok\(\)/);
 assert.match(presentation,/R\.drawable\.ic_bar_search/);
 assert.match(presentation,/val tiktokActive = currentActiveAppId == "tiktok"/);
 assert.match(presentation,/searchOverlayMode = if \(tiktokActive\) "tiktok" else "youtube"/);
-assert.match(tiktok,/POLICY_VERSION = (?:[789]|10|11|12|13|14|15)/);
+assert.match(tiktok,/POLICY_VERSION = (?:[789]|10|11|12|13|14|15|16)/);
 assert.match(tiktok,/DESKTOP_UA/);
 assert.match(tiktok,/"https:\/\/www\.tiktok\.com\/search\?q=" \+ Uri\.encode/);
 assert.doesNotMatch(tiktok,/browse-sidebar/);
