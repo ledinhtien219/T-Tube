@@ -3,6 +3,7 @@
 # Retry 2: remaining legacy TikTok restore assertions aligned with v1.0.74.
 # Retry 3: legacy keyboard/search assertions aligned with strict app ownership.
 # Retry 4: legacy TikTok smoothness/browser ownership assertions aligned.
+# Retry 5: session regression now asserts restore helper is hard-disabled.
 name: Publish T Tube v1.0.74 Stable
 
 on:
