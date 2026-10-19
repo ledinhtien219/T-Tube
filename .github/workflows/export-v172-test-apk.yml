@@ -1,0 +1,27 @@
+name: Export T Tube v1.0.72 test APK
+on:
+  push:
+    branches: [ "test/ttube-v1.0.72-dpi-mazda-pad" ]
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v3
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: thtv-stable-debug-keystore-v1
+      - run: test -f ~/.android/debug.keystore
+      - run: chmod +x gradlew && ./gradlew assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TTube-v1.0.72-DPI-Mazda-PAD
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 7
