@@ -2598,9 +2598,12 @@ class MainActivity : AppCompatActivity() {
                 val cal = Calendar.getInstance()
                 val now = cal.time
 
-                phoneClockText.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
-                phoneDateText.text = VietnameseLunarHelper.getFormattedSolarDate(cal)
-                phoneLunarDateText.text = VietnameseLunarHelper.getFormattedLunarWithCanChi(cal)
+                val clockStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
+                if (phoneClockText.text.toString() != clockStr) phoneClockText.text = clockStr
+                val solarStr = VietnameseLunarHelper.getFormattedSolarDate(cal)
+                if (phoneDateText.text.toString() != solarStr) phoneDateText.text = solarStr
+                val lunarStr = VietnameseLunarHelper.getFormattedLunarWithCanChi(cal)
+                if (phoneLunarDateText.text.toString() != lunarStr) phoneLunarDateText.text = lunarStr
                 updateGreetingText()
 
                 mainHandler.postDelayed(this, 1000L)
@@ -2611,7 +2614,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateGreetingText() {
         val curName = prefs.getString(CarDashboardView.PREF_USER_NAME, CarDashboardView.DEFAULT_USER_NAME) ?: CarDashboardView.DEFAULT_USER_NAME
-        phoneGreetingText.text = VietnameseLunarHelper.getGreeting(Calendar.getInstance(), curName)
+        val greeting = VietnameseLunarHelper.getGreeting(Calendar.getInstance(), curName)
+        if (phoneGreetingText.text.toString() != greeting) phoneGreetingText.text = greeting
     }
 
     override fun onBackPressed() {
