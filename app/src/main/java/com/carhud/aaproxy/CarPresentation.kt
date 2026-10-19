@@ -102,9 +102,8 @@ class CarPresentation(
     private var pendingNavigationRecovery: Runnable? = null
     private var fullscreenChromeAppId: String? = null
     private var navigationFailed = false
-    private var appSwitchSnapshot: ImageView? = null
-    private var appSwitchBitmap: Bitmap? = null
-    private var appSwitchSnapshotGeneration = 0L
+    private var appSwitchShield: View? = null
+    private var appSwitchShieldGeneration = 0L
     private val mobileUserAgent by lazy {
         android.webkit.WebSettings.getDefaultUserAgent(context)
             .replace("; wv", "").replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
@@ -648,7 +647,7 @@ class CarPresentation(
                 super.onPageCommitVisible(view, url)
                 if (view !== web || !isCurrentAppPage(url)) return
                 finishPendingNavigation()
-                hideAppSwitchSnapshot()
+                hideAppSwitchShield()
                 applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
                 TikTokWebPolicy.fitLayout(view, url)
             }
@@ -657,7 +656,7 @@ class CarPresentation(
                 super.onReceivedError(view, request, error)
                 if (view === web && request?.isForMainFrame == true && isCurrentAppPage(request.url.toString())) {
                     finishPendingNavigation()
-                    hideAppSwitchSnapshot()
+                    hideAppSwitchShield()
                     navigationFailed = true
                 }
                 if (request?.isForMainFrame == true && currentActiveAppId == "web") {
@@ -671,7 +670,7 @@ class CarPresentation(
                 super.onPageFinished(view, url)
                 if (view !== web || view.url != url || !isCurrentAppPage(url)) return
                 finishPendingNavigation()
-                hideAppSwitchSnapshot()
+                hideAppSwitchShield()
                 if (currentActiveAppId == "web" && browserNeedsHistoryReset && view.url == url) {
                     view.clearHistory()
                     browserNeedsHistoryReset = false
@@ -2259,15 +2258,14 @@ class CarPresentation(
         val previousAppId = currentActiveAppId
         val isChangingApp = previousAppId != app.id
         if (isChangingApp) {
-            if (!isDashboardShowing) showAppSwitchSnapshot(switchGeneration)
+            if (!isDashboardShowing) showAppSwitchShield(switchGeneration)
             CarMediaManager.cancelPendingSteeringNext()
             CarMediaManager.saveWebAppSession(previousAppId, web)
         }
-        val canRestoreSession = isChangingApp &&
-            app.id != "tiktok" &&
-            app.id != "iptv" &&
-            startUrl == null &&
-            CarMediaManager.hasWebAppSession(app.id)
+        // Never restore a shared WebView history when changing app ownership.
+        // restoreState() can resurrect the previous app's rendered page/history
+        // (YouTube/TikTok/IPTV) and make the wrong app appear after a switch.
+        val canRestoreSession = false
         if (isChangingApp) {
             browserNeedsHistoryReset = app.id == "web" && !canRestoreSession
         }
@@ -2369,12 +2367,17 @@ class CarPresentation(
         }
 
         val shouldNavigateFresh = startUrl != null || retryFailedNavigation ||
-            (isChangingApp && !restoredSession) ||
-            (!isChangingApp && !isAlreadyLoaded)
+            isChangingApp || (!isChangingApp && !isAlreadyLoaded)
         if (shouldNavigateFresh) {
             pendingSessionRestoreAppId = app.id
             TikTokWebPolicy.configure(web, homeUrl)
             web.stopLoading()
+            if (isChangingApp) {
+                try {
+                    web.clearHistory()
+                    web.clearMatches()
+                } catch (_: Throwable) {}
+            }
             web.loadUrl(homeUrl)
         }
 
@@ -2413,21 +2416,17 @@ class CarPresentation(
         pendingNavigationRecovery = null
     }
 
-    private fun showAppSwitchSnapshot(generation: Long) {
-        hideAppSwitchSnapshot()
-        if (!::root.isInitialized || root.width <= 0 || root.height <= 0) return
+    private fun showAppSwitchShield(generation: Long) {
+        hideAppSwitchShield()
+        if (!::root.isInitialized) return
         try {
-            val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
-            root.draw(android.graphics.Canvas(bitmap))
-            val overlay = ImageView(context).apply {
-                scaleType = ImageView.ScaleType.FIT_XY
+            val overlay = View(context).apply {
+                setBackgroundColor(Color.BLACK)
                 isClickable = false
                 isFocusable = false
-                setImageBitmap(bitmap)
             }
-            appSwitchBitmap = bitmap
-            appSwitchSnapshot = overlay
-            appSwitchSnapshotGeneration = generation
+            appSwitchShield = overlay
+            appSwitchShieldGeneration = generation
             root.addView(
                 overlay,
                 FrameLayout.LayoutParams(
@@ -2436,27 +2435,24 @@ class CarPresentation(
                 )
             )
             overlay.bringToFront()
+            // Safety timeout only. Normally onPageCommitVisible of the new owner
+            // removes this shield as soon as its first frame is committed.
             root.postDelayed({
-                if (appSwitchSnapshotGeneration == generation) hideAppSwitchSnapshot()
-            }, 2500L)
+                if (appSwitchShieldGeneration == generation) hideAppSwitchShield()
+            }, 4000L)
         } catch (_: Throwable) {
-            hideAppSwitchSnapshot()
+            hideAppSwitchShield()
         }
     }
 
-    private fun hideAppSwitchSnapshot() {
-        val overlay = appSwitchSnapshot
-        appSwitchSnapshot = null
+    private fun hideAppSwitchShield() {
+        val overlay = appSwitchShield
+        appSwitchShield = null
         if (overlay != null) {
             try {
-                overlay.setImageDrawable(null)
                 (overlay.parent as? ViewGroup)?.removeView(overlay)
             } catch (_: Throwable) {}
         }
-        try {
-            appSwitchBitmap?.takeIf { !it.isRecycled }?.recycle()
-        } catch (_: Throwable) {}
-        appSwitchBitmap = null
     }
 
     private fun ensureCorrectFullscreenAppPage() {
@@ -2539,7 +2535,7 @@ class CarPresentation(
         }
         showBars()
         resetAutoHideTimer()
-        appSwitchSnapshot?.bringToFront()
+        appSwitchShield?.bringToFront()
 
         // Restore dimensions and rendering state when entering fullscreen.
         // Do not blindly play every <video>: that made a deliberately paused
