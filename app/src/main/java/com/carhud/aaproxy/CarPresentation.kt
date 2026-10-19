@@ -330,13 +330,11 @@ class CarPresentation(
                 currentActiveAppId == "iptv" -> {
                     playTvChannel(query)
                 }
-                currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(web.url) -> {
-                    currentActiveAppId = "tiktok"
-                    CarMediaManager.switchActiveApp("tiktok")
+                currentActiveAppId == "tiktok" -> {
+                    val app = WebAppManager.getAllApps(context).find { it.id == "tiktok" }
+                        ?: WebAppManager.DEFAULT_APPS.first { it.id == "tiktok" }
                     val target = TikTokWebPolicy.searchUrl(query)
-                    TikTokWebPolicy.configure(web, target)
-                    if (isDashboardShowing) showWebFullscreen()
-                    web.loadUrl(target)
+                    switchWebApp(app, embedded = isDashboardShowing, startUrl = target)
                     hideSearchOverlay(notifyPhone = false)
                 }
                 isBrowserApp() -> {
@@ -2146,13 +2144,12 @@ class CarPresentation(
     private fun handleVoiceQuery(query: String) {
         cancelSystemVoiceRequest()
 
-        if ((currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(web.url)) && !isDashboardShowing) {
+        if (currentActiveAppId == "tiktok" && !isDashboardShowing) {
             YouTubePlayerHelper.setDuckingVolume(web, 1.0f)
-            currentActiveAppId = "tiktok"
-            CarMediaManager.switchActiveApp("tiktok")
+            val app = WebAppManager.getAllApps(context).find { it.id == "tiktok" }
+                ?: WebAppManager.DEFAULT_APPS.first { it.id == "tiktok" }
             val target = TikTokWebPolicy.searchUrl(query)
-            TikTokWebPolicy.configure(web, target)
-            web.loadUrl(target)
+            switchWebApp(app, embedded = false, startUrl = target)
             hideSearchOverlay()
             return
         }
@@ -2272,21 +2269,9 @@ class CarPresentation(
     }
 
     private fun isBrowserApp(): Boolean {
-        val url = web.url.orEmpty()
-
-        // TikTok has its own search/back/navigation contract. Do not classify it
-        // as the generic browser merely because both are rendered by WebView.
-        if (currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(url)) return false
-        if (currentActiveAppId != "youtube" && currentActiveAppId != "iptv") return true
-
-        // The persistent WebView can outlive/recreate the Presentation. During
-        // that handoff the stored app id can briefly be stale. Trust the actual
-        // page too, so a visible Google/browser page can never be treated as
-        // YouTube just because currentActiveAppId still says "youtube".
-        if (url.isBlank() || url == "about:blank") return false
-        val isYoutubePage = url.contains("youtube.com", true) || url.contains("youtu.be", true)
-        val isIptvPage = url.contains("iptv_player.html", true)
-        return !isYoutubePage && !isIptvPage && !TikTokWebPolicy.isTikTok(url)
+        // Shared WebView pixels can lag behind ownership during navigation.
+        // Route controls/search by the app the user selected, never by a stale URL.
+        return currentActiveAppId !in setOf("youtube", "iptv", "tiktok")
     }
 
     fun switchWebApp(app: WebAppItem, embedded: Boolean = false, startUrl: String? = null) {
@@ -3521,13 +3506,12 @@ class CarPresentation(
         if (q.isEmpty()) return
 
         if (searchOverlayMode == "tiktok") {
+            if (currentActiveAppId != "tiktok" || CarMediaManager.activeAppId != "tiktok") return
             cancelSystemVoiceRequest()
-            currentActiveAppId = "tiktok"
-            CarMediaManager.switchActiveApp("tiktok")
-            if (isDashboardShowing) showWebFullscreen()
+            val app = WebAppManager.getAllApps(context).find { it.id == "tiktok" }
+                ?: WebAppManager.DEFAULT_APPS.first { it.id == "tiktok" }
             val target = TikTokWebPolicy.searchUrl(q)
-            TikTokWebPolicy.configure(web, target)
-            web.loadUrl(target)
+            switchWebApp(app, embedded = isDashboardShowing, startUrl = target)
             hideSearchOverlay()
             return
         }
@@ -4088,7 +4072,7 @@ class CarPresentation(
     }
 
     fun showSearchOverlay() {
-        val tiktokActive = currentActiveAppId == "tiktok" || TikTokWebPolicy.isTikTok(web.url)
+        val tiktokActive = currentActiveAppId == "tiktok"
         if (!tiktokActive && isBrowserApp()) { showBrowserAddressOverlay(); return }
 
         // Opening a keyboard is an explicit manual action. It cancels delayed
