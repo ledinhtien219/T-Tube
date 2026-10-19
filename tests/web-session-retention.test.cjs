@@ -25,15 +25,17 @@ assert.match(media, /activeAppId != appId \|\| getPersistentWebView\(\) !== web/
 assert.match(media, /web\.scrollTo\(session\.scrollX, session\.scrollY\)/);
 assert.match(media, /YouTubePlayerHelper\.seekTo\(web, session\.videoPositionSec\.toLong\(\)\)/);
 
-// Switching THTV apps snapshots the outgoing app and restores the incoming one.
-assert.match(presentation, /CarMediaManager\.saveWebAppSession\(previousAppId, web\)/);
-assert.match(presentation, /CarMediaManager\.hasWebAppSession\(app\.id\)/);
-assert.match(presentation, /CarMediaManager\.restoreWebAppSession\(app\.id, web\)/);
-assert.match(presentation, /pendingSessionRestoreAppId/);
+// v1.0.74 hard-isolates app ownership: shared WebView state must not be
+// restored across app switches because stale history can resurrect the old app.
+assert.match(presentation, /val canRestoreSession = false/);
+assert.doesNotMatch(presentation, /CarMediaManager\.saveWebAppSession\(previousAppId, web\)/);
+assert.doesNotMatch(presentation, /CarMediaManager\.restoreWebAppSession\(app\.id, web\)/);
+assert.match(presentation, /isUrlForApp\(app, currentUrl\)/);
+assert.match(presentation, /web\.clearHistory\(\)/);
 assert.match(presentation, /shouldNavigateFresh/);
 
 // Switching to another Android Auto app also captures the current state.
 assert.match(presentation, /override fun onStop\(\)[\s\S]*?saveWebAppSession\(currentActiveAppId, web\)/);
 assert.match(presentation, /override fun dismiss\(\)[\s\S]*?saveWebAppSession\(currentActiveAppId, web\)/);
 
-console.log('PASS web session retention: Browser + YouTube preserve state across app switches');
+console.log('PASS web session ownership: lifecycle snapshots remain available but cross-app restore is disabled');
