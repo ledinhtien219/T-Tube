@@ -1,21 +1,80 @@
 # 🚘 T Tube - Android Auto Multimedia Dashboard & Waze/Vietmap HUD
 
-[![Build Internal Test APK](https://github.com/ledinhtien219/TTube/actions/workflows/build-apk.yml/badge.svg)](https://github.com/ledinhtien219/TTube/actions/workflows/build-apk.yml)
-[![GitHub Release](https://img.shields.io/github/v/release/ledinhtien219/THTV?color=blue)](https://github.com/ledinhtien219/TTube/releases)
+[![Build APK](https://github.com/ledinhtien219/T-Tube/actions/workflows/build-apk.yml/badge.svg)](https://github.com/ledinhtien219/T-Tube/actions/workflows/build-apk.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/ledinhtien219/T-Tube?color=blue)](https://github.com/ledinhtien219/T-Tube/releases)
 [![Android SDK](https://img.shields.io/badge/Android%20SDK-29%2B-brightgreen)](https://developer.android.com)
 
 **T Tube** là ứng dụng dashboard đa phương tiện dành cho **Android Auto / màn hình xe**, kết hợp YouTube, IPTV, trình duyệt WebApp, điều khiển giọng nói và HUD cảnh báo giao thông từ Waze/Vietmap.
 
-## ✅ Phiên bản hiện tại trong source
+## ✅ Phiên bản hiện tại
 
-- **Source/Main:** `v1.0.63` / Build `250`
-- **Public stable OTA:** `v1.0.63` / Build `250`
+- **Source/Main:** `v1.0.74` / Build `269`
+- **Public stable OTA:** `v1.0.74` / Build `269`
 - **Branch:** `main`
 - **Application ID:** `com.tcar.auto`
 - **Min SDK:** Android 10 / API 29
 - **Target SDK:** API 35
+- **Stable signing:** giữ cùng certificate để các bản mới có thể cài đè bản stable trước đó.
 
-> Lưu ý: source trên `main` và bản public OTA/Release là hai bước tách biệt. Bản public chỉ được đổi sau khi chạy workflow **Approve Stable Update**, workflow này sẽ xác minh đúng commit/version đã test trước khi cập nhật `update.json`.
+> `v1.0.74` tập trung vào độ ổn định khi sử dụng thực tế trên Android Auto: chuyển app không lẫn trạng thái, tìm kiếm nhập tay/giọng nói đúng app, toolbar phản hồi ổn định, giảm tranh audio với app nghe nhạc khác và giảm tải khi chạy lâu.
+
+---
+
+## 🆕 Điểm mới trong v1.0.74
+
+### 🔀 Chuyển app ổn định hơn
+
+- Mỗi WebApp có **ownership** rõ ràng.
+- Bấm app nào thì app đó nhận quyền điều khiển WebView và media.
+- Không restore history của app cũ sang app mới.
+- Không để callback trễ của YouTube/TikTok/IPTV/Browser giành lại màn hình sau khi đã chuyển app.
+- IPTV luôn mở đúng `iptv_player.html`, không bị rơi sang YouTube/TikTok.
+- Khi chuyển app, trang cũ được dừng và history cũ được làm sạch trước khi nạp app mới.
+- Lớp chuyển tiếp dùng nền trung tính, không giữ ảnh app cũ nên không còn hiện chồng nội dung.
+
+### ⌨️ Tìm kiếm nhập tay
+
+- Keyboard/search session được gắn với đúng app đã mở.
+- Nếu đang nhập rồi chuyển app, thao tác cũ sẽ bị hủy thay vì chạy trên app mới.
+- YouTube search đi đúng YouTube.
+- TikTok search đi đúng TikTok.
+- Browser/address input không bị kéo sang YouTube.
+- Hỗ trợ bàn phím Android Auto và bộ gõ tiếng Việt.
+
+### 🎙️ Tìm kiếm bằng giọng nói
+
+- Voice recognition được gắn với app owner tại thời điểm bắt đầu.
+- Chuyển app sẽ hủy phiên voice cũ.
+- Mở bàn phím nhập tay cũng hủy mic đang chờ để tránh kết quả giọng nói ghi đè.
+- Lệnh phát nhạc YouTube và mở kênh IPTV giữ đúng ý định phát sau khi chuyển app.
+- Kết quả voice YouTube chỉ auto-play sau khi trang kết quả mới đã render.
+
+### 🎛️ Thanh điều khiển
+
+- Sửa race giữa animation ẩn và thao tác chạm màn hình.
+- Chạm màn hình sẽ hủy callback/animation ẩn cũ trước khi hiện toolbar.
+- Ép toolbar về `VISIBLE + alpha=1` để tránh trạng thái “bấm không hiện, một lúc sau mới hiện”.
+- Bắt touch cả trên lớp video fullscreen.
+
+### 🔊 Audio coexistence
+
+- T Tube không cố giữ/giành lại audio khi không thực sự phát.
+- Giảm xung đột với các app nghe nhạc ngoài như Zing MP3, SoundCloud...
+- Media callback của app cũ không được điều khiển app mới sau khi chuyển.
+
+### 🌡️ Giảm tải / giảm nóng
+
+- Dashboard video/GIF wallpaper dừng khi bị app fullscreen che.
+- Clock/date/greeting chỉ redraw khi nội dung thực sự thay đổi.
+- Marquee được giới hạn khoảng 30 fps và nghỉ giữa các vòng chạy.
+- Bỏ `WebView.saveState()` nặng khỏi đường chuyển app khi không còn dùng cross-app restore.
+
+### 🧹 Dashboard / Settings
+
+- Bỏ ô **Ứng dụng** thừa khỏi Dashboard.
+- Bỏ một số WebApp mặc định không cần thiết.
+- App ghim trên Dashboard dùng kích thước adaptive và khoảng cách theo số lượng app để giảm đè/chồng.
+- Dọn các setting/key không còn sử dụng.
 
 ---
 
@@ -50,104 +109,90 @@
 
 - Chặn nhiều nguồn quảng cáo và hỗ trợ SponsorBlock.
 - Tìm kiếm bằng bàn phím hoặc giọng nói tiếng Việt.
-- Nút **Mic/Giọng nói** nằm ngay dưới nút **Trang chủ** trên thanh công cụ YouTube.
-- Hỗ trợ Phát/Dừng, Tiếp theo và chọn chất lượng.
-- **Giữ session YouTube** khi chuyển qua app khác:
-  - giữ trang/video đang xem,
-  - giữ history,
-  - giữ vị trí phát,
-  - tránh callback restore cũ chạy nhầm sau khi đã chuyển app.
+- Hỗ trợ Phát/Dừng, Tiếp theo, seek và chọn chất lượng.
+- Tối ưu giao diện mobile YouTube cho màn hình Android Auto.
+- Callback media/search được khóa theo app owner để tránh lẫn trạng thái khi chuyển app.
 
 ### 📺 IPTV / M3U
 
 - Phát danh sách M3U/M3U8 và HLS.
 - Hỗ trợ chọn nhanh kênh từ Dashboard.
-- Ghi nhớ trạng thái/kênh phù hợp trong luồng sử dụng.
-- Tối ưu chuyển Dashboard ↔ IPTV để tránh rebuild/fullscreen lặp.
 - Hỗ trợ điều chỉnh tỷ lệ video.
+- Voice query có thể tìm/mở kênh IPTV.
+- IPTV dùng local player riêng và không restore WebView history của app trước.
 
 ### 🌐 Trình duyệt & WebApp
 
-- WebView dùng chung cho trải nghiệm trên màn hình xe nhưng **Browser và YouTube có session riêng**.
-- Khi chuyển Browser → YouTube → Browser, trang cũ, history và vị trí scroll được khôi phục.
+- WebView dùng chung cho trải nghiệm trên màn hình xe nhưng routing được quản lý theo **app ownership**.
 - App Grid cho phép mở WebApp tùy chỉnh và thêm URL mới.
 - Hỗ trợ Desktop User-Agent cho WebApp cần giao diện máy tính.
+- Generic Browser, YouTube, TikTok và IPTV được phân tách logic tìm kiếm/điều hướng.
 
 ### 🛡️ Waze / Vietmap HUD
 
 - Nhận cảnh báo Waze HLP qua WebSocket thời gian thực.
 - Fallback từ notification/broadcast khi HLP không có dữ liệu phù hợp.
 - Priority nguồn dữ liệu: **HLP > broadcast > notification > GPS**.
-- Đã harden các tình huống:
-  - reconnect / Waze Mod restart,
-  - timestamp rollback,
-  - cảnh báo stale theo TTL,
-  - cảnh báo trùng,
-  - không gộp nhầm 2 camera cùng loại nhưng ở xa nhau,
-  - `distance = 0` không làm clear cảnh báo quá sớm,
-  - notification bị remove sẽ dọn đúng alert thuộc nguồn đó.
-- HUD trên Android Auto **không còn nút X**; bật/tắt HUD được quản lý từ app điện thoại.
-- Vẫn giữ nút khóa vị trí HUD.
+- Harden reconnect, timestamp rollback, TTL stale alert, cảnh báo trùng và notification removal.
+- HUD trên Android Auto không có nút đóng trực tiếp; bật/tắt từ app điện thoại.
+- Hỗ trợ khóa vị trí HUD.
 
 ### 🎙️ Giọng nói & phím vô lăng
 
 - Tìm kiếm giọng nói tiếng Việt.
-- Điều khiển MediaSession / phím Next / Play-Pause.
-- Bộ gõ Telex tiếng Việt trên màn hình xe.
+- Điều khiển MediaSession / Next / Play-Pause.
+- Bộ gõ tiếng Việt trên màn hình xe.
 - Voice query có thể mở YouTube hoặc kênh IPTV phù hợp.
+- Phiên voice cũ bị hủy khi đổi app để tránh chạy nhầm context.
 
 ### 🎛️ Dashboard buồng lái
 
 - Đồng hồ lớn, ngày dương + âm lịch Việt Nam.
-- Weather card dùng **vector weather icon**.
-- Weather card stable mới dùng hiệu ứng **glass nhẹ / bán trong suốt**, giữ dễ đọc trên wallpaper sáng và tối.
+- Weather card với vector weather icon.
 - Wallpaper tĩnh / ảnh tùy chỉnh / GIF / video.
 - Chế độ ngày / đêm / tự động.
-- Mini player giữ điều khiển media ngay trên Dashboard.
+- Mini player điều khiển media ngay trên Dashboard.
+- Hỗ trợ ghim WebApp ra Dashboard.
 
 ### 🧩 Ổn định & chẩn đoán
 
-- `AppCrashHandler.kt` lưu crash report theo version/build để kiểm tra lỗi cũ và mới.
-- Android Auto NavigationTemplate đã được sửa các lỗi runtime từng xuất hiện ở Build 216/219.
-- Session Browser/YouTube được snapshot khi Android Auto đưa T Tube xuống nền.
-- Stable signing dùng cùng debug certificate trong CI để tránh lỗi cài đè giữa các build nội bộ.
+- `AppCrashHandler.kt` lưu crash report theo version/build.
+- Stable signing giữ cùng certificate trong CI để hỗ trợ cài đè.
+- Transition generation ngăn callback của app trước tác động lên app mới.
+- Release stable chỉ được tạo sau khi regression, JVM, AndroidTest, signing check và emulator smoke đều đạt.
 
 ---
 
 ## 📂 Cấu trúc chính
 
 ```text
-TTube/
+T-Tube/
 ├── .github/workflows/
-│   ├── build-apk.yml                  # Build nội bộ + regression/unit/androidTest compile
-│   └── approve-stable-update.yml      # Promote đúng bản đã test thành public stable
+│   ├── build-apk.yml
+│   └── publish-v174-stable.yml
 ├── app/
-│   ├── build.gradle.kts               # v1.0.63 / Build 250 trong source này
+│   ├── build.gradle.kts               # v1.0.74 / Build 269
 │   └── src/main/
 │       ├── AndroidManifest.xml
-│       ├── assets/                    # IPTV player, web assets...
+│       ├── assets/
 │       ├── java/com/carhud/aaproxy/
 │       │   ├── MainActivity.kt
 │       │   ├── SettingsActivity.kt
 │       │   ├── CarPresentation.kt
 │       │   ├── CarDashboardView.kt
-│       │   ├── CarHudAutoService.kt
-│       │   ├── CarHudAutoScreen.kt
+│       │   ├── CarHudProjectionHost.kt
 │       │   ├── CarMediaBrowserService.kt
 │       │   ├── CarMediaManager.kt
+│       │   ├── WebAppModel.kt
 │       │   ├── YouTubePlayerHelper.kt
 │       │   ├── YouTubeAdBlocker.kt
 │       │   ├── SponsorBlockManager.kt
-│       │   ├── IptvModel.kt
-│       │   ├── WebAppModel.kt
+│       │   ├── VoiceSearchManager.kt
+│       │   ├── VoiceQueryResolver.kt
 │       │   ├── WazeHlpWebSocketManager.kt
 │       │   ├── WazeAlertPolicy.kt
 │       │   ├── WazeHudManager.kt
 │       │   ├── VietmapHudOverlay.kt
-│       │   ├── VietmapNotificationListenerService.kt
-│       │   ├── VietmapState.kt
-│       │   ├── VoiceSearchManager.kt
-│       │   ├── VoiceQueryResolver.kt
 │       │   ├── WeatherManager.kt
 │       │   ├── VietnameseLunarHelper.kt
 │       │   ├── GpsSpeedManager.kt
@@ -155,7 +200,7 @@ TTube/
 │       └── res/
 ├── tests/                              # Static regression tests
 ├── docs/images/
-├── update.json                         # Manifest public stable đã được duyệt
+├── update.json                         # Stable OTA manifest
 └── settings.gradle.kts
 ```
 
@@ -174,7 +219,7 @@ Yêu cầu: **JDK 17**.
 APK:
 
 ```text
-app/build/outputs/apk/debug/TTube_v1.0.63_debug.apk
+app/build/outputs/apk/debug/TTube_v1.0.74_debug.apk
 ```
 
 ### Release
@@ -186,68 +231,65 @@ app/build/outputs/apk/debug/TTube_v1.0.63_debug.apk
 APK:
 
 ```text
-app/build/outputs/apk/release/TTube_v1.0.63_release.apk
+app/build/outputs/apk/release/TTube_v1.0.74_release.apk
 ```
 
-### Cài qua ADB
+### Cài đè qua ADB
 
 ```bash
-adb install -r app/build/outputs/apk/debug/TTube_v1.0.63_debug.apk
+adb install -r app/build/outputs/apk/debug/TTube_v1.0.74_debug.apk
 ```
 
+> Để cài đè thành công, APK cũ và APK mới phải có cùng `applicationId`, cùng signing certificate và bản mới phải có `versionCode` cao hơn hoặc bằng điều kiện update của Android. Stable v1.0.74 dùng `com.tcar.auto` và build `269`.
+
 ---
 
-## 🧪 CI nội bộ
+## 🧪 CI & Stable Gate
 
-Workflow **Build Internal Test APK** chạy:
+### Build / regression
 
-- regression IPTV aspect,
-- page input,
-- YouTube quality/search,
-- home UI cleanup,
-- Browser/YouTube session retention,
-- app switching,
-- YouTube voice toolbar,
-- Waze stability,
-- `testDebugUnitTest`,
+Các gate chính kiểm tra:
+
+- static regression tests trong `tests/*.cjs`,
+- JVM unit tests,
 - `assembleDebug`,
-- `assembleDebugAndroidTest`.
+- `assembleDebugAndroidTest`,
+- certificate/signing compatibility,
+- Android emulator runtime tests.
 
-Workflow này **không tự cập nhật OTA stable** và **không tự tạo public release**.
+### Stable v1.0.74
 
----
+Workflow stable kiểm tra trước khi publish:
 
-## 🚀 Duyệt một bản đã test thành Stable
+1. đúng `versionName = 1.0.74` và `versionCode = 269`;
+2. cùng stable signing certificate với bản public trước;
+3. toàn bộ static regression + JVM tests;
+4. build APK + AndroidTest;
+5. runtime smoke cho app switching / projection density;
+6. cable disconnect watchdog;
+7. TikTok runtime smoke;
+8. tạo immutable GitHub Release;
+9. cập nhật `update.json` trên `main`.
 
-Vào **Actions → Approve Stable Update → Run workflow**.
-
-Các trường:
-
-- **Commit SHA/tag/branch của đúng bản đã test:** commit SHA chính xác của APK đã test.
-- **Version dự kiến:** ví dụ `1.0.39`.
-- **Release notes:** mỗi dòng là một thay đổi chính.
-- **Gõ chính xác:** `DUYET STABLE`.
-
-Workflow sẽ:
-
-1. checkout đúng commit đã test;
-2. xác minh `versionName` / `versionCode`;
-3. chạy lại test + build;
-4. xác minh hoặc tạo GitHub Release;
-5. cập nhật `update.json` trên `main`;
-6. chỉ sau bước này người dùng mới nhận bản stable qua feed cập nhật.
+Nếu bất kỳ gate nào fail thì release stable không được publish.
 
 ---
 
-## 📦 Releases
+## 📦 Download / Release
 
-Bản phát hành public:
+- **Stable Release:** https://github.com/ledinhtien219/T-Tube/releases/tag/v1.0.74
+- **APK:** https://github.com/ledinhtien219/T-Tube/releases/download/v1.0.74/TTube_v1.0.74_debug.apk
+- **Source ZIP:** https://github.com/ledinhtien219/T-Tube/releases/download/v1.0.74/TTube_v1.0.74_source.zip
+- **SHA256SUMS:** https://github.com/ledinhtien219/T-Tube/releases/download/v1.0.74/SHA256SUMS.txt
+- **Stable OTA manifest:** `update.json`
 
-https://github.com/ledinhtien219/TTube/releases
+---
 
-Manifest OTA stable:
+## ⚠️ Lưu ý
 
-`update.json`
+- Khả năng tương thích có thể khác nhau giữa từng điện thoại, phiên bản Android Auto và head unit.
+- Một số ROM/OEM có thể áp dụng thêm giới hạn với app projection hoặc app cài ngoài.
+- Không nên thay signing key nếu muốn người dùng tiếp tục cài đè bản stable cũ.
 
 ---
 
