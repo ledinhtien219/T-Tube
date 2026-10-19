@@ -92,7 +92,6 @@ object CarMediaManager {
     var isWebShowingFullscreen = false
     var isEmbeddedAppShowing = true
     var activeAppId: String = "youtube"
-        private set
     private var mediaOwnerGeneration: Long = 0L
 
     fun switchActiveApp(appId: String) {
