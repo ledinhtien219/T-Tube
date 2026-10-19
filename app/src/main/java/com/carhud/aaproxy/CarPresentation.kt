@@ -113,6 +113,8 @@ class CarPresentation(
     // Prevent repeated play/resume commands when Android Auto recreates the surface
     // or YouTube briefly reports a paused/buffering state.
     private var autoResumePending = false
+    private var pendingVoiceYoutubeQuery: String? = null
+    private var pendingVoiceYoutubeGeneration: Long = -1L
 
     companion object {
         private var keyboardPresentation = java.lang.ref.WeakReference<CarPresentation>(null)
@@ -694,6 +696,18 @@ class CarPresentation(
                     YouTubePlayerHelper.inject(view, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
                     YouTubePlayerHelper.applyCarSearchHome(view)
                     updateYouTubeHomeObstacles()
+
+                    val voiceQuery = pendingVoiceYoutubeQuery
+                    if (!voiceQuery.isNullOrBlank() &&
+                        pendingVoiceYoutubeGeneration == appTransitions.generation &&
+                        CarMediaManager.activeAppId == "youtube" &&
+                        url.contains("/results", true) &&
+                        url.contains("search_query=", true)
+                    ) {
+                        pendingVoiceYoutubeQuery = null
+                        pendingVoiceYoutubeGeneration = -1L
+                        YouTubePlayerHelper.autoPlayFirstSearchResult(view)
+                    }
                 }
                 // Every embedded app uses the same text-only keyboard bridge.
                 view.evaluateJavascript(pageInputScript + "\nwindow.__thtvPageInput.install();", null)
@@ -2193,13 +2207,18 @@ class CarPresentation(
 
         if (currentActiveAppId != "youtube") {
             val ytApp = WebAppManager.getAllApps(context).find { it.id == "youtube" }
-                ?: WebAppManager.DEFAULT_APPS.first()
-            switchWebApp(ytApp, embedded = isDashboardShowing)
-        } else if (isDashboardShowing && (dashboardView?.isEmbeddedAppShowing() != true)) {
-            showWebFullscreen()
+                ?: WebAppManager.DEFAULT_APPS.first { it.id == "youtube" }
+            val target = "https://m.youtube.com/results?search_query=" +
+                android.net.Uri.encode(mediaQuery)
+            switchWebApp(ytApp, embedded = isDashboardShowing, startUrl = target)
+            pendingVoiceYoutubeQuery = mediaQuery
+            pendingVoiceYoutubeGeneration = appTransitions.generation
+        } else {
+            if (isDashboardShowing && (dashboardView?.isEmbeddedAppShowing() != true)) {
+                showWebFullscreen()
+            }
+            YouTubePlayerHelper.search(web, mediaQuery, autoPlayFirst = true)
         }
-
-        YouTubePlayerHelper.search(web, mediaQuery, autoPlayFirst = true)
         CarMediaManager.notifyVoiceState(VoiceSearchManager.State.SUCCESS, "Đang phát: $mediaQuery")
         updateVoiceState(VoiceSearchManager.State.SUCCESS, "Đang phát: $mediaQuery")
         hideSearchOverlay()
@@ -2277,6 +2296,15 @@ class CarPresentation(
             if (isDashboardShowing) showWebFullscreen(app) else showBars()
             return
         }
+        // Any input/voice task belongs to the app that started it.
+        // Switching app invalidates those tasks before the new owner is installed.
+        if (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) {
+            hideSearchOverlay()
+        }
+        voiceManager.cancelListening()
+        pendingVoiceYoutubeQuery = null
+        pendingVoiceYoutubeGeneration = -1L
+
         val switchGeneration = appTransitions.begin(app.id)
         val retryFailedNavigation = navigationFailed
         navigationFailed = false
@@ -3504,18 +3532,17 @@ class CarPresentation(
             return
         }
 
-        // The overlay mode is the source of truth. Android Auto may recreate the
-        // host surface and briefly leave currentActiveAppId stale even while the
-        // persistent WebView is visibly on YouTube. Never turn the Search button
-        // into a silent no-op in that state.
-        val currentUrl = web.url.orEmpty()
-        val youtubeVisible = currentUrl.contains("youtube.com", ignoreCase = true) ||
-            currentUrl.contains("youtu.be", ignoreCase = true)
-        if (searchOverlayMode != "youtube" || (currentActiveAppId != "youtube" && !youtubeVisible)) return
-        if (youtubeVisible) {
-            currentActiveAppId = "youtube"
-            CarMediaManager.switchActiveApp("youtube")
-        }
+        // Search belongs strictly to the current app owner. Never let an old
+        // YouTube frame reclaim ownership after the user has switched elsewhere.
+        if (searchOverlayMode != "youtube" ||
+            currentActiveAppId != "youtube" ||
+            CarMediaManager.activeAppId != "youtube" ||
+            !isUrlForApp(
+                WebAppManager.getAllApps(context).find { it.id == "youtube" }
+                    ?: WebAppManager.DEFAULT_APPS.first { it.id == "youtube" },
+                web.url
+            )
+        ) return
         prepareManualYouTubeSearch()
         if (isDashboardShowing) {
             showWebFullscreen()
@@ -4193,12 +4220,7 @@ class CarPresentation(
                 else -> "Nhập"
             },
             onSubmit = { value, complete ->
-                val currentPage = web.url.orEmpty()
-                val youtubeSession = mode == "youtube" && (
-                    currentPage.contains("youtube.com", ignoreCase = true) ||
-                        currentPage.contains("youtu.be", ignoreCase = true)
-                    )
-                if (CarMediaManager.activeAppId != owner && !youtubeSession) {
+                if (CarMediaManager.activeAppId != owner || currentActiveAppId != owner) {
                     complete(false)
                 } else if (mode == "web") {
                     // Captured page fields are tied to a concrete DOM/page token.
@@ -4217,8 +4239,8 @@ class CarPresentation(
                     // Native Android Auto submit is the final action for YouTube/address.
                     // Do not bounce back to a second in-app "Tìm" button.
                     val current = keyboardPresentation.get()?.takeIf {
-                        it.isShowing && it.web === web &&
-                            (it.currentActiveAppId == owner || youtubeSession)
+                        it.isShowing && it.web === web && it.currentActiveAppId == owner &&
+                            CarMediaManager.activeAppId == owner
                     }
                     if (current == null) {
                         complete(false)
@@ -4306,10 +4328,7 @@ class CarPresentation(
             topToolbarContainer?.visibility = View.GONE
             hideYouTubeSeekOverlayImmediately()
         } else {
-            sidebarContainer?.visibility = View.VISIBLE
-            sidebarContainer?.let { root.bringChildToFront(it) }
-            topToolbarContainer?.visibility = View.VISIBLE
-            topToolbarContainer?.let { root.bringChildToFront(it) }
+            showBars()
         }
         if (isHudOverlayEnabled()) {
             if (hudOverlay == null) setupHudOverlay()
