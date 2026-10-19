@@ -104,6 +104,16 @@ class CarPresentation(
     private var navigationFailed = false
     private var appSwitchShield: View? = null
     private var appSwitchShieldGeneration = 0L
+
+    // YouTube state kept while another app owns the shared WebView, so coming
+    // back resumes the same video (same position, same play/pause state).
+    private var youtubeResumeUrl: String? = null
+    private var youtubeResumeSec = 0
+    private var youtubeResumePlaying = false
+    private var pauseAfterYouTubeRestore = false
+    private var youtubeLastSec = 0
+    private var youtubeSecVideoId: String? = null
+
     private val mobileUserAgent by lazy {
         android.webkit.WebSettings.getDefaultUserAgent(context)
             .replace("; wv", "").replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
@@ -636,6 +646,13 @@ class CarPresentation(
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                 super.doUpdateVisitedHistory(view, url, isReload)
                 if (view !== web || !isCurrentAppPage(url)) return
+                if (currentActiveAppId == "youtube" && url != null && url.contains("/watch", true)) {
+                    val vid = runCatching { android.net.Uri.parse(url).getQueryParameter("v") }.getOrNull()
+                    if (vid != youtubeSecVideoId) {
+                        youtubeSecVideoId = vid
+                        youtubeLastSec = 0
+                    }
+                }
                 updateBrowserToolbar(url)
                 if (view != null) {
                     applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
@@ -729,6 +746,19 @@ class CarPresentation(
                         CarMediaManager.ensureAudioFocus()
                         CarMediaManager.acquireWakeLock(context)
                         scheduleSafeResume(view, 150L)
+                    }
+                    if (pauseAfterYouTubeRestore && isYouTube) {
+                        // The video was paused when the user left YouTube: keep it paused.
+                        pauseAfterYouTubeRestore = false
+                        val restoreGeneration = appTransitions.generation
+                        longArrayOf(1200L, 2800L).forEach { delay ->
+                            view.postDelayed({
+                                if (view.url == url && appTransitions.generation == restoreGeneration &&
+                                    currentActiveAppId == "youtube") {
+                                    YouTubePlayerHelper.pausePlayback(view)
+                                }
+                            }, delay)
+                        }
                     }
                 }
             }
@@ -1232,6 +1262,7 @@ class CarPresentation(
     fun updateVideoProgress(currentSec: Int, totalSec: Int, formattedTime: String) {
         val safeDuration = totalSec.coerceAtLeast(0)
         val safeCurrent = if (safeDuration > 0) currentSec.coerceIn(0, safeDuration) else 0
+        if (currentActiveAppId == "youtube" && safeDuration > 0) youtubeLastSec = safeCurrent
         youtubeSeekDurationSec = safeDuration
 
         val showYoutubeSeek = shouldShowYouTubeSeekOverlay() &&
@@ -2288,11 +2319,24 @@ class CarPresentation(
         }
         val previousAppId = currentActiveAppId
         val isChangingApp = previousAppId != app.id
+        pauseAfterYouTubeRestore = false
+        if (isChangingApp && previousAppId == "youtube") {
+            val leavingUrl = web.url.orEmpty()
+            if (leavingUrl.contains("youtube.com/watch", true)) {
+                youtubeResumeUrl = leavingUrl
+                youtubeResumeSec = youtubeLastSec
+                youtubeResumePlaying = CarMediaManager.userWantsPlayback
+            }
+        }
+        if (app.id == "youtube" && startUrl != null) {
+            // Explicit search/voice/deep-link target wins over a saved video.
+            youtubeResumeUrl = null
+        }
         val switchGeneration = appTransitions.begin(app.id)
 
         // Cover the old page before any keyboard/chrome teardown can paint a frame.
         if (isChangingApp || (!isUrlForApp(app, web.url) && !isDashboardShowing)) {
-            showAppSwitchShield(switchGeneration)
+            showAppSwitchShield(switchGeneration, app)
         }
 
         // Any input/voice task belongs to the app that started it.
@@ -2370,7 +2414,8 @@ class CarPresentation(
         applyWebScaleForUrl(app.url)
 
         val homeUrl = startUrl ?: when (app.id) {
-            "youtube" -> if (isDesktop) "https://www.youtube.com" else "https://m.youtube.com"
+            "youtube" -> (if (isChangingApp) consumeYouTubeResumeUrl() else null)
+                ?: if (isDesktop) "https://www.youtube.com" else "https://m.youtube.com"
             "iptv" -> "file:///android_asset/iptv_player.html"
             else -> app.url
         }
@@ -2488,15 +2533,92 @@ class CarPresentation(
         pendingNavigationRecovery = null
     }
 
-    private fun showAppSwitchShield(generation: Long) {
+    /**
+     * Rebuilds the YouTube watch URL saved when the user left YouTube, so coming
+     * back resumes the same video at the same second. Returns null (-> normal
+     * YouTube home) when auto-resume is off or nothing valid was saved.
+     */
+    private fun consumeYouTubeResumeUrl(): String? {
+        val saved = youtubeResumeUrl ?: return null
+        val sec = youtubeResumeSec
+        val playing = youtubeResumePlaying
+        youtubeResumeUrl = null
+        youtubeResumeSec = 0
+        if (!prefs.getBoolean(SettingsActivity.KEY_AUTO_RESUME_LAST_TRACK, true)) return null
+        val uri = runCatching { android.net.Uri.parse(saved) }.getOrNull() ?: return null
+        if (uri.getQueryParameter("v").isNullOrBlank()) return null
+        val builder = android.net.Uri.Builder()
+            .scheme("https")
+            .authority("m.youtube.com")
+            .path("/watch")
+        uri.queryParameterNames
+            .filter { it != "t" && it != "time_continue" && it != "start" }
+            .forEach { name -> uri.getQueryParameters(name).forEach { builder.appendQueryParameter(name, it) } }
+        if (sec > 5) builder.appendQueryParameter("t", "${sec}s")
+        CarMediaManager.userWantsPlayback = playing
+        pauseAfterYouTubeRestore = !playing
+        return builder.build().toString()
+    }
+
+    private fun showAppSwitchShield(generation: Long, app: WebAppItem? = null) {
         hideAppSwitchShield()
         if (!::root.isInitialized) return
         try {
-            val overlay = View(context).apply {
-                setBackgroundColor(Color.BLACK)
-                isClickable = false
-                isFocusable = false
+            val day = when {
+                app == null -> false
+                app.id == "youtube" || app.id == "iptv" || app.id == "tiktok" -> isDayMode()
+                else -> true
             }
+            val accent = runCatching { Color.parseColor(app?.colorHex ?: "#38BDF8") }
+                .getOrDefault(Color.parseColor("#38BDF8"))
+            val textColor = if (day) Color.parseColor("#1E293B") else Color.WHITE
+
+            val overlay = FrameLayout(context).apply {
+                setBackgroundColor(if (day) Color.WHITE else Color.BLACK)
+                // Prevent touches from leaking into the old page during transition.
+                isClickable = true
+                isFocusable = true
+            }
+            val hint = TextView(context).apply {
+                text = "Đang tải nội dung..."
+                textSize = 13f
+                setTextColor(if (day) Color.parseColor("#64748B") else Color.parseColor("#94A3B8"))
+                gravity = Gravity.CENTER
+                setPadding(0, dp(6), 0, 0)
+                visibility = View.GONE
+            }
+            val content = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                alpha = 0f
+                addView(
+                    ProgressBar(context).apply {
+                        isIndeterminate = true
+                        indeterminateTintList = android.content.res.ColorStateList.valueOf(accent)
+                    },
+                    LinearLayout.LayoutParams(dp(44), dp(44))
+                )
+                if (!app?.name.isNullOrBlank()) {
+                    addView(TextView(context).apply {
+                        text = app?.name.orEmpty()
+                        textSize = 16f
+                        typeface = Typeface.DEFAULT_BOLD
+                        setTextColor(textColor)
+                        gravity = Gravity.CENTER
+                        setPadding(0, dp(12), 0, 0)
+                    })
+                }
+                addView(hint)
+                animate().alpha(1f).setStartDelay(250L).setDuration(150L).start()
+            }
+            overlay.addView(
+                content,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.CENTER
+                )
+            )
             appSwitchShield = overlay
             appSwitchShieldGeneration = generation
             root.addView(
@@ -2507,11 +2629,24 @@ class CarPresentation(
                 )
             )
             overlay.bringToFront()
-            // Safety timeout only. Normally onPageCommitVisible of the new owner
-            // removes this shield as soon as its first frame is committed.
+
             root.postDelayed({
-                if (appSwitchShieldGeneration == generation) hideAppSwitchShield()
-            }, 4000L)
+                if (appSwitchShieldGeneration == generation && appSwitchShield === overlay) {
+                    hint.visibility = View.VISIBLE
+                }
+            }, 2500L)
+
+            // Do not expose the old app merely because a fixed timeout elapsed.
+            root.postDelayed({
+                if (appSwitchShieldGeneration == generation && appSwitchShield === overlay) {
+                    if (isCurrentAppPage(web.url)) {
+                        hideAppSwitchShield()
+                    } else {
+                        hint.text = "Tải lâu hơn bình thường..."
+                        hint.visibility = View.VISIBLE
+                    }
+                }
+            }, 6000L)
         } catch (_: Throwable) {
             hideAppSwitchShield()
         }
@@ -4372,7 +4507,9 @@ class CarPresentation(
 
     private fun scheduleVoiceBannerDismiss() {
         voiceBannerHideHandler.removeCallbacks(hideVoiceBannerRunnable)
-        voiceBannerHideHandler.postDelayed(hideVoiceBannerRunnable, 5000L)
+        // Terminal recognizer states hide the banner themselves. Keep the banner
+        // alive while LISTENING/RECOGNIZING so the mic never looks inactive early.
+        voiceBannerHideHandler.postDelayed(hideVoiceBannerRunnable, 35000L)
     }
 
     private fun updateVoiceState(state: VoiceSearchManager.State, text: String) {
