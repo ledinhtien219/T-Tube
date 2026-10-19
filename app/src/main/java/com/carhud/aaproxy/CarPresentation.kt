@@ -4347,6 +4347,10 @@ class CarPresentation(
             hudOverlay?.visibility = View.GONE
         }
 
+        // A queued dismiss callback can run during an app transition and bring
+        // old chrome/HUD to the front. Keep the neutral transition shield topmost.
+        appSwitchShield?.bringToFront()
+
         if (notifyPhone) {
             CarMediaManager.dismissSearch()
         }
