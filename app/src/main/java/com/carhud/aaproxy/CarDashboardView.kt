@@ -158,10 +158,13 @@ class CarDashboardView(
     private var cardM3u: LinearLayout? = null
     private lateinit var cardYoutube: LinearLayout
     private lateinit var cardBrowser: LinearLayout
-    private lateinit var cardBookmark: LinearLayout
     private var pinnedAppsScroll: View? = null
     private var pinnedAppsRow: LinearLayout? = null
     private val dynamicPinnedCards = mutableListOf<LinearLayout>()
+    private var dashboardViewportWidthDp = 1024f
+    private var dashboardCardWidthDp = 92
+    private var dashboardCardHeightDp = 82
+    private var dashboardCardGapDp = 10
 
     // Favorite Channels row
     private var favChannelsScroll: View? = null
@@ -239,7 +242,6 @@ class CarDashboardView(
         cardM3u = findViewById(R.id.cardM3u)
         cardYoutube = findViewById(R.id.cardYoutube)
         cardBrowser = findViewById(R.id.cardBrowser)
-        cardBookmark = findViewById(R.id.cardBookmark)
         pinnedAppsScroll = findViewById(R.id.pinnedAppsScroll)
         pinnedAppsRow = findViewById(R.id.pinnedAppsRow)
 
@@ -336,7 +338,7 @@ class CarDashboardView(
         val cardHeight = if (compactHeight) 68 else if (compactWidth) 74 else 82
         val cardGap = if (compactWidth) 6 else 10
 
-        listOfNotNull(cardM3u, cardBookmark).plus(dynamicPinnedCards).forEach { card ->
+        listOfNotNull(cardM3u).plus(dynamicPinnedCards).forEach { card ->
             val lp = card.layoutParams as? LinearLayout.LayoutParams ?: return@forEach
             lp.width = dp(cardWidth)
             lp.height = dp(cardHeight)
@@ -349,17 +351,11 @@ class CarDashboardView(
             }
         }
 
-        pinnedAppsScroll?.layoutParams = pinnedAppsScroll?.layoutParams?.apply {
-            width = dp(
-                when {
-                    veryCompactWidth -> 210
-                    compactWidth -> 260
-                    widthDp < 1000f -> 320
-                    else -> 360
-                }
-            )
-            height = dp(cardHeight)
-        }
+        dashboardViewportWidthDp = widthDp
+        dashboardCardWidthDp = cardWidth
+        dashboardCardHeightDp = cardHeight
+        dashboardCardGapDp = cardGap
+        updatePinnedAppsWidth()
 
         (miniPlayerCard.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
             lp.height = dp(cardHeight)
@@ -393,6 +389,37 @@ class CarDashboardView(
         bottomDock.requestLayout()
         topRightContainer.requestLayout()
         dashboardMainContent.requestLayout()
+    }
+
+    private fun updatePinnedAppsWidth() {
+        val scroll = pinnedAppsScroll ?: return
+        val count = pinnedAppsRow?.childCount ?: 0
+        if (count <= 0) {
+            scroll.visibility = View.GONE
+            return
+        }
+
+        // Grow the pinned-app strip only as apps are added. This makes new tiles
+        // advance toward the mini-player instead of stacking or overlapping.
+        val desiredWidthDp = count * (dashboardCardWidthDp + dashboardCardGapDp)
+        val m3uSpaceDp = if (cardM3u?.visibility == View.VISIBLE) {
+            dashboardCardWidthDp + dashboardCardGapDp
+        } else 0
+        val minPlayerWidthDp = when {
+            dashboardViewportWidthDp < 700f -> 210
+            dashboardViewportWidthDp < 820f -> 250
+            else -> 300
+        }
+        val maxStripWidthDp = (
+            dashboardViewportWidthDp.toInt() - minPlayerWidthDp - m3uSpaceDp - 24
+        ).coerceAtLeast(dashboardCardWidthDp + dashboardCardGapDp)
+
+        scroll.layoutParams = scroll.layoutParams.apply {
+            width = dp(desiredWidthDp.coerceAtMost(maxStripWidthDp))
+            height = dp(dashboardCardHeightDp)
+        }
+        scroll.visibility = View.VISIBLE
+        scroll.requestLayout()
     }
 
     private fun refreshPinnedApps() {
@@ -462,7 +489,7 @@ class CarDashboardView(
             row.addView(card)
         }
 
-        pinnedAppsScroll?.visibility = if (apps.isEmpty()) View.GONE else View.VISIBLE
+        if (apps.isEmpty()) pinnedAppsScroll?.visibility = View.GONE else updatePinnedAppsWidth()
     }
 
     fun applyComponentVisibility() {
@@ -486,6 +513,7 @@ class CarDashboardView(
             if ((pinnedAppsRow?.childCount ?: 0) > 0) View.VISIBLE else View.GONE
 
         cardM3u?.visibility = if (showCardM3u) View.VISIBLE else View.GONE
+        updatePinnedAppsWidth()
         if (::miniPlayerCard.isInitialized) {
             miniPlayerCard.visibility = if (showMiniPlayer) View.VISIBLE else View.GONE
         }
@@ -628,11 +656,6 @@ class CarDashboardView(
             val browserApp = appList.find { it.id == "web" }
                 ?: WebAppManager.DEFAULT_APPS.first { it.id == "web" }
             onAppClick(browserApp)
-        }
-
-        // App 4: Dấu trang (Bookmarks / Quick links)
-        cardBookmark.setOnClickListener {
-            onAllAppsClick()
         }
 
         // Search Bar click
