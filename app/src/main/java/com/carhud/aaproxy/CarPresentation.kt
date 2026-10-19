@@ -108,6 +108,24 @@ class CarPresentation(
     }
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    // Mazda Commander PAD: free cursor driven by D-pad events.
+    private var mazdaPadCursor: TextView? = null
+    private var mazdaPadCursorX = 0f
+    private var mazdaPadCursorY = 0f
+    private var mazdaPadCursorAccel = 1f
+    private var mazdaPadLastMoveAt = 0L
+    private var mazdaPadHeldKeyCode = KeyEvent.KEYCODE_UNKNOWN
+    private var mazdaPadDx = 0f
+    private var mazdaPadDy = 0f
+    private val hideMazdaPadCursorRunnable = Runnable { mazdaPadCursor?.visibility = View.GONE }
+    private val mazdaPadRepeatRunnable = object : Runnable {
+        override fun run() {
+            if (mazdaPadHeldKeyCode == KeyEvent.KEYCODE_UNKNOWN) return
+            moveMazdaPadCursor(mazdaPadDx, mazdaPadDy)
+            mainHandler.postDelayed(this, 50L)
+        }
+    }
+
     // Prevent repeated play/resume commands when Android Auto recreates the surface
     // or YouTube briefly reports a paused/buffering state.
     private var autoResumePending = false
@@ -4610,7 +4628,72 @@ class CarPresentation(
         showDashboard()
     }
 
+    private fun showMazdaPadCursor() {
+        if (!::root.isInitialized) return
+        if (root.width <= 0 || root.height <= 0) { root.post { showMazdaPadCursor() }; return }
+        val size = dp(36)
+        val cursor = mazdaPadCursor ?: TextView(context).apply {
+            text = "◎"; textSize = 25f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = rounded(Color.parseColor("#CC0F172A"), 999f, Color.parseColor("#38BDF8"), 2)
+            elevation = dp(300).toFloat(); isClickable = false; isFocusable = false
+            root.addView(this, FrameLayout.LayoutParams(size, size)); mazdaPadCursor = this
+        }
+        if (mazdaPadCursorX <= 0f || mazdaPadCursorY <= 0f) { mazdaPadCursorX = root.width / 2f; mazdaPadCursorY = root.height / 2f }
+        val half = size / 2f
+        mazdaPadCursorX = mazdaPadCursorX.coerceIn(half, root.width - half)
+        mazdaPadCursorY = mazdaPadCursorY.coerceIn(half, root.height - half)
+        cursor.x = mazdaPadCursorX - half; cursor.y = mazdaPadCursorY - half
+        cursor.visibility = View.VISIBLE; cursor.bringToFront()
+        mainHandler.removeCallbacks(hideMazdaPadCursorRunnable); mainHandler.postDelayed(hideMazdaPadCursorRunnable, 6000L)
+    }
+
+    private fun moveMazdaPadCursor(dx: Float, dy: Float) {
+        if (!::root.isInitialized || root.width <= 0 || root.height <= 0) return
+        showMazdaPadCursor()
+        val now = SystemClock.uptimeMillis()
+        mazdaPadCursorAccel = if (now - mazdaPadLastMoveAt <= 220L) (mazdaPadCursorAccel + 0.35f).coerceAtMost(3.5f) else 1f
+        mazdaPadLastMoveAt = now
+        val cursorSize = dp(36).toFloat()
+        val step = (minOf(root.width, root.height) * 0.055f).coerceAtLeast(dp(18).toFloat()) * mazdaPadCursorAccel
+        mazdaPadCursorX = (mazdaPadCursorX + dx * step).coerceIn(cursorSize/2f, root.width-cursorSize/2f)
+        mazdaPadCursorY = (mazdaPadCursorY + dy * step).coerceIn(cursorSize/2f, root.height-cursorSize/2f)
+        mazdaPadCursor?.let { it.x=mazdaPadCursorX-cursorSize/2f; it.y=mazdaPadCursorY-cursorSize/2f; it.visibility=View.VISIBLE; it.bringToFront() }
+    }
+
+    private fun startMazdaPad(keyCode: Int, dx: Float, dy: Float) {
+        mainHandler.removeCallbacks(mazdaPadRepeatRunnable); mazdaPadHeldKeyCode=keyCode; mazdaPadDx=dx; mazdaPadDy=dy
+        if (mazdaPadCursor?.visibility == View.VISIBLE) moveMazdaPadCursor(dx,dy) else showMazdaPadCursor()
+        mainHandler.postDelayed(mazdaPadRepeatRunnable,50L)
+    }
+    private fun stopMazdaPad(keyCode: Int) { if (mazdaPadHeldKeyCode != keyCode) return; mainHandler.removeCallbacks(mazdaPadRepeatRunnable); mazdaPadHeldKeyCode=KeyEvent.KEYCODE_UNKNOWN; mazdaPadCursorAccel=1f }
+    private fun clickMazdaPadCursor(): Boolean {
+        if (!::root.isInitialized) return false
+        if (mazdaPadCursor?.visibility != View.VISIBLE) { showMazdaPadCursor(); return true }
+        val x=mazdaPadCursorX; val y=mazdaPadCursorY; mazdaPadCursor?.visibility=View.INVISIBLE; dispatchTouch(x,y)
+        mainHandler.postDelayed({ mazdaPadCursor?.visibility=View.VISIBLE; mazdaPadCursor?.bringToFront() },120L); return true
+    }
+
+    fun handleMazdaPadKeyDown(keyCode: Int, event: KeyEvent): Boolean = when(keyCode) {
+        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP -> { if(event.repeatCount==0) startMazdaPad(keyCode,0f,-1f); true }
+        KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN -> { if(event.repeatCount==0) startMazdaPad(keyCode,0f,1f); true }
+        KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT -> { if(event.repeatCount==0) startMazdaPad(keyCode,-1f,0f); true }
+        KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT -> { if(event.repeatCount==0) startMazdaPad(keyCode,1f,0f); true }
+        KeyEvent.KEYCODE_DPAD_CENTER -> { showMazdaPadCursor(); true }
+        KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> mazdaPadCursor?.visibility == View.VISIBLE
+        else -> false
+    }
+    fun handleMazdaPadKeyUp(keyCode: Int, event: KeyEvent): Boolean = when(keyCode) {
+        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
+        KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP, KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN, KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT, KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT -> { stopMazdaPad(keyCode); true }
+        KeyEvent.KEYCODE_DPAD_CENTER -> clickMazdaPadCursor()
+        KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> if (mazdaPadCursor?.visibility == View.VISIBLE) clickMazdaPadCursor() else false
+        else -> false
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN && handleMazdaPadKeyDown(event.keyCode, event)) return true
+        if (event.action == KeyEvent.ACTION_UP && handleMazdaPadKeyUp(event.keyCode, event)) return true
         if (event.keyCode == KeyEvent.KEYCODE_MEDIA_NEXT) {
             if (event.action == KeyEvent.ACTION_DOWN) CarMediaManager.handleSteeringNext(context, event)
             return true
