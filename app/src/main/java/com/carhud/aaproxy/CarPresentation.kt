@@ -3517,21 +3517,22 @@ class CarPresentation(
         }
 
         // Search belongs strictly to the current app owner. Never let an old
-        // YouTube frame reclaim ownership after the user has switched elsewhere.
+        // rendered frame reclaim ownership after the user has switched elsewhere.
         if (searchOverlayMode != "youtube" ||
             currentActiveAppId != "youtube" ||
-            CarMediaManager.activeAppId != "youtube" ||
-            !isUrlForApp(
-                WebAppManager.getAllApps(context).find { it.id == "youtube" }
-                    ?: WebAppManager.DEFAULT_APPS.first { it.id == "youtube" },
-                web.url
-            )
+            CarMediaManager.activeAppId != "youtube"
         ) return
+
+        val youtubeApp = WebAppManager.getAllApps(context).find { it.id == "youtube" }
+            ?: WebAppManager.DEFAULT_APPS.first { it.id == "youtube" }
         prepareManualYouTubeSearch()
-        if (isDashboardShowing) {
-            showWebFullscreen()
+        if (!isUrlForApp(youtubeApp, web.url)) {
+            val target = "https://m.youtube.com/results?search_query=" + android.net.Uri.encode(q)
+            switchWebApp(youtubeApp, embedded = isDashboardShowing, startUrl = target)
+        } else {
+            if (isDashboardShowing) showWebFullscreen()
+            YouTubePlayerHelper.search(web, q, autoPlayFirst = false)
         }
-        YouTubePlayerHelper.search(web, q, autoPlayFirst = false)
         if (broadcast) CarMediaManager.submitSearchQuery(q)
         hideSearchOverlay()
     }
@@ -3563,10 +3564,12 @@ class CarPresentation(
         val currentHost = try { android.net.Uri.parse(currentUrl).host.orEmpty().lowercase() } catch (_: Exception) { "" }
         val isYouTubePage = currentHost == "youtube.com" || currentHost.endsWith(".youtube.com") || currentHost == "youtu.be"
         if (performAction && isYouTubePage && cleanValue.isNotBlank()) {
+            if (currentActiveAppId != "youtube" || CarMediaManager.activeAppId != "youtube") {
+                onComplete?.invoke(false)
+                return
+            }
             webKeyboardTargetPending = false
             web.evaluateJavascript("if(window.__thtvPageInput) window.__thtvPageInput.clear();", null)
-            currentActiveAppId = "youtube"
-            CarMediaManager.switchActiveApp("youtube")
             prepareManualYouTubeSearch()
             hideSearchOverlay()
             YouTubePlayerHelper.search(web, cleanValue, autoPlayFirst = false)
@@ -3580,6 +3583,10 @@ class CarPresentation(
         val isGooglePage = Regex("""https?://([a-z0-9-]+\.)?google\.[^/]+/""", RegexOption.IGNORE_CASE)
             .containsMatchIn(currentUrl)
         if (performAction && isGooglePage && cleanValue.isNotBlank()) {
+            if (!isBrowserApp() || CarMediaManager.activeAppId != currentActiveAppId) {
+                onComplete?.invoke(false)
+                return
+            }
             val targetUrl = BrowserNavigation.targetFor(cleanValue)
             if (targetUrl != null) {
                 webKeyboardTargetPending = false
@@ -3595,12 +3602,16 @@ class CarPresentation(
         // navigate to an empty shell. Use its web results route explicitly.
         val host = currentHost
         if (performAction && (host == "tiktok.com" || host.endsWith(".tiktok.com")) && cleanValue.isNotBlank()) {
+            if (currentActiveAppId != "tiktok" || CarMediaManager.activeAppId != "tiktok") {
+                onComplete?.invoke(false)
+                return
+            }
             webKeyboardTargetPending = false
             web.evaluateJavascript("if(window.__thtvPageInput) window.__thtvPageInput.clear();", null)
-            hideSearchOverlay()
+            val app = WebAppManager.getAllApps(context).find { it.id == "tiktok" }
+                ?: WebAppManager.DEFAULT_APPS.first { it.id == "tiktok" }
             val targetUrl = TikTokWebPolicy.searchUrl(cleanValue)
-            TikTokWebPolicy.configure(web, targetUrl)
-            web.loadUrl(targetUrl)
+            switchWebApp(app, embedded = isDashboardShowing, startUrl = targetUrl)
             onComplete?.invoke(true)
             return
         }
