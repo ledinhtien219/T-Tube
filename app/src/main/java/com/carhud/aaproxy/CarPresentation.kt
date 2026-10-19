@@ -2281,16 +2281,25 @@ class CarPresentation(
             if (isDashboardShowing) showWebFullscreen(app) else showBars()
             return
         }
+        val previousAppId = currentActiveAppId
+        val isChangingApp = previousAppId != app.id
+        val switchGeneration = appTransitions.begin(app.id)
+
+        // Cover the old page before any keyboard/chrome teardown can paint a frame.
+        if (isChangingApp || (!isUrlForApp(app, web.url) && !isDashboardShowing)) {
+            showAppSwitchShield(switchGeneration)
+        }
+
         // Any input/voice task belongs to the app that started it.
         // Switching app invalidates those tasks before the new owner is installed.
         if (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) {
             hideSearchOverlay()
+            appSwitchShield?.bringToFront()
         }
         voiceManager.cancelListening()
         pendingVoiceYoutubeQuery = null
         pendingVoiceYoutubeGeneration = -1L
 
-        val switchGeneration = appTransitions.begin(app.id)
         val retryFailedNavigation = navigationFailed
         navigationFailed = false
         pendingNavigationRecovery?.let { web.removeCallbacks(it) }
@@ -2298,12 +2307,11 @@ class CarPresentation(
         autoResumePending = false
         hideVideoQualityMenu()
         cancelSystemVoiceRequest()
-        val previousAppId = currentActiveAppId
-        val isChangingApp = previousAppId != app.id
         if (isChangingApp) {
-            showAppSwitchShield(switchGeneration)
             CarMediaManager.cancelPendingSteeringNext()
-            CarMediaManager.saveWebAppSession(previousAppId, web)
+            // Do not save the whole shared WebView here. Cross-app restore is disabled,
+            // and saveState() is expensive on the UI thread. Lifecycle shutdown still
+            // snapshots the active page when that fallback is actually needed.
         }
         // Never restore a shared WebView history when changing app ownership.
         // restoreState() can resurrect the previous app's rendered page/history
@@ -2314,9 +2322,6 @@ class CarPresentation(
         }
         val currentUrl = web.url ?: ""
         val isAlreadyLoaded = isUrlForApp(app, currentUrl)
-        if (!isChangingApp && !isAlreadyLoaded && !isDashboardShowing) {
-            showAppSwitchShield(switchGeneration)
-        }
         currentActiveAppId = app.id
         WebAppManager.setActiveAppId(context, app.id)
         CarMediaManager.switchActiveApp(app.id)
