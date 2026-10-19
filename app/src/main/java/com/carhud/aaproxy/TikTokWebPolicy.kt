@@ -10,7 +10,8 @@ import android.webkit.WebView
 /**
  * TikTok web policy.
  *
- * v15 deliberately stays close to the real desktop website. Previous builds
+ * v16 stays close to the real desktop website and throttles popup sweeps so
+ * TikTok feed mutations do not cause unnecessary layout work. Previous builds
  * rewrote feed/video layout and maintained a synthetic guest queue; that made
  * TikTok's SPA fragile and could leave a black/empty surface after search.
  *
@@ -19,7 +20,7 @@ import android.webkit.WebView
  * and hides app-only promotion/challenge overlays.
  */
 internal object TikTokWebPolicy {
-    private const val POLICY_VERSION = 15
+    private const val POLICY_VERSION = 16
 
     private const val DESKTOP_UA =
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
@@ -137,6 +138,7 @@ internal object TikTokWebPolicy {
                     var state = window.__ttubeTikTokWebOnly ||
                         (window.__ttubeTikTokWebOnly = {});
                     state.version = VERSION;
+                    state.interval = 900;
 
                     function ensureStyle() {
                         var style = document.getElementById('ttube-tiktok-web-only');
@@ -234,6 +236,14 @@ internal object TikTokWebPolicy {
                             .toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 2600);
                     }
 
+                    // textContent avoids layout work (innerText may force layout). Used for
+                    // simple buttons/links; only overlay candidates use normalizedText().
+                    function cheapText(el) {
+                        var t = (el && el.textContent) || '';
+                        if (t.length > 160) return '';
+                        return t.toLowerCase().replace(/\s+/g, ' ').trim();
+                    }
+
                     function markerText(el) {
                         if (!el || !el.getAttribute) return '';
                         return (
@@ -255,6 +265,7 @@ internal object TikTokWebPolicy {
                     }
 
                     function isAppOnlyWall(el) {
+                        if (!el || ((el.textContent || '').length > 6000)) return false;
                         var text = normalizedText(el);
                         if (!text) return false;
 
@@ -329,6 +340,7 @@ internal object TikTokWebPolicy {
 
                     function sweepAppWalls() {
                         state.pending = false;
+                        state.lastSweepAt = Date.now();
                         ensureStyle();
 
                         var candidates = Array.prototype.slice.call(
@@ -343,7 +355,8 @@ internal object TikTokWebPolicy {
                         );
 
                         document.querySelectorAll('button, a, [role="button"]').forEach(function(trigger) {
-                            var text = normalizedText(trigger);
+                            var text = cheapText(trigger);
+                            if (!text) return;
                             if (
                                 text.indexOf('open tiktok') < 0 &&
                                 text.indexOf('continue with tiktok app') < 0 &&
@@ -364,6 +377,7 @@ internal object TikTokWebPolicy {
 
                         var hidden = false;
                         candidates.forEach(function(el) {
+                            if (el.getAttribute('data-ttube-app-promo-wall') === '1') return;
                             if (!isAppOnlyWall(el)) return;
                             hidden = true;
                             el.setAttribute('data-ttube-app-promo-wall', '1');
@@ -372,17 +386,35 @@ internal object TikTokWebPolicy {
 
                         if (hidden) unlockPage();
                         fitPageWidth();
+                        // Back off when nothing needs hiding. TikTok's feed mutates often;
+                        // sweeping the full page for every mutation makes scrolling janky.
+                        state.interval = hidden
+                            ? 900
+                            : Math.min(3000, Math.round((state.interval || 900) * 1.4));
                     }
 
                     function scheduleSweep() {
                         if (state.pending) return;
                         state.pending = true;
-                        requestAnimationFrame(sweepAppWalls);
+                        var wait = Math.max(
+                            0,
+                            (state.interval || 900) - (Date.now() - (state.lastSweepAt || 0))
+                        );
+                        setTimeout(function() {
+                            requestAnimationFrame(sweepAppWalls);
+                        }, wait);
                     }
 
                     if (!state.observerInstalled) {
                         state.observerInstalled = true;
-                        state.observer = new MutationObserver(scheduleSweep);
+                        state.observer = new MutationObserver(function(mutations) {
+                            for (var i = 0; i < mutations.length; i++) {
+                                if (mutations[i].addedNodes && mutations[i].addedNodes.length) {
+                                    scheduleSweep();
+                                    return;
+                                }
+                            }
+                        });
                         state.observer.observe(document.documentElement, {
                             childList: true,
                             subtree: true
