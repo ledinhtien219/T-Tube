@@ -86,12 +86,6 @@
             android:theme="@style/Theme.CarHud" />
 
         <activity
-            android:name="com.carhud.aaproxy.ActivationActivity"
-            android:exported="false"
-            android:theme="@style/Theme.CarHud"
-            android:windowSoftInputMode="adjustResize" />
-
-        <activity
             android:name="com.carhud.aaproxy.PhoneSearchActivity"
             android:exported="false"
             android:theme="@style/Theme.CarHud.Dialog"
