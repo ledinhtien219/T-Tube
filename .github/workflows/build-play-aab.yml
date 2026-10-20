@@ -1,0 +1,112 @@
+name: Build T Tube Play AAB
+
+on:
+  push:
+    branches: [ "release/play-v1.0.75" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ttube-play-v175-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-play:
+    name: Build Play-ready AAB
+    runs-on: ubuntu-latest
+    env:
+      PLAY_UPLOAD_KEYSTORE_BASE64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+      PLAY_UPLOAD_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+      PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+      PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+      PLAY_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/ttube-play-upload.jks
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 16 SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Prepare optional Play upload key
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${PLAY_UPLOAD_KEYSTORE_BASE64:-}" ]; then
+            printf '%s' "$PLAY_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$PLAY_UPLOAD_KEYSTORE_PATH"
+            chmod 600 "$PLAY_UPLOAD_KEYSTORE_PATH"
+            echo "Play upload keystore restored."
+          else
+            echo "Play upload secrets are not configured yet; building unsigned AAB for validation."
+          fi
+
+      - name: Verify Play source policy gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'compileSdk = 36' app/build.gradle.kts
+          grep -q 'targetSdk = 36' app/build.gradle.kts
+          grep -q 'versionCode = 271' app/build.gradle.kts
+          grep -q 'versionName = "1.0.75"' app/build.gradle.kts
+          grep -q 'isDebuggable = false' app/build.gradle.kts
+          grep -q '<uses name="media" />' app/src/main/res/xml/automotive_app_desc.xml
+          ! grep -q 'CATEGORY_PROJECTION' app/src/main/AndroidManifest.xml
+          ! grep -q 'CarHudProjectionService' app/src/main/AndroidManifest.xml
+          ! grep -q 'ACCESS_SURFACE' app/src/main/AndroidManifest.xml
+          ! grep -q 'NAVIGATION_TEMPLATES' app/src/main/AndroidManifest.xml
+          test ! -f app/src/main/java/com/carhud/aaproxy/CarHudProjectionHost.kt
+
+      - name: Run JVM unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Run release lint
+        run: ./gradlew lintRelease --stacktrace
+
+      - name: Build Play App Bundle
+        run: ./gradlew bundleRelease --stacktrace
+
+      - name: Verify merged release manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="$(find app/build/intermediates/merged_manifests -name AndroidManifest.xml | head -1)"
+          test -n "$manifest"
+          echo "Merged manifest: $manifest"
+          ! grep -q 'CATEGORY_PROJECTION' "$manifest"
+          ! grep -q 'CarHudProjectionService' "$manifest"
+          grep -q 'android.media.browse.MediaBrowserService' "$manifest"
+
+      - name: Verify AAB signature when upload key is configured
+        shell: bash
+        run: |
+          set -euo pipefail
+          aab="$(find app/build/outputs/bundle/release -name '*.aab' | head -1)"
+          test -n "$aab"
+          if [ -f "$PLAY_UPLOAD_KEYSTORE_PATH" ]; then
+            jarsigner -verify -verbose -certs "$aab" >/dev/null
+            echo "Signed AAB verified."
+          else
+            echo "Unsigned validation AAB: configure Play upload secrets before Play Console upload."
+          fi
+
+      - name: Upload Play AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: TTube-v1.0.75-build271-Play-AAB
+          path: app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 14
