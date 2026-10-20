@@ -21,7 +21,7 @@ jobs:
       PLAY_UPLOAD_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
       PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
       PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
-      PLAY_UPLOAD_KEYSTORE_PATH: ${{ runner.temp }}/ttube-play-upload.jks
+      PLAY_UPLOAD_KEYSTORE_PATH: ${{ github.workspace }}/.play/ttube-play-upload.jks
 
     steps:
       - name: Checkout repository
@@ -47,6 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${PLAY_UPLOAD_KEYSTORE_BASE64:-}" ]; then
+            mkdir -p "$(dirname "$PLAY_UPLOAD_KEYSTORE_PATH")"
             printf '%s' "$PLAY_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$PLAY_UPLOAD_KEYSTORE_PATH"
             chmod 600 "$PLAY_UPLOAD_KEYSTORE_PATH"
             echo "Play upload keystore restored."
