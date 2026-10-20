@@ -432,7 +432,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        StableProjectionHost.ensureEnabled(this)
         registerFullExitReceiver()
 
         // v1.0.63 build 251: phone UI starts in Night mode on first launch.
@@ -444,18 +443,21 @@ class MainActivity : AppCompatActivity() {
                 .apply()
         }
 
-        // Reset một lần ở bản 0.9.1 để người dùng kiểm duyệt luồng kích hoạt
-        val auditKey = "audit_activation_check_v171"
-        if (!prefs.getBoolean(auditKey, false)) {
-            LicenseManager.resetLicense(this)
-            prefs.edit().putBoolean(auditKey, true).apply()
-        }
-
-        if (!LicenseManager.isLicensed(this)) {
-            val intent = Intent(this, ActivationActivity::class.java)
-            startActivity(intent)
-            finish()
-            return
+        // Play distribution is free/unlocked. The sideload/GitHub build keeps
+        // the legacy external activation path, but Play-distributed digital
+        // functionality must not depend on an external license/payment flow.
+        if (!BuildConfig.PLAY_DISTRIBUTION) {
+            val auditKey = "audit_activation_check_v171"
+            if (!prefs.getBoolean(auditKey, false)) {
+                LicenseManager.resetLicense(this)
+                prefs.edit().putBoolean(auditKey, true).apply()
+            }
+            if (!LicenseManager.isLicensed(this)) {
+                val intent = Intent(this, ActivationActivity::class.java)
+                startActivity(intent)
+                finish()
+                return
+            }
         }
 
         setContentView(R.layout.activity_main)
@@ -2643,7 +2645,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!LicenseManager.isLicensed(this)) {
+        if (!BuildConfig.PLAY_DISTRIBUTION && !LicenseManager.isLicensed(this)) {
             val intent = Intent(this, ActivationActivity::class.java)
             startActivity(intent)
             finish()
