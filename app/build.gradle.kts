@@ -51,6 +51,7 @@ android {
         release {
             isDebuggable = false
             isMinifyEnabled = false
+            buildConfigField("boolean", "PLAY_DISTRIBUTION", "true")
 
             // Google Play uses a dedicated upload key. If CI secrets are not
             // configured yet, bundleRelease still produces an unsigned AAB so
@@ -70,6 +71,7 @@ android {
             )
         }
         debug {
+            buildConfigField("boolean", "PLAY_DISTRIBUTION", "false")
             // Allow emulator checks alongside an installed APK signed by another key.
             if (providers.gradleProperty("isolatedRuntimeTest").orNull == "true") {
                 applicationIdSuffix = ".runtimetest"
