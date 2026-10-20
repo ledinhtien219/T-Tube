@@ -319,7 +319,7 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         val exitFilter = IntentFilter(CarAppShutdownManager.ACTION_FULL_EXIT)
         ContextCompat.registerReceiver(this, exitReceiver, exitFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
-        if (!LicenseManager.isLicensed(this)) {
+        if (!BuildConfig.PLAY_DISTRIBUTION && !LicenseManager.isLicensed(this)) {
             val intent = Intent(this, ActivationActivity::class.java)
             startActivity(intent)
             finish()
@@ -345,16 +345,18 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!LicenseManager.isLicensed(this)) {
+        if (!BuildConfig.PLAY_DISTRIBUTION && !LicenseManager.isLicensed(this)) {
             val intent = Intent(this, ActivationActivity::class.java)
             startActivity(intent)
             finish()
             return
         }
-        // Kiểm tra nền để đồng bộ gói mới nhất từ máy chủ Google Sheet
-        LicenseManager.checkStatus(this) { status, plan, expiry ->
-            if (status == LicenseManager.STATUS_APPROVED) {
-                // Tự động lưu và cập nhật
+        if (!BuildConfig.PLAY_DISTRIBUTION) {
+            // Sideload/GitHub distribution keeps the legacy license sync.
+            LicenseManager.checkStatus(this) { status, _, _ ->
+                if (status == LicenseManager.STATUS_APPROVED) {
+                    // Tự động lưu và cập nhật
+                }
             }
         }
     }
@@ -2226,37 +2228,54 @@ class SettingsActivity : AppCompatActivity() {
 
                 content.addView(createSeparator())
 
-                content.addView(
-                    settingCard(
-                        title = "BẢN QUYỀN T Tube",
-                        subtitle = "T Tube • Đã mở khóa đầy đủ tính năng\nMã máy: ${LicenseManager.getDeviceId(this@SettingsActivity)}",
-                        badgeText = "● ĐÃ MỞ KHÓA",
-                        onClick = {
-                            val email = LicenseManager.getLicenseEmail(this@SettingsActivity).ifEmpty { "Chưa đăng ký" }
-                            val plan = LicenseManager.getLicensePlan(this@SettingsActivity).ifEmpty { "VĨNH VIỄN" }
-                            val expiry = LicenseManager.getLicenseExpiry(this@SettingsActivity).ifEmpty { "Trọn đời" }
-                            val deviceId = LicenseManager.getDeviceId(this@SettingsActivity)
-
-                            AlertDialog.Builder(this@SettingsActivity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                                .setTitle("🔑 BẢN QUYỀN T Tube")
-                                .setMessage(
-                                    "• Mã máy: $deviceId\n" +
-                                    "• Email: $email\n" +
-                                    "• Gói: $plan\n" +
-                                    "• Hạn dùng: $expiry\n\n" +
-                                    "Trạng thái: ĐÃ MỞ KHÓA HOÀN TOÀN"
-                                )
-                                .setPositiveButton("Đóng", null)
-                                .setNeutralButton("Đăng xuất để kiểm duyệt") { _, _ ->
-                                    LicenseManager.resetLicense(this@SettingsActivity)
-                                    val intent = Intent(this@SettingsActivity, ActivationActivity::class.java)
-                                    startActivity(intent)
-                                    finish()
-                                }
-                                .show()
-                        }
+                if (BuildConfig.PLAY_DISTRIBUTION) {
+                    content.addView(
+                        settingCard(
+                            title = "PHIÊN BẢN GOOGLE PLAY",
+                            subtitle = "Đã mở khóa chức năng của bản Play • Không dùng kích hoạt hoặc thanh toán ngoài ứng dụng",
+                            badgeText = "● PLAY",
+                            onClick = {
+                                AlertDialog.Builder(this@SettingsActivity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                                    .setTitle("Google Play")
+                                    .setMessage("Bản phân phối Google Play không yêu cầu mã kích hoạt ngoài ứng dụng.")
+                                    .setPositiveButton("Đóng", null)
+                                    .show()
+                            }
+                        )
                     )
-                )
+                } else {
+                    content.addView(
+                        settingCard(
+                            title = "BẢN QUYỀN T Tube",
+                            subtitle = "T Tube • Đã mở khóa đầy đủ tính năng\nMã máy: ${LicenseManager.getDeviceId(this@SettingsActivity)}",
+                            badgeText = "● ĐÃ MỞ KHÓA",
+                            onClick = {
+                                val email = LicenseManager.getLicenseEmail(this@SettingsActivity).ifEmpty { "Chưa đăng ký" }
+                                val plan = LicenseManager.getLicensePlan(this@SettingsActivity).ifEmpty { "VĨNH VIỄN" }
+                                val expiry = LicenseManager.getLicenseExpiry(this@SettingsActivity).ifEmpty { "Trọn đời" }
+                                val deviceId = LicenseManager.getDeviceId(this@SettingsActivity)
+
+                                AlertDialog.Builder(this@SettingsActivity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                                    .setTitle("🔑 BẢN QUYỀN T Tube")
+                                    .setMessage(
+                                        "• Mã máy: $deviceId\n" +
+                                        "• Email: $email\n" +
+                                        "• Gói: $plan\n" +
+                                        "• Hạn dùng: $expiry\n\n" +
+                                        "Trạng thái: ĐÃ MỞ KHÓA HOÀN TOÀN"
+                                    )
+                                    .setPositiveButton("Đóng", null)
+                                    .setNeutralButton("Đăng xuất để kiểm duyệt") { _, _ ->
+                                        LicenseManager.resetLicense(this@SettingsActivity)
+                                        val intent = Intent(this@SettingsActivity, ActivationActivity::class.java)
+                                        startActivity(intent)
+                                        finish()
+                                    }
+                                    .show()
+                            }
+                        )
+                    )
+                }
 
                 content.addView(createSeparator())
 
