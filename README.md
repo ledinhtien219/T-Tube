@@ -8,16 +8,18 @@
 
 ## ✅ Bản Google Play trên nhánh này
 
-- **Play candidate:** `v1.0.76` / Build `272`
-- **Branch:** `release/play-v1.0.76`
+- **Play candidate:** `v1.0.78` / Build `274`
+- **Branch:** `release/play`
 - **Play Application ID:** `com.ledinhtien.ttube`
 - **GitHub stable Application ID:** `com.tcar.auto` (package riêng)
 - **Min SDK:** Android 10 / API 29
 - **Target / Compile SDK:** API 36
-- **Android Auto Play declaration:** Media-only
+- **Android Auto internal test:** full projection + media; restricted navigation permissions are not requested
 - **Release:** non-debuggable, Android App Bundle (`.aab`)
 
 > Package Google Play được tách khỏi package stable GitHub để tránh xung đột package đã tồn tại và để hai bản có thể cài song song.
+>
+> Play candidate 1.0.78 bổ sung **YouTube screen modes** ngay trong nút bánh răng: Tràn viền, Chuẩn 16:9, Phóng to/cắt viền, 4:3 và 21:9.
 
 ---
 
