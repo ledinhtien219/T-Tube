@@ -18,6 +18,78 @@
     node.className = "form-status" + (type ? " " + type : "");
   };
 
+  const releaseManifestUrl = "https://raw.githubusercontent.com/ledinhtien219/T-Tube/main/update.json";
+
+  const syncStableRelease = async () => {
+    try {
+      const response = await fetch(releaseManifestUrl, { cache: "no-store" });
+      if (!response.ok) return;
+
+      const release = await response.json();
+      if (!release || release.approved !== true || !release.versionName || !release.downloadUrl) return;
+
+      const version = String(release.versionName);
+      const build = String(release.versionCode || "");
+      const releasePage = "https://github.com/ledinhtien219/T-Tube/releases/tag/v" + encodeURIComponent(version);
+
+      document.querySelectorAll("[data-release-version]").forEach((node) => {
+        node.textContent = "v" + version;
+      });
+      document.querySelectorAll("[data-release-version-plain]").forEach((node) => {
+        node.textContent = version;
+      });
+      document.querySelectorAll("[data-release-build]").forEach((node) => {
+        node.textContent = build;
+      });
+      document.querySelectorAll("[data-release-download]").forEach((node) => {
+        node.href = release.downloadUrl;
+      });
+      document.querySelectorAll("[data-release-page]").forEach((node) => {
+        node.href = releasePage;
+      });
+
+      const badge = document.querySelector("[data-release-badge]");
+      if (badge) {
+        const dot = document.createElement("span");
+        dot.className = "live-dot";
+        badge.replaceChildren(dot, document.createTextNode(" T Tube v" + version + (build ? " · Build " + build : "")));
+      }
+
+      const changelog = document.getElementById("release-changelog");
+      if (changelog && Array.isArray(release.changelog) && release.changelog.length) {
+        const fragment = document.createDocumentFragment();
+        release.changelog.slice(0, 6).forEach((item, index) => {
+          const article = document.createElement("article");
+          article.className = "change-card is-visible";
+
+          const number = document.createElement("span");
+          number.textContent = String(index + 1).padStart(2, "0");
+
+          const text = document.createElement("p");
+          text.textContent = String(item);
+
+          article.append(number, text);
+          fragment.appendChild(article);
+        });
+        changelog.replaceChildren(fragment);
+      }
+
+      const schema = document.querySelector('script[type="application/ld+json"]');
+      if (schema) {
+        try {
+          const data = JSON.parse(schema.textContent);
+          data.softwareVersion = version;
+          data.downloadUrl = release.downloadUrl;
+          schema.textContent = JSON.stringify(data);
+        } catch (_) {}
+      }
+    } catch (_) {
+      // Keep the baked-in stable release info when GitHub/raw is temporarily unavailable.
+    }
+  };
+
+  syncStableRelease();
+
   forms.forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
