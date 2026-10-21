@@ -10,3 +10,7 @@
 captures/
 .externalNativeBuild
 .cxx
+
+*.jks
+.play/
+*Upload_Key_INFO.txt
