@@ -16,14 +16,14 @@ const mic = block.indexOf('toolButton(R.drawable.ic_bar_mic, "Giọng nói")');
 const back = block.indexOf('toolButton(R.drawable.ic_bar_back, "Quay lại")');
 const play = block.indexOf('toolButton(R.drawable.ic_bar_play_pause, "Phát / Dừng")');
 const next = block.indexOf('toolButton(R.drawable.ic_bar_next, "Tiếp theo")');
-const quality = block.indexOf('toolButton(R.drawable.ic_bar_setting, "Chất lượng")');
+const settings = block.indexOf('toolButton(R.drawable.ic_bar_setting, "Cài đặt")');
 
 assert.ok(home >= 0 && mic > home, 'Mic must appear below Home');
 assert.ok(back > mic, 'Back must appear below Mic');
 assert.ok(play > back, 'Play/Pause order incorrect');
 assert.ok(next > play, 'Next order incorrect');
-assert.ok(quality > next, 'Quality order incorrect');
+assert.ok(settings > next, 'Settings order incorrect');
 assert.match(block, /startVoiceSearch\(\)/);
 assert.match(block, /micBtn = youtubeMicButton\.getChildAt\(0\) as\? ImageView/);
 
-console.log('PASS YouTube toolbar: Home -> Voice -> Back -> Play/Pause -> Next -> Quality');
+console.log('PASS YouTube toolbar: Home -> Voice -> Back -> Play/Pause -> Next -> Settings');
