@@ -155,6 +155,17 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <!-- Refresh only the media source after an in-place update so Android Auto
+             drops any stale duplicate launcher entry left by older installs. -->
+        <receiver
+            android:name="com.carhud.aaproxy.MediaSourceUpgradeReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <service
             android:name="androidx.car.app.CarAppMetadataHolderService"
             android:enabled="false"
