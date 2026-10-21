@@ -4768,11 +4768,12 @@ class CarPresentation(
                 id = android.R.id.content
                 addView(card)
             }
+            val menuMaxHeight = dp(540).coerceAtMost((root.height - dp(24)).coerceAtLeast(dp(280)))
             overlay.addView(
                 scroll,
                 FrameLayout.LayoutParams(
                     dp(400).coerceAtMost(root.width - dp(24)),
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    menuMaxHeight,
                     Gravity.CENTER
                 ).apply {
                     topMargin = dp(12)
