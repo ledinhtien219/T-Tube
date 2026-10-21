@@ -138,13 +138,13 @@ class CarPresentation(
         @Volatile
         private var lastGlobalAutoResumeAt = 0L
 
-        val ASPECT_MODES = listOf("fill", "contain", "cover", "split", "4:3")
+        val ASPECT_MODES = listOf("fill", "contain", "cover", "4:3", "21:9")
         val ASPECT_LABELS = mapOf(
-            "fill" to "Toàn màn hình (Tràn viền 100%)",
-            "contain" to "Toàn màn hình (Chuẩn 16:9)",
-            "cover" to "Toàn màn hình (Phóng to Zoom)",
-            "split" to "Chia màn hình (Kèm danh sách kênh)",
-            "4:3" to "Tỷ lệ 4:3 (Truyền hình cổ điển)"
+            "fill" to "Tràn viền 100%",
+            "contain" to "Chuẩn 16:9",
+            "cover" to "Phóng to / Cắt viền",
+            "4:3" to "4:3 Cổ điển",
+            "21:9" to "21:9 Siêu rộng"
         )
     }
 
@@ -1672,7 +1672,7 @@ class CarPresentation(
 
             addView(toolButton(R.drawable.ic_bar_play_pause, "Phát / Dừng") { togglePlayPause() })
             addView(toolButton(R.drawable.ic_bar_next, "Tiếp theo") { YouTubePlayerHelper.playNext(web) })
-            addView(toolButton(R.drawable.ic_bar_setting, "Chất lượng") {
+            addView(toolButton(R.drawable.ic_bar_setting, "Cài đặt") {
                 showVideoQualityMenu()
             })
         }
@@ -4591,56 +4591,202 @@ class CarPresentation(
         val page = web.url
         YouTubePlayerHelper.videoQualityOptions(web) { options ->
             if (currentActiveAppId != "youtube" || web.url != page || videoQualityOverlay != null) return@videoQualityOptions
-            val names = mapOf("highres" to "4K+", "hd2160" to "2160p (4K)", "hd1440" to "1440p", "hd1080" to "1080p", "hd720" to "720p", "large" to "480p", "medium" to "360p", "small" to "240p", "tiny" to "144p", "auto" to "Tự động")
+
+            val qualityNames = mapOf(
+                "highres" to "4K+",
+                "hd2160" to "2160p (4K)",
+                "hd1440" to "1440p",
+                "hd1080" to "1080p",
+                "hd720" to "720p",
+                "large" to "480p",
+                "medium" to "360p",
+                "small" to "240p",
+                "tiny" to "144p",
+                "auto" to "Tự động"
+            )
             val levels = options?.optJSONArray("levels")
             val pageToken = options?.optString("page").orEmpty()
-            val ids = if (levels != null && pageToken.isNotBlank()) (0 until levels.length()).map { levels.optString(it) }.filter { names.containsKey(it) }.distinct() else emptyList()
-            if (ids.isEmpty()) {
-                Toast.makeText(context, "Chưa lấy được chất lượng. Hãy mở một video YouTube rồi thử lại.", Toast.LENGTH_LONG).show()
-                return@videoQualityOptions
+            val qualityIds = if (levels != null && pageToken.isNotBlank()) {
+                (0 until levels.length())
+                    .map { levels.optString(it) }
+                    .filter { qualityNames.containsKey(it) }
+                    .distinct()
+            } else {
+                emptyList()
             }
+
+            val currentAspect = prefs.getString("car_video_aspect_mode", "fill") ?: "fill"
+            val aspectDescriptions = mapOf(
+                "fill" to "↔ Tràn viền",
+                "contain" to "▣ Chuẩn 16:9",
+                "cover" to "⤢ Phóng to",
+                "4:3" to "4:3 Cổ điển",
+                "21:9" to "21:9 Siêu rộng"
+            )
+
             val overlay = FrameLayout(context).apply {
                 setBackgroundColor(Color.parseColor("#CC080E17"))
                 elevation = dp(210).toFloat()
                 isClickable = true
                 setOnClickListener { hideVideoQualityMenu() }
             }
+
             val card = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(18), dp(12), dp(18), dp(12))
                 background = rounded(Color.parseColor("#142030"), 14f, Color.parseColor("#38BDF8"), 1)
                 isClickable = true
                 addView(TextView(context).apply {
-                    text = "Chất lượng video"
-                    textSize = 20f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD
-                    setPadding(0, 0, 0, dp(8))
+                    text = "Cài đặt YouTube"
+                    textSize = 20f
+                    setTextColor(Color.WHITE)
+                    typeface = Typeface.DEFAULT_BOLD
+                    setPadding(0, 0, 0, dp(4))
+                })
+                addView(TextView(context).apply {
+                    text = "Tùy chỉnh màn hình và chất lượng video"
+                    textSize = 11.5f
+                    setTextColor(Color.parseColor("#94A3B8"))
+                    setPadding(0, 0, 0, dp(10))
                 })
             }
-            fun button(title: String, click: () -> Unit) = TextView(context).apply {
-                text = title; textSize = 16f; setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER; minimumHeight = dp(46)
-                background = rounded(Color.parseColor("#24384B"), 8f, Color.parseColor("#334155"), 1)
+
+            fun sectionTitle(title: String): TextView = TextView(context).apply {
+                text = title
+                textSize = 13f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.parseColor("#7DD3FC"))
+                setPadding(dp(3), dp(7), dp(3), dp(4))
+            }
+
+            fun button(title: String, selected: Boolean = false, click: () -> Unit) = TextView(context).apply {
+                text = (if (selected) "✓ " else "") + title
+                textSize = 14f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                minimumHeight = dp(46)
+                background = rounded(
+                    if (selected) Color.parseColor("#155E75") else Color.parseColor("#24384B"),
+                    8f,
+                    if (selected) Color.parseColor("#22D3EE") else Color.parseColor("#334155"),
+                    if (selected) 2 else 1
+                )
                 setOnClickListener { click() }
             }
-            ids.chunked(2).forEach { pair ->
+
+            card.addView(sectionTitle("Màn hình"))
+
+            ASPECT_MODES.chunked(2).forEach { pair ->
                 val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-                pair.forEach { id ->
-                    row.addView(button((if (options?.optString("current") == id) "✓ " else "") + names.getValue(id)) {
-                        YouTubePlayerHelper.selectVideoQuality(web, id, pageToken) { accepted ->
+                pair.forEach { mode ->
+                    row.addView(
+                        button(
+                            aspectDescriptions[mode] ?: (ASPECT_LABELS[mode] ?: mode),
+                            selected = currentAspect == mode
+                        ) {
+                            applyVideoAspectRatio(mode)
                             hideVideoQualityMenu()
-                            if (!accepted) Toast.makeText(context, "Video đã thay đổi. Mở lại bảng chất lượng.", Toast.LENGTH_LONG).show()
+                        },
+                        LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+                            setMargins(dp(3), dp(3), dp(3), dp(3))
                         }
-                    }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
+                    )
+                }
+                if (pair.size == 1) {
+                    row.addView(
+                        View(context),
+                        LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+                            setMargins(dp(3), dp(3), dp(3), dp(3))
+                        }
+                    )
                 }
                 card.addView(row)
             }
-            card.addView(button("Đóng") { hideVideoQualityMenu() }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46)).apply { topMargin = dp(8) })
-            val scroll = ScrollView(context).apply { id = android.R.id.content; addView(card) }
-            overlay.addView(scroll, FrameLayout.LayoutParams(dp(380).coerceAtMost(root.width - dp(24)), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER).apply {
-                topMargin = dp(12); bottomMargin = dp(12)
+
+            card.addView(TextView(context).apply {
+                text = "Tràn viền có thể kéo giãn hình • Phóng to sẽ cắt bớt mép video"
+                textSize = 10.5f
+                setTextColor(Color.parseColor("#94A3B8"))
+                setPadding(dp(3), dp(3), dp(3), dp(7))
             })
+
+            card.addView(sectionTitle("Chất lượng video"))
+
+            if (qualityIds.isEmpty()) {
+                card.addView(TextView(context).apply {
+                    text = "Mở một video YouTube để chọn độ phân giải. Phần tùy chỉnh màn hình vẫn dùng được."
+                    textSize = 12f
+                    setTextColor(Color.parseColor("#CBD5E1"))
+                    setPadding(dp(6), dp(8), dp(6), dp(10))
+                    gravity = Gravity.CENTER
+                })
+            } else {
+                qualityIds.chunked(2).forEach { pair ->
+                    val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+                    pair.forEach { id ->
+                        row.addView(
+                            button(
+                                qualityNames.getValue(id),
+                                selected = options?.optString("current") == id
+                            ) {
+                                YouTubePlayerHelper.selectVideoQuality(web, id, pageToken) { accepted ->
+                                    hideVideoQualityMenu()
+                                    if (!accepted) {
+                                        Toast.makeText(
+                                            context,
+                                            "Video đã thay đổi. Mở lại Cài đặt YouTube.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            },
+                            LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+                                setMargins(dp(3), dp(3), dp(3), dp(3))
+                            }
+                        )
+                    }
+                    if (pair.size == 1) {
+                        row.addView(
+                            View(context),
+                            LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+                                setMargins(dp(3), dp(3), dp(3), dp(3))
+                            }
+                        )
+                    }
+                    card.addView(row)
+                }
+            }
+
+            card.addView(
+                button("Đóng") { hideVideoQualityMenu() },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46)).apply {
+                    topMargin = dp(8)
+                }
+            )
+
+            val scroll = ScrollView(context).apply {
+                id = android.R.id.content
+                addView(card)
+            }
+            overlay.addView(
+                scroll,
+                FrameLayout.LayoutParams(
+                    dp(400).coerceAtMost(root.width - dp(24)),
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.CENTER
+                ).apply {
+                    topMargin = dp(12)
+                    bottomMargin = dp(12)
+                }
+            )
             videoQualityOverlay = overlay
-            root.addView(overlay, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            root.addView(
+                overlay,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
             overlay.bringToFront()
         }
     }
