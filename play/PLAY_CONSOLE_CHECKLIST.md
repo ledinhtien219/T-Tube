@@ -12,14 +12,16 @@
 - Play Console package field: use exactly `com.ledinhtien.ttube`
 - This Play package is intentionally separate from the GitHub stable package `com.tcar.auto`.
 
-## Android Auto declaration
-The Play build declares **Media only**:
-```xml
-<automotiveApp>
-    <uses name="media" />
-</automotiveApp>
-```
-The private projection host, CATEGORY_PROJECTION, ACCESS_SURFACE and NAVIGATION_TEMPLATES are removed from the Play branch.
+## Android Auto declaration — INTERNAL TEST FULL BUILD
+This internal-test build restores the full Android Auto host used by the previous T Tube build:
+- MediaBrowser/MediaSession
+- private projection host (`CarHudProjectionService`)
+- `CATEGORY_PROJECTION`
+- `ACCESS_SURFACE`
+- `NAVIGATION_TEMPLATES`
+- dashboard / WebView / HUD projection path
+
+This build is intended for **Internal testing**. Before Production submission, re-check current Google Play / Android Auto policy because the private projection path is not the same as a conventional Play-approved media-only app.
 
 ## App access
 Select **All functionality is available without special access** for the Play build.
@@ -46,7 +48,7 @@ Use the published public policy URL:\n`https://github.com/ledinhtien219/T-Tube/b
 3. Production only after Play Console grants production access
 
 ## Release
-Upload the signed bundle `ttube-1.0.76-272-play.aab`.
+Upload the signed bundle `TTube_v1.0.76_build272_FullAA_Internal_signed.aab`.
 Do not upload the GitHub/full APK to Play Console.
 
 
