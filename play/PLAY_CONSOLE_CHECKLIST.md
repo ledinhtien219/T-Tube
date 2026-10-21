@@ -3,8 +3,8 @@
 ## Build identity
 - App name: T Tube
 - Package: `com.ledinhtien.ttube`
-- Version: `1.0.76`
-- Version code: `272`
+- Version: `1.0.77`
+- Version code: `273`
 - minSdk: 29
 - targetSdk / compileSdk: 36
 - Artifact: Android App Bundle (`.aab`)
@@ -17,9 +17,8 @@ This internal-test build restores the full Android Auto host used by the previou
 - MediaBrowser/MediaSession
 - private projection host (`CarHudProjectionService`)
 - `CATEGORY_PROJECTION`
-- `ACCESS_SURFACE`
-- `NAVIGATION_TEMPLATES`
 - dashboard / WebView / HUD projection path
+- does **not** request `androidx.car.app.ACCESS_SURFACE` or `androidx.car.app.NAVIGATION_TEMPLATES` because Google Play restricts those to navigation apps
 
 This build is intended for **Internal testing**. Before Production submission, re-check current Google Play / Android Auto policy because the private projection path is not the same as a conventional Play-approved media-only app.
 
@@ -48,7 +47,7 @@ Use the published public policy URL:\n`https://github.com/ledinhtien219/T-Tube/b
 3. Production only after Play Console grants production access
 
 ## Release
-Upload the signed bundle `TTube_v1.0.76_build272_FullAA_Internal_signed.aab`.
+Upload the signed bundle `TTube_v1.0.77_build273_FullAA_Internal_signed.aab`.
 Do not upload the GitHub/full APK to Play Console.
 
 
