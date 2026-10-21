@@ -13,9 +13,6 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
 
-    <uses-permission android:name="androidx.car.app.ACCESS_SURFACE"/>
-    <uses-permission android:name="androidx.car.app.NAVIGATION_TEMPLATES"/>
-
     <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
 
