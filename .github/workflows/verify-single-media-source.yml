@@ -1,0 +1,47 @@
+name: Verify single Android Auto media source
+
+on:
+  push:
+    branches:
+      - fix/single-android-auto-media-source
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v3
+
+      - name: Run static regression tests
+        shell: bash
+        run: |
+          set -e
+          for f in tests/*.cjs; do
+            echo "RUN $f"
+            node "$f"
+          done
+
+      - name: Compile and run JVM tests
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest processDebugMainManifest --stacktrace
+
+      - name: Assert one merged MediaBrowserService
+        shell: bash
+        run: |
+          merged="app/build/intermediates/merged_manifest/debug/processDebugMainManifest/AndroidManifest.xml"
+          test -f "$merged"
+          count=$(grep -c 'android.media.browse.MediaBrowserService' "$merged")
+          echo "Merged MediaBrowserService action count: $count"
+          test "$count" -eq 1
+          grep -q 'com.carhud.aaproxy.CarHudProjectionService' "$merged"
+          grep -q 'com.carhud.aaproxy.MediaSourceUpgradeReceiver' "$merged"
