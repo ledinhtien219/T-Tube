@@ -3,8 +3,8 @@
 ## Build identity
 - App name: T Tube
 - Package: `com.ledinhtien.ttube`
-- Version: `1.0.77`
-- Version code: `273`
+- Version: `1.0.78`
+- Version code: `274`
 - minSdk: 29
 - targetSdk / compileSdk: 36
 - Artifact: Android App Bundle (`.aab`)
@@ -21,6 +21,11 @@ This internal-test build restores the full Android Auto host used by the previou
 - does **not** request `androidx.car.app.ACCESS_SURFACE` or `androidx.car.app.NAVIGATION_TEMPLATES` because Google Play restricts those to navigation apps
 
 This build is intended for **Internal testing**. Before Production submission, re-check current Google Play / Android Auto policy because the private projection path is not the same as a conventional Play-approved media-only app.
+
+## 1.0.78 internal-test change
+- YouTube gear menu now includes screen modes: fill, 16:9 contain, cover/crop, 4:3 and 21:9.
+- Selected screen mode is persisted and restored on later YouTube playback.
+- Video quality selection remains in the same gear menu.
 
 ## App access
 Select **All functionality is available without special access** for the Play build.
@@ -47,7 +52,7 @@ Use the published public policy URL:\n`https://github.com/ledinhtien219/T-Tube/b
 3. Production only after Play Console grants production access
 
 ## Release
-Upload the signed bundle `TTube_v1.0.77_build273_FullAA_Internal_signed.aab`.
+Upload the signed bundle `TTube_v1.0.78_build274_FullAA_Internal_signed.aab`.
 Do not upload the GitHub/full APK to Play Console.
 
 
