@@ -1,0 +1,52 @@
+name: Diagnose Android Auto media manifest
+
+on:
+  push:
+    branches:
+      - diagnostic/media-duplicate-manifest
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v3
+
+      - name: Build merged debug manifest
+        run: |
+          chmod +x gradlew
+          ./gradlew processDebugMainManifest --stacktrace
+
+      - name: Inspect Android Auto registrations
+        shell: bash
+        run: |
+          echo "=== SOURCE MANIFEST ==="
+          grep -n -E "MediaBrowserService|T Tube Media|com.google.android.gms.car.application|automotive_app_desc|automotive_media_desc|CATEGORY_PROJECTION" app/src/main/AndroidManifest.xml || true
+          echo
+          echo "=== MERGED MANIFEST CANDIDATES ==="
+          find app/build -type f -name AndroidManifest.xml -print
+          echo
+          for f in $(find app/build -type f -name AndroidManifest.xml); do
+            echo "----- $f -----"
+            grep -n -E "MediaBrowserService|T Tube Media|com.google.android.gms.car.application|automotive_app_desc|automotive_media_desc|CATEGORY_PROJECTION" "$f" || true
+          done
+
+      - name: Upload merged manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: merged-manifest
+          path: |
+            app/build/intermediates/merged_manifests/**
+            app/build/intermediates/packaged_manifests/**
+          if-no-files-found: warn
+          retention-days: 1
