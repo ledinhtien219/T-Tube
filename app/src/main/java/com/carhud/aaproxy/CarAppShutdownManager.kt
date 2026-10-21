@@ -49,8 +49,13 @@ object CarAppShutdownManager {
                 Log.e(TAG, "Error stopping background tasks", e)
             }
 
-            // 3. The Play build has no private projection service. Only the
-            // MediaBrowser/MediaSession stack needs an explicit shutdown here.
+            // 3. Stop projection + media services so no foreground/background
+            // component can restart playback while the phone task is closing.
+            try {
+                context.stopService(Intent(context, CarHudProjectionService::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Error stopping CarHudProjectionService", e)
+            }
             try {
                 // Release MediaSession + foreground notification synchronously
                 // before process death so OEM SystemUI cannot keep stale media
