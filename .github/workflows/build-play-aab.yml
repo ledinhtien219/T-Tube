@@ -69,11 +69,15 @@ jobs:
           grep -q 'versionName = "1.0.76"' app/build.gradle.kts
           grep -q 'isDebuggable = false' app/build.gradle.kts
           grep -q '<uses name="media" />' app/src/main/res/xml/automotive_app_desc.xml
-          ! grep -q 'CATEGORY_PROJECTION' app/src/main/AndroidManifest.xml
-          ! grep -q 'CarHudProjectionService' app/src/main/AndroidManifest.xml
-          ! grep -q 'ACCESS_SURFACE' app/src/main/AndroidManifest.xml
-          ! grep -q 'NAVIGATION_TEMPLATES' app/src/main/AndroidManifest.xml
-          test ! -f app/src/main/java/com/carhud/aaproxy/CarHudProjectionHost.kt
+          grep -q 'name="service"' app/src/main/res/xml/automotive_app_desc.xml
+          grep -q 'name="projection"' app/src/main/res/xml/automotive_app_desc.xml
+          grep -q 'CATEGORY_PROJECTION' app/src/main/AndroidManifest.xml
+          grep -q 'CarHudProjectionService' app/src/main/AndroidManifest.xml
+          grep -q 'ACCESS_SURFACE' app/src/main/AndroidManifest.xml
+          grep -q 'NAVIGATION_TEMPLATES' app/src/main/AndroidManifest.xml
+          grep -q 'implementation(files("libs/aauto.aar"))' app/build.gradle.kts
+          test -f app/src/main/java/com/carhud/aaproxy/CarHudProjectionHost.kt
+          test -f app/src/main/java/com/carhud/aaproxy/StableProjectionHost.kt
 
       - name: Run JVM unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
@@ -91,8 +95,8 @@ jobs:
           manifest="$(find app/build/intermediates/merged_manifests -name AndroidManifest.xml | head -1)"
           test -n "$manifest"
           echo "Merged manifest: $manifest"
-          ! grep -q 'CATEGORY_PROJECTION' "$manifest"
-          ! grep -q 'CarHudProjectionService' "$manifest"
+          grep -q 'CATEGORY_PROJECTION' "$manifest"
+          grep -q 'CarHudProjectionService' "$manifest"
           grep -q 'android.media.browse.MediaBrowserService' "$manifest"
 
       - name: Verify AAB signature when upload key is configured
@@ -111,7 +115,7 @@ jobs:
       - name: Upload Play AAB
         uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.0.76-build272-com.ledinhtien.ttube-Play-AAB
+          name: TTube-v1.0.76-build272-com.ledinhtien.ttube-Full-AA-Internal-AAB
           path: app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 14
