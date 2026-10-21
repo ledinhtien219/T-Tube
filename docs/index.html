@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070a0f">
+  <meta name="description" content="T Tube - dashboard đa phương tiện dành cho Android Auto với YouTube, IPTV, WebApp, điều khiển giọng nói và HUD Waze/Vietmap.">
+  <meta property="og:title" content="T Tube — Biến màn hình xe thành không gian giải trí thông minh">
+  <meta property="og:description" content="YouTube, IPTV, WebApp, giọng nói và HUD Waze/Vietmap trong một dashboard tối ưu cho Android Auto.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://raw.githubusercontent.com/ledinhtien219/T-Tube/main/docs/images/ttube_aa_dashboard.jpg">
+  <title>T Tube — Android Auto Multimedia Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Inter:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="T Tube - Trang chủ">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 48 48" role="img">
+          <path d="M12 13h24a7 7 0 0 1 7 7v8a7 7 0 0 1-7 7H12a7 7 0 0 1-7-7v-8a7 7 0 0 1 7-7Z" fill="none" stroke="currentColor" stroke-width="3"/>
+          <path d="m21 19 9 5-9 5V19Z" fill="currentColor"/>
+        </svg>
+      </span>
+      <span>T Tube</span>
+    </a>
+
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Mở menu">
+      <span></span><span></span><span></span>
+    </button>
+
+    <nav class="site-nav" id="site-nav" aria-label="Điều hướng chính">
+      <a href="#features">Tính năng</a>
+      <a href="#showcase">Giao diện</a>
+      <a href="#release">Phiên bản</a>
+      <a class="nav-cta" href="#early-access">Nhận cập nhật</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero section-shell">
+      <div class="hero-copy reveal">
+        <div class="eyebrow"><span class="live-dot"></span> T Tube v1.0.74 · Build 269</div>
+        <h1>Màn hình xe.<br><span>Thông minh hơn.</span></h1>
+        <p class="hero-lead">
+          T Tube đưa YouTube, IPTV, trình duyệt WebApp, điều khiển giọng nói và HUD Waze/Vietmap
+          vào một dashboard được tối ưu riêng cho Android Auto.
+        </p>
+
+        <form class="signup-form hero-form" data-source="hero">
+          <label class="sr-only" for="hero-email">Email của bạn</label>
+          <div class="input-wrap">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 7l8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <input id="hero-email" name="email" type="email" autocomplete="email" placeholder="Email để nhận bản mới..." required>
+            <button type="submit">Đăng ký <span aria-hidden="true">→</span></button>
+          </div>
+          <label class="consent">
+            <input type="checkbox" name="consent" required>
+            <span>Tôi đồng ý nhận thông tin về bản cập nhật T Tube. Có thể hủy bất cứ lúc nào.</span>
+          </label>
+          <p class="form-status" role="status" aria-live="polite"></p>
+        </form>
+
+        <div class="hero-actions">
+          <a class="ghost-link" href="https://github.com/ledinhtien219/T-Tube/releases/tag/v1.0.74" target="_blank" rel="noreferrer">
+            Tải bản stable
+            <span aria-hidden="true">↗</span>
+          </a>
+          <a class="ghost-link" href="https://github.com/ledinhtien219/T-Tube" target="_blank" rel="noreferrer">
+            Xem GitHub
+            <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="hero-visual reveal" aria-label="Ảnh giao diện T Tube trên Android Auto">
+        <div class="visual-glow"></div>
+        <div class="screen-frame">
+          <div class="screen-topbar">
+            <span class="screen-dot"></span>
+            <span>T TUBE / DRIVE MODE</span>
+            <span class="screen-status">CONNECTED</span>
+          </div>
+          <img src="images/ttube_aa_dashboard.jpg" alt="Dashboard T Tube v1.0.74 trên màn hình Android Auto">
+        </div>
+        <div class="floating-chip chip-youtube">▶ YouTube Pro</div>
+        <div class="floating-chip chip-hud">◎ HUD realtime</div>
+        <div class="floating-chip chip-voice">⌁ Voice search</div>
+      </div>
+    </section>
+
+    <section class="quick-stats section-shell reveal" aria-label="Thông tin nhanh">
+      <div><strong>Android 10+</strong><span>Min SDK 29</span></div>
+      <div><strong>5 trong 1</strong><span>Dashboard đa phương tiện</span></div>
+      <div><strong>Tiếng Việt</strong><span>Tìm kiếm giọng nói</span></div>
+      <div><strong>OTA Stable</strong><span>Cập nhật có kiểm soát</span></div>
+    </section>
+
+    <section class="feature-section section-shell" id="features">
+      <div class="section-heading reveal">
+        <p class="kicker">Một dashboard. Nhiều trải nghiệm.</p>
+        <h2>Tập trung vào những gì bạn cần khi ở trên xe.</h2>
+        <p>Tối ưu để chuyển app nhanh, điều khiển thuận tay và hạn chế xung đột giữa các nguồn media.</p>
+      </div>
+
+      <div class="feature-grid">
+        <article class="feature-card reveal">
+          <span class="feature-icon">▶</span>
+          <h3>YouTube trên Android Auto</h3>
+          <p>Tìm kiếm bằng bàn phím hoặc giọng nói, điều khiển phát/dừng, tiếp theo, seek và chọn chất lượng ngay trên màn hình xe.</p>
+          <span class="feature-tag">SponsorBlock</span>
+        </article>
+        <article class="feature-card reveal">
+          <span class="feature-icon">▦</span>
+          <h3>IPTV / M3U / HLS</h3>
+          <p>Mở danh sách kênh, chọn nhanh từ dashboard, tìm kênh bằng giọng nói và dùng local player riêng để giữ trải nghiệm ổn định.</p>
+          <span class="feature-tag">Local player</span>
+        </article>
+        <article class="feature-card reveal">
+          <span class="feature-icon">◎</span>
+          <h3>Waze / Vietmap HUD</h3>
+          <p>Nhận cảnh báo giao thông realtime, ưu tiên nguồn dữ liệu thông minh và hiển thị HUD gọn gàng trong lúc lái.</p>
+          <span class="feature-tag">Realtime alerts</span>
+        </article>
+        <article class="feature-card reveal">
+          <span class="feature-icon">⌁</span>
+          <h3>Giọng nói tiếng Việt</h3>
+          <p>Tìm YouTube, mở kênh IPTV và thao tác theo đúng app đang active, giảm tình trạng lệnh cũ chạy nhầm sau khi chuyển màn hình.</p>
+          <span class="feature-tag">Voice aware</span>
+        </article>
+        <article class="feature-card reveal">
+          <span class="feature-icon">↗</span>
+          <h3>WebApp & trình duyệt</h3>
+          <p>Mở WebApp tùy chỉnh, thêm URL mới và dùng Desktop User-Agent cho những dịch vụ cần giao diện máy tính.</p>
+          <span class="feature-tag">Custom URLs</span>
+        </article>
+        <article class="feature-card reveal">
+          <span class="feature-icon">◫</span>
+          <h3>Dashboard buồng lái</h3>
+          <p>Đồng hồ, ngày âm/dương, thời tiết, wallpaper, mini player và app ghim — gom vào một không gian trực quan, dễ nhìn.</p>
+          <span class="feature-tag">Drive focused</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="showcase section-shell" id="showcase">
+      <div class="showcase-copy reveal">
+        <p class="kicker">Thiết kế cho màn hình xe</p>
+        <h2>Thông tin vừa đủ. Điều khiển đúng chỗ.</h2>
+        <p>
+          T Tube được tinh chỉnh để dashboard dễ đọc từ xa, app ghim không chồng lấn và các phiên tìm kiếm,
+          media hay giọng nói luôn bám đúng ngữ cảnh đang sử dụng.
+        </p>
+        <ul class="check-list">
+          <li>Chuyển app không lẫn trạng thái WebView/media.</li>
+          <li>Toolbar phản hồi ổn định khi chạm màn hình.</li>
+          <li>Giảm tranh audio với ứng dụng nghe nhạc khác.</li>
+          <li>Giảm tải wallpaper/video khi bị màn hình khác che.</li>
+        </ul>
+      </div>
+
+      <div class="showcase-stack reveal">
+        <figure class="showcase-main">
+          <img src="images/ttube_aa_dashboard.jpg" alt="Dashboard T Tube với đồng hồ, tiện ích và ứng dụng">
+          <figcaption>Android Auto Dashboard</figcaption>
+        </figure>
+        <figure class="showcase-phone">
+          <img src="images/ttube_phone_settings.jpg" alt="Cài đặt ứng dụng T Tube trên điện thoại">
+          <figcaption>Phone settings</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="release-section section-shell" id="release">
+      <div class="release-card reveal">
+        <div class="release-copy">
+          <p class="kicker">Stable release</p>
+          <h2>v1.0.74 tập trung vào độ ổn định thực tế.</h2>
+          <p>
+            Phiên bản hiện tại cải thiện app switching, tìm kiếm nhập tay/giọng nói, toolbar,
+            audio coexistence và hiệu năng khi chạy lâu trên Android Auto.
+          </p>
+          <div class="release-meta">
+            <span><b>Version</b> 1.0.74</span>
+            <span><b>Build</b> 269</span>
+            <span><b>Target</b> API 35</span>
+          </div>
+        </div>
+        <a class="download-button" href="https://github.com/ledinhtien219/T-Tube/releases/download/v1.0.74/TTube_v1.0.74_debug.apk">
+          <span class="download-icon">↓</span>
+          <span><small>Stable APK</small>Tải T Tube v1.0.74</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="early-access section-shell" id="early-access">
+      <div class="signup-panel reveal">
+        <div>
+          <p class="kicker">Theo dõi T Tube</p>
+          <h2>Nhận bản cập nhật mới ngay khi phát hành.</h2>
+          <p>Chỉ những thông tin quan trọng về phiên bản, tính năng và thay đổi đáng chú ý.</p>
+        </div>
+
+        <form class="signup-form" data-source="footer">
+          <label class="sr-only" for="footer-email">Email của bạn</label>
+          <div class="input-wrap">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 7l8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <input id="footer-email" name="email" type="email" autocomplete="email" placeholder="ban@example.com" required>
+            <button type="submit">Nhận cập nhật</button>
+          </div>
+          <label class="consent">
+            <input type="checkbox" name="consent" required>
+            <span>Tôi đồng ý nhận email cập nhật về T Tube.</span>
+          </label>
+          <p class="form-status" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer section-shell">
+    <div class="footer-brand">
+      <span class="brand-mark small" aria-hidden="true">
+        <svg viewBox="0 0 48 48"><path d="M12 13h24a7 7 0 0 1 7 7v8a7 7 0 0 1-7 7H12a7 7 0 0 1-7-7v-8a7 7 0 0 1 7-7Z" fill="none" stroke="currentColor" stroke-width="3"/><path d="m21 19 9 5-9 5V19Z" fill="currentColor"/></svg>
+      </span>
+      <div><strong>T Tube</strong><span>Android Auto Multimedia Dashboard</span></div>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/ledinhtien219/T-Tube" target="_blank" rel="noreferrer">GitHub</a>
+      <a href="https://github.com/ledinhtien219/T-Tube/releases" target="_blank" rel="noreferrer">Releases</a>
+      <a href="https://github.com/ledinhtien219/T-Tube/blob/main/PRIVACY_POLICY.md" target="_blank" rel="noreferrer">Quyền riêng tư</a>
+    </div>
+    <p class="footer-note">© 2026 T Tube. Thiết kế cho hệ sinh thái Android / Android Auto.</p>
+  </footer>
+</body>
+</html>

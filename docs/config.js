@@ -1,0 +1,3 @@
+window.TTUBE_CONFIG = {
+  emailApiUrl: "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL"
+};
