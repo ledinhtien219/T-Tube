@@ -1,6 +1,5 @@
 package com.carhud.aaproxy
 
-import com.carhud.app.BuildConfig
 import com.carhud.app.R
 import android.app.Notification
 import android.app.NotificationChannel
@@ -61,7 +60,7 @@ class CarMediaBrowserService : MediaBrowserServiceCompat() {
     var mediaSession: MediaSessionCompat? = null
         private set
 
-    private var currentTitle = "T Tube Audio"
+    private var currentTitle = "YouTube Music"
     private var currentArtist = "T Tube"
     private var isPlayingState = false
     private var logoBitmap: Bitmap? = null
@@ -537,7 +536,7 @@ class CarMediaBrowserService : MediaBrowserServiceCompat() {
                 "CARHUD YouTube Media",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Phát và điều khiển nội dung âm thanh trên Android Auto"
+                description = "Phát nhạc YouTube chạy ngầm trên Android Auto"
                 setShowBadge(false)
             }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -574,14 +573,6 @@ class CarMediaBrowserService : MediaBrowserServiceCompat() {
             }
             .build()
         items.add(MediaBrowserCompat.MediaItem(descNowPlaying, MediaBrowserCompat.MediaItem.FLAG_PLAYABLE))
-
-        if (BuildConfig.PLAY_DISTRIBUTION) {
-            // Google Play Android Auto distribution exposes a conventional media
-            // browse item only. Transport actions stay on MediaSession controls
-            // instead of masquerading as playable catalog entries.
-            result.sendResult(items)
-            return
-        }
 
         // 2. Next track
         val descNext = MediaDescriptionCompat.Builder()
