@@ -8,7 +8,7 @@
 
 ## ✅ Bản Google Play trên nhánh này
 
-- **Play candidate:** `v1.0.78` / Build `274`
+- **Play candidate:** `v1.0.79` / Build `275`
 - **Branch:** `release/play`
 - **Play Application ID:** `com.ledinhtien.ttube`
 - **GitHub stable Application ID:** `com.tcar.auto` (package riêng)
@@ -19,7 +19,7 @@
 
 > Package Google Play được tách khỏi package stable GitHub để tránh xung đột package đã tồn tại và để hai bản có thể cài song song.
 >
-> Play candidate 1.0.78 bổ sung **YouTube screen modes** ngay trong nút bánh răng: Tràn viền, Chuẩn 16:9, Phóng to/cắt viền, 4:3 và 21:9.
+> Play candidate 1.0.79 giữ **YouTube screen modes** ngay trong nút bánh răng: Tràn viền, Chuẩn 16:9, Phóng to/cắt viền, 4:3 và 21:9.
 
 ---
 
