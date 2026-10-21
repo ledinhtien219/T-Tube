@@ -95,11 +95,21 @@ jobs:
           test -f app/src/main/java/com/carhud/aaproxy/CarHudProjectionHost.kt
           test -f app/src/main/java/com/carhud/aaproxy/StableProjectionHost.kt
 
-      - name: Run static regression tests
+      - name: Run Play static regression tests
         shell: bash
         run: |
           set -euo pipefail
-          for f in tests/*.cjs; do
+          tests=(
+            tests/app-switching.test.cjs
+            tests/iptv-aspect.test.cjs
+            tests/projection-viewport.test.cjs
+            tests/youtube-quality.test.cjs
+            tests/youtube-screen-settings.test.cjs
+            tests/youtube-search-routing.test.cjs
+            tests/youtube-theme.test.cjs
+            tests/youtube-voice-toolbar.test.cjs
+          )
+          for f in "${tests[@]}"; do
             echo "==> $f"
             node "$f"
           done
