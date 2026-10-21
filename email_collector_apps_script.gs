@@ -1,14 +1,18 @@
 /**
  * T Tube email collector
  *
+ * Google Sheet đích:
+ * - Spreadsheet ID được cố định cho file T Tube hiện có.
+ * - Backend chỉ tạo/ghi vào tab riêng "T Tube Emails".
+ *
  * Script Properties bắt buộc:
- * - SPREADSHEET_ID: ID của Google Sheet lưu email
  * - ADMIN_TOKEN: chuỗi bí mật dài, chỉ chủ dự án biết
  *
  * Deploy: Web app -> Execute as Me -> Who has access: Anyone
  */
 
-const TTUBE_SHEET_NAME = 'Emails';
+const TTUBE_SPREADSHEET_ID = '14vfUJwL33kXJ7ck6mJpT2Pnstp1FeR729UJQ0ktpaco';
+const TTUBE_SHEET_NAME = 'T Tube Emails';
 const TTUBE_MAX_EXPORT_ROWS = 5000;
 
 function doPost(e) {
@@ -83,14 +87,7 @@ function doGet(e) {
 }
 
 function getSheet_() {
-  const props = PropertiesService.getScriptProperties();
-  const spreadsheetId = String(props.getProperty('SPREADSHEET_ID') || '').trim();
-
-  if (!spreadsheetId) {
-    throw new Error('Missing SPREADSHEET_ID script property');
-  }
-
-  const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+  const spreadsheet = SpreadsheetApp.openById(TTUBE_SPREADSHEET_ID);
   let sheet = spreadsheet.getSheetByName(TTUBE_SHEET_NAME);
 
   if (!sheet) {
