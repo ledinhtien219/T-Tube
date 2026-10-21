@@ -29,3 +29,4 @@ Một số chức năng phụ thuộc vào quyền người dùng cấp, dịch 
 - Bản Play không dùng luồng kích hoạt/bản quyền ngoài ứng dụng.
 - Giữ các cải tiến chuyển app, tìm kiếm, voice, media và hiệu năng của 1.0.75.
 - Tạo lại App Bundle cho kênh thử nghiệm nội bộ với versionCode 272.
+- Khôi phục đầy đủ giao diện Android Auto/dashboard/HUD projection như bản trước để kiểm thử nội bộ.
