@@ -10,6 +10,22 @@
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://raw.githubusercontent.com/ledinhtien219/T-Tube/main/docs/images/ttube_aa_dashboard.jpg">
   <title>T Tube — Android Auto Multimedia Dashboard</title>
+  <link rel="canonical" href="https://ledinhtien219.github.io/T-Tube/">
+  <link rel="icon" type="image/png" href="images/t-tube-logo.png">
+  <link rel="apple-touch-icon" href="images/t-tube-logo.png">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "T Tube",
+      "applicationCategory": "MultimediaApplication",
+      "operatingSystem": "Android 10+",
+      "description": "Dashboard đa phương tiện dành cho Android Auto với YouTube, IPTV, WebApp, điều khiển giọng nói và HUD Waze/Vietmap.",
+      "downloadUrl": "https://github.com/ledinhtien219/T-Tube/releases",
+      "softwareVersion": "1.0.74"
+    }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Inter:wght@500;600;700&display=swap" rel="stylesheet">
@@ -23,11 +39,8 @@
 
   <header class="site-header">
     <a class="brand" href="#top" aria-label="T Tube - Trang chủ">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 48 48" role="img">
-          <path d="M12 13h24a7 7 0 0 1 7 7v8a7 7 0 0 1-7 7H12a7 7 0 0 1-7-7v-8a7 7 0 0 1 7-7Z" fill="none" stroke="currentColor" stroke-width="3"/>
-          <path d="m21 19 9 5-9 5V19Z" fill="currentColor"/>
-        </svg>
+      <span class="brand-mark brand-mark-image" aria-hidden="true">
+        <img src="images/t-tube-logo.png" alt="">
       </span>
       <span>T Tube</span>
     </a>
@@ -39,7 +52,9 @@
     <nav class="site-nav" id="site-nav" aria-label="Điều hướng chính">
       <a href="#features">Tính năng</a>
       <a href="#showcase">Giao diện</a>
-      <a href="#release">Phiên bản</a>
+      <a href="#updates">Có gì mới</a>
+      <a href="#install">Cài đặt</a>
+      <a href="#faq">FAQ</a>
       <a class="nav-cta" href="#early-access">Nhận cập nhật</a>
     </nav>
   </header>
@@ -47,7 +62,7 @@
   <main id="top">
     <section class="hero section-shell">
       <div class="hero-copy reveal">
-        <div class="eyebrow"><span class="live-dot"></span> T Tube v1.0.74 · Build 269</div>
+        <div class="eyebrow" data-release-badge><span class="live-dot"></span> T Tube v1.0.74 · Build 269</div>
         <h1>Màn hình xe.<br><span>Thông minh hơn.</span></h1>
         <p class="hero-lead">
           T Tube đưa YouTube, IPTV, trình duyệt WebApp, điều khiển giọng nói và HUD Waze/Vietmap
@@ -69,7 +84,7 @@
         </form>
 
         <div class="hero-actions">
-          <a class="ghost-link" href="https://github.com/ledinhtien219/T-Tube/releases/tag/v1.0.74" target="_blank" rel="noreferrer">
+          <a class="ghost-link" data-release-page href="https://github.com/ledinhtien219/T-Tube/releases/tag/v1.0.74" target="_blank" rel="noreferrer">
             Tải bản stable
             <span aria-hidden="true">↗</span>
           </a>
@@ -178,25 +193,95 @@
       </div>
     </section>
 
+
+    <section class="updates-section section-shell" id="updates">
+      <div class="section-heading reveal">
+        <p class="kicker">Có gì mới</p>
+        <h2>Bản stable mới nhất, đọc nhanh trong 30 giây.</h2>
+        <p>Nội dung phần này tự đồng bộ từ manifest OTA stable của T Tube khi trang được mở.</p>
+      </div>
+
+      <div class="change-grid" id="release-changelog">
+        <article class="change-card reveal"><span>01</span><p>Chuyển YouTube, IPTV, TikTok và Trình duyệt không lẫn trạng thái.</p></article>
+        <article class="change-card reveal"><span>02</span><p>Tìm kiếm nhập tay và giọng nói bám đúng app đang active.</p></article>
+        <article class="change-card reveal"><span>03</span><p>Toolbar phản hồi ổn định hơn khi chạm màn hình.</p></article>
+        <article class="change-card reveal"><span>04</span><p>Giảm nóng và cải thiện audio coexistence khi chạy lâu.</p></article>
+      </div>
+    </section>
+
     <section class="release-section section-shell" id="release">
       <div class="release-card reveal">
         <div class="release-copy">
           <p class="kicker">Stable release</p>
-          <h2>v1.0.74 tập trung vào độ ổn định thực tế.</h2>
+          <h2><span data-release-version>v1.0.74</span> tập trung vào độ ổn định thực tế.</h2>
           <p>
             Phiên bản hiện tại cải thiện app switching, tìm kiếm nhập tay/giọng nói, toolbar,
             audio coexistence và hiệu năng khi chạy lâu trên Android Auto.
           </p>
           <div class="release-meta">
-            <span><b>Version</b> 1.0.74</span>
-            <span><b>Build</b> 269</span>
+            <span><b>Version</b> <span data-release-version-plain>1.0.74</span></span>
+            <span><b>Build</b> <span data-release-build>269</span></span>
             <span><b>Target</b> API 35</span>
           </div>
         </div>
-        <a class="download-button" href="https://github.com/ledinhtien219/T-Tube/releases/download/v1.0.74/TTube_v1.0.74_debug.apk">
+        <a class="download-button" data-release-download href="https://github.com/ledinhtien219/T-Tube/releases/download/v1.0.74/TTube_v1.0.74_debug.apk">
           <span class="download-icon">↓</span>
-          <span><small>Stable APK</small>Tải T Tube v1.0.74</span>
+          <span><small>Stable APK</small>Tải T Tube <span data-release-version>v1.0.74</span></span>
         </a>
+      </div>
+    </section>
+
+
+    <section class="install-section section-shell" id="install">
+      <div class="section-heading reveal">
+        <p class="kicker">Cài đặt</p>
+        <h2>Từ APK đến màn hình xe trong ba bước.</h2>
+        <p>T Tube dùng chung package stable để các bản mới có thể cài đè khi certificate tương thích.</p>
+      </div>
+
+      <div class="install-grid">
+        <article class="install-step reveal">
+          <span class="step-number">01</span>
+          <h3>Tải bản stable</h3>
+          <p>Tải APK từ GitHub Release chính thức của T Tube. Nút tải trên trang luôn trỏ tới stable OTA hiện tại.</p>
+          <a data-release-download class="step-link" href="https://github.com/ledinhtien219/T-Tube/releases/download/v1.0.74/TTube_v1.0.74_debug.apk">Tải APK →</a>
+        </article>
+        <article class="install-step reveal">
+          <span class="step-number">02</span>
+          <h3>Cài trên điện thoại</h3>
+          <p>Cài APK trên thiết bị Android 10 trở lên. Khi nâng cấp, dùng bản được ký tương thích để giữ dữ liệu và cài đè.</p>
+        </article>
+        <article class="install-step reveal">
+          <span class="step-number">03</span>
+          <h3>Kết nối Android Auto</h3>
+          <p>Kết nối với màn hình xe, mở T Tube và cấu hình dashboard, HUD, app ghim cùng các tuỳ chọn bạn muốn dùng.</p>
+        </article>
+      </div>
+      <p class="compat-note reveal">Khả năng tương thích có thể khác nhau theo điện thoại, ROM/OEM, phiên bản Android Auto và head unit.</p>
+    </section>
+
+    <section class="faq-section section-shell" id="faq">
+      <div class="section-heading reveal">
+        <p class="kicker">FAQ</p>
+        <h2>Một vài câu hỏi trước khi cài.</h2>
+      </div>
+      <div class="faq-list">
+        <details class="faq-item reveal">
+          <summary>T Tube cần Android bao nhiêu?</summary>
+          <p>Bản hiện tại yêu cầu Android 10 / API 29 trở lên và target API 35.</p>
+        </details>
+        <details class="faq-item reveal">
+          <summary>T Tube có tự cập nhật phiên bản trên website không?</summary>
+          <p>Có. Website đọc manifest OTA stable công khai để cập nhật số phiên bản, build, link APK và changelog. Nếu việc đồng bộ tạm thời lỗi, trang vẫn giữ thông tin stable gần nhất.</p>
+        </details>
+        <details class="faq-item reveal">
+          <summary>Email đăng ký được dùng để làm gì?</summary>
+          <p>Email chỉ dành cho thông tin về bản cập nhật T Tube theo phần đồng ý nhận tin. Backend mẫu không lưu IP.</p>
+        </details>
+        <details class="faq-item reveal">
+          <summary>Có thể cài đè bản stable cũ không?</summary>
+          <p>Có khi APK mới giữ cùng application ID và certificate tương thích, đồng thời versionCode đáp ứng điều kiện cập nhật của Android.</p>
+        </details>
       </div>
     </section>
 
@@ -227,13 +312,15 @@
 
   <footer class="site-footer section-shell">
     <div class="footer-brand">
-      <span class="brand-mark small" aria-hidden="true">
-        <svg viewBox="0 0 48 48"><path d="M12 13h24a7 7 0 0 1 7 7v8a7 7 0 0 1-7 7H12a7 7 0 0 1-7-7v-8a7 7 0 0 1 7-7Z" fill="none" stroke="currentColor" stroke-width="3"/><path d="m21 19 9 5-9 5V19Z" fill="currentColor"/></svg>
+      <span class="brand-mark brand-mark-image small" aria-hidden="true">
+        <img src="images/t-tube-logo.png" alt="">
       </span>
       <div><strong>T Tube</strong><span>Android Auto Multimedia Dashboard</span></div>
     </div>
     <div class="footer-links">
       <a href="https://github.com/ledinhtien219/T-Tube" target="_blank" rel="noreferrer">GitHub</a>
+      <a href="#install">Cài đặt</a>
+      <a href="#faq">FAQ</a>
       <a href="https://github.com/ledinhtien219/T-Tube/releases" target="_blank" rel="noreferrer">Releases</a>
       <a href="https://github.com/ledinhtien219/T-Tube/blob/main/PRIVACY_POLICY.md" target="_blank" rel="noreferrer">Quyền riêng tư</a>
     </div>
