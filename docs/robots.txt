@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ledinhtien219.github.io/T-Tube/sitemap.xml
