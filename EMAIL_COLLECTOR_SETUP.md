@@ -2,22 +2,24 @@
 
 Landing page nằm trong `docs/` và có thể deploy bằng GitHub Pages. Form email dùng Google Apps Script để ghi dữ liệu vào Google Sheet; trang `docs/admin.html` cho phép đọc danh sách bằng admin token và xuất file Excel `.xlsx`.
 
-## 1. Tạo Google Sheet
+## 1. Google Sheet đích
 
-1. Tạo một Google Sheet mới, ví dụ **T Tube Waitlist**.
-2. Lấy Spreadsheet ID trong URL:
-   `https://docs.google.com/spreadsheets/d/<SPREADSHEET_ID>/edit`.
+Backend đã được cấu hình sẵn cho file Google Sheet hiện có:
 
-Không cần tự tạo header; Apps Script sẽ tạo sheet **Emails** và header ở lần chạy đầu.
+`14vfUJwL33kXJ7ck6mJpT2Pnstp1FeR729UJQ0ktpaco`
+
+Apps Script sẽ chỉ tạo/ghi vào tab riêng **T Tube Emails**. Các tab hiện có trong spreadsheet không bị sửa.
+
+Không cần tự tạo header; Apps Script sẽ tạo tab và header ở lần chạy đầu.
 
 ## 2. Tạo Apps Script
 
 1. Trong Google Sheet: **Extensions → Apps Script**.
 2. Dán nội dung file `email_collector_apps_script.gs` vào project.
 3. Mở **Project Settings → Script Properties** và tạo:
-   - `SPREADSHEET_ID`: ID Google Sheet ở bước 1.
    - `ADMIN_TOKEN`: một chuỗi bí mật dài, ngẫu nhiên (khuyến nghị từ 32 ký tự trở lên).
-4. Tuyệt đối không commit `ADMIN_TOKEN` vào GitHub.
+4. Không cần tạo `SPREADSHEET_ID`; file đích đã được cố định trong backend.
+5. Tuyệt đối không commit `ADMIN_TOKEN` vào GitHub.
 
 ## 3. Deploy Web App
 
