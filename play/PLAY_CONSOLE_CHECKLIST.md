@@ -3,8 +3,8 @@
 ## Build identity
 - App name: T Tube
 - Package: `com.ledinhtien.ttube`
-- Version: `1.0.75`
-- Version code: `271`
+- Version: `1.0.76`
+- Version code: `272`
 - minSdk: 29
 - targetSdk / compileSdk: 36
 - Artifact: Android App Bundle (`.aab`)
@@ -46,7 +46,7 @@ Use the published public policy URL:\n`https://github.com/ledinhtien219/T-Tube/b
 3. Production only after Play Console grants production access
 
 ## Release
-Upload the signed bundle `TTube_v1.0.75_build271_Play_signed.aab`.
+Upload the signed bundle `ttube-1.0.76-272-play.aab`.
 Do not upload the GitHub/full APK to Play Console.
 
 
