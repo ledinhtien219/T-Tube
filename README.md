@@ -6,17 +6,18 @@
 
 **T Tube** là ứng dụng dashboard đa phương tiện dành cho **Android Auto / màn hình xe**, kết hợp YouTube, IPTV, trình duyệt WebApp, điều khiển giọng nói và HUD cảnh báo giao thông từ Waze/Vietmap.
 
-## ✅ Phiên bản hiện tại
+## ✅ Bản Google Play trên nhánh này
 
-- **Source/Main:** `v1.0.74` / Build `269`
-- **Public stable OTA:** `v1.0.74` / Build `269`
-- **Branch:** `main`
-- **Application ID:** `com.tcar.auto`
+- **Play candidate:** `v1.0.75` / Build `271`
+- **Branch:** `release/play-v1.0.75`
+- **Play Application ID:** `com.ledinhtien.ttube`
+- **GitHub stable Application ID:** `com.tcar.auto` (package riêng)
 - **Min SDK:** Android 10 / API 29
-- **Target SDK:** API 35
-- **Stable signing:** giữ cùng certificate để các bản mới có thể cài đè bản stable trước đó.
+- **Target / Compile SDK:** API 36
+- **Android Auto Play declaration:** Media-only
+- **Release:** non-debuggable, Android App Bundle (`.aab`)
 
-> `v1.0.74` tập trung vào độ ổn định khi sử dụng thực tế trên Android Auto: chuyển app không lẫn trạng thái, tìm kiếm nhập tay/giọng nói đúng app, toolbar phản hồi ổn định, giảm tranh audio với app nghe nhạc khác và giảm tải khi chạy lâu.
+> Package Google Play được tách khỏi package stable GitHub để tránh xung đột package đã tồn tại và để hai bản có thể cài song song.
 
 ---
 

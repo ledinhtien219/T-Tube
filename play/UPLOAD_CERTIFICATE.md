@@ -1,8 +1,9 @@
 # T Tube Play upload certificate
 
+- Package: `com.ledinhtien.ttube`
 - Alias: `ttube-play-upload`
-- Certificate SHA-256: `A9:78:CE:8D:61:A7:E7:DE:A9:FE:7D:53:48:9C:B0:78:2A:8B:93:DE:76:15:58:B3:2C:17:9B:FE:9D:05:8B:AA`
-- Certificate SHA-1: `C9:7D:27:78:52:34:6C:91:96:02:A8:28:95:41:09:3D:82:99:E1:C7`
+- Certificate SHA-256: `2E:F9:93:23:53:DB:CA:EA:27:41:24:68:2D:51:23:24:9A:10:E5:87:BD:A0:6D:62:BB:D2:35:FF:E0:EA:21:50`
+- Certificate SHA-1: `7D:96:A0:0C:2F:49:C4:C5:F4:4C:3D:9F:71:43:68:12:0B:F0:D0:0C`
 - Key algorithm: RSA 4096
 - Signature: SHA256withRSA
 - Valid through: 2054-03-08

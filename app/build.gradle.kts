@@ -9,7 +9,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.tcar.auto"
+        applicationId = "com.ledinhtien.ttube"
         minSdk = 29
         targetSdk = 36
         versionCode = 271
