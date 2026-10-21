@@ -47,7 +47,7 @@ assert.ok(
 );
 
 for (const mode of ['contain', 'fill', 'cover', '4:3', '21:9']) {
-  assert.ok(helper.includes(`m === '${mode}'`) || helper.includes(`m === "${mode}"`) || helper.includes(`'$\{mode}'`), `Helper should support ${mode}`);
+  assert.ok(helper.includes(`m === '${mode}'`) || helper.includes(`m === "${mode}"`), `Helper should support ${mode}`);
 }
 
 assert.match(helper, /aspect-ratio', '21 \/ 9'/, 'YouTube helper should support ultrawide 21:9');
