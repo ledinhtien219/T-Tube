@@ -95,6 +95,15 @@ jobs:
           test -f app/src/main/java/com/carhud/aaproxy/CarHudProjectionHost.kt
           test -f app/src/main/java/com/carhud/aaproxy/StableProjectionHost.kt
 
+      - name: Run static regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in tests/*.cjs; do
+            echo "==> $f"
+            node "$f"
+          done
+
       - name: Run JVM unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
