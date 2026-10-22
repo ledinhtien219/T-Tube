@@ -845,7 +845,9 @@ class MainActivity : AppCompatActivity() {
                     val current = target.url.orEmpty()
                     val sameTarget = when (app.id) {
                         "youtube" -> current.contains("youtube.com", true) || current.contains("youtu.be", true)
-                        "tiktok" -> TikTokWebPolicy.isTikTok(current)
+                        "tiktok" -> TikTokWebPolicy.isSessionUrl(current)
+                        "tv360" -> StreamingWebPolicy.isTv360(current)
+                        "vtvgo" -> StreamingWebPolicy.isVtvGo(current)
                         else -> runCatching { Uri.parse(current).host == Uri.parse(app.url).host }.getOrDefault(false)
                     }
                     if (!sameTarget) target.loadUrl(app.url)
@@ -1577,6 +1579,9 @@ class MainActivity : AppCompatActivity() {
         val cleanUa = defaultUa.replace("; wv", "").replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
         if (app.id == "tiktok" || TikTokWebPolicy.isTikTok(targetUrl)) {
             TikTokWebPolicy.configure(view, targetUrl)
+        } else if (app.id == "tv360" || app.id == "vtvgo" ||
+            StreamingWebPolicy.isTv360(targetUrl) || StreamingWebPolicy.isVtvGo(targetUrl)) {
+            StreamingWebPolicy.configure(view, app.id, targetUrl)
         } else if (WebAppManager.isAppDesktop(this, app.id) && app.id != "youtube") {
             view.settings.userAgentString = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
         } else {
@@ -1642,8 +1647,9 @@ class MainActivity : AppCompatActivity() {
                 if (TikTokWebPolicy.isAppRedirect(target)) {
                     return true
                 }
-                if (view != null && request.isForMainFrame && TikTokWebPolicy.isTikTok(target)) {
-                    TikTokWebPolicy.configure(view, target)
+                if (view != null && request.isForMainFrame) {
+                    if (TikTokWebPolicy.isTikTok(target)) TikTokWebPolicy.configure(view, target)
+                    StreamingWebPolicy.configure(view, activePhoneWebAppId, target)
                 }
                 return false
             }
@@ -1652,11 +1658,11 @@ class MainActivity : AppCompatActivity() {
                 super.onPageStarted(view, url, favicon)
                 TikTokWebPolicy.applyRenderingPolicy(view, url)
                 YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this@MainActivity))
-                if (TikTokWebPolicy.isTikTok(url)) {
-                    activePhoneWebAppId = "tiktok"
+                if (TikTokWebPolicy.isSessionUrl(url) && activePhoneWebAppId == "tiktok") {
                     TikTokWebPolicy.configure(view, url)
                     TikTokWebPolicy.fitLayout(view, url)
                 }
+                StreamingWebPolicy.configure(view, activePhoneWebAppId, url)
             }
 
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
@@ -1697,11 +1703,11 @@ class MainActivity : AppCompatActivity() {
                     YouTubePlayerHelper.trackVideoHistory(view)
                     activePhoneWebAppId = "youtube"
                 }
-                if (TikTokWebPolicy.isTikTok(url)) {
-                    activePhoneWebAppId = "tiktok"
+                if (TikTokWebPolicy.isSessionUrl(url) && activePhoneWebAppId == "tiktok") {
                     TikTokWebPolicy.fitLayout(view, url)
                     TikTokWebPolicy.recoverSearchIfBlank(view, url)
                 }
+                StreamingWebPolicy.onPageFinished(view, activePhoneWebAppId, url)
                 YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this@MainActivity))
                 lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                     runCatching { android.webkit.CookieManager.getInstance().flush() }
