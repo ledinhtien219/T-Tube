@@ -612,6 +612,15 @@ class CarPresentation(
                 if (TikTokWebPolicy.isAppRedirect(target)) {
                     return true // Web-only TikTok: never leave for the native app/store.
                 }
+                if (currentActiveAppId == "tiktok" && TikTokWebPolicy.isGoogleOAuth(target)) {
+                    Toast.makeText(
+                        context,
+                        "Google không cho đăng nhập trong WebView. Hãy dùng số điện thoại/email/QR trên TikTok.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    view?.post { view.loadUrl(TikTokWebPolicy.safeLoginUrl()) }
+                    return true
+                }
                 if (request.isForMainFrame && view != null) {
                     TikTokWebPolicy.configure(view, target)
                     StreamingWebPolicy.configure(view, currentActiveAppId, target)
@@ -627,6 +636,15 @@ class CarPresentation(
                     return true
                 }
                 if (TikTokWebPolicy.isAppRedirect(target)) {
+                    return true
+                }
+                if (currentActiveAppId == "tiktok" && TikTokWebPolicy.isGoogleOAuth(target)) {
+                    Toast.makeText(
+                        context,
+                        "Google không cho đăng nhập trong WebView. Hãy dùng số điện thoại/email/QR trên TikTok.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    view?.post { view.loadUrl(TikTokWebPolicy.safeLoginUrl()) }
                     return true
                 }
                 if (view != null) {
