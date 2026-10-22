@@ -252,26 +252,75 @@ object YouTubePlayerHelper {
         } catch(e) {}
 
         window.__carhudUserPaused = false;
+        window.__carhudHostForeground = true;
+        window.__carhudExternalAudioTakeover = false;
+        window.__carhudExternalPauseTimer = null;
+
         window.__carhudSetUserPaused = function(val) {
             window.__carhudUserPaused = !!val;
+            // An explicit Play command from T Tube means the user wants to take
+            // audio back. Merely returning to the app does not clear this flag.
+            if (!window.__carhudUserPaused) {
+                window.__carhudExternalAudioTakeover = false;
+            }
         };
 
-        // 3. Intercept HTMLMediaElement.prototype.pause so background pause events cannot stop audio
+        window.__carhudSetHostForeground = function(val) {
+            window.__carhudHostForeground = !!val;
+            if (window.__carhudHostForeground && window.__carhudExternalPauseTimer) {
+                clearTimeout(window.__carhudExternalPauseTimer);
+                window.__carhudExternalPauseTimer = null;
+            }
+        };
+
+        function markExternalAudioTakeover(video) {
+            try {
+                if (window.__carhudHostForeground || window.__carhudUserPaused ||
+                    !video || !video.paused || video.ended) return;
+                window.__carhudExternalAudioTakeover = true;
+                if (window.AndroidVoice && window.AndroidVoice.onExternalAudioTakeover) {
+                    window.AndroidVoice.onExternalAudioTakeover();
+                }
+            } catch(e) {}
+        }
+
+        // 3. Keep the old anti-pause protection only while T Tube owns the
+        // foreground. In background, allow Chromium to obey Android audio-focus
+        // loss so SoundCloud / Spotify / Zing can take over cleanly.
         try {
             var origMediaPause = HTMLMediaElement.prototype.pause;
             HTMLMediaElement.prototype.pause = function() {
-                if (window.__carhudUserPaused) {
+                if (window.__carhudUserPaused ||
+                    !window.__carhudHostForeground ||
+                    window.__carhudExternalAudioTakeover) {
                     return origMediaPause.apply(this, arguments);
                 }
             };
         } catch(e) {}
 
-        // 4. Auto-resume on unexpected pause event if not user-paused
+        // 4. Auto-resume an unexpected pause only while T Tube is foreground.
+        // A persistent pause while backgrounded is treated as another audio app
+        // taking focus, and T Tube stays paused until an explicit Play action.
         try {
             document.addEventListener('pause', function(e) {
-                if (!window.__carhudUserPaused && e.target && e.target.tagName === 'VIDEO') {
+                if (!e.target || e.target.tagName !== 'VIDEO' || e.target.ended) return;
+
+                if (!window.__carhudHostForeground && !window.__carhudUserPaused) {
+                    if (window.__carhudExternalPauseTimer) clearTimeout(window.__carhudExternalPauseTimer);
+                    var pausedVideo = e.target;
+                    window.__carhudExternalPauseTimer = setTimeout(function() {
+                        window.__carhudExternalPauseTimer = null;
+                        markExternalAudioTakeover(pausedVideo);
+                    }, 1200);
+                    return;
+                }
+
+                if (!window.__carhudUserPaused && !window.__carhudExternalAudioTakeover) {
                     setTimeout(function() {
-                        if (!window.__carhudUserPaused && e.target.paused) {
+                        if (window.__carhudHostForeground &&
+                            !window.__carhudUserPaused &&
+                            !window.__carhudExternalAudioTakeover &&
+                            e.target.paused && !e.target.ended) {
                             var p = e.target.play();
                             if (p && typeof p.catch === 'function') p.catch(function() {});
                         }
@@ -735,6 +784,8 @@ object YouTubePlayerHelper {
         }
 
         function startAggressivePlay() {
+            // Explicit navigation/play inside T Tube takes audio ownership back.
+            window.__carhudExternalAudioTakeover = false;
             if (window.__carhudPlayTimeout) {
                 clearTimeout(window.__carhudPlayTimeout);
             }
@@ -814,6 +865,103 @@ object YouTubePlayerHelper {
             return document.querySelector('#movie_player video, .html5-video-player video, ytm-player video') || document.querySelector('video');
         }
 
+        function startCarHudAutoNext(endedVideo) {
+            try {
+                if (window.__carhudExternalAudioTakeover || window.__carhudUserPaused) return false;
+                if (window.__carhudAutoNextInFlight) return true;
+
+                window.__carhudAutoNextInFlight = true;
+                window.__carhudStartingPlayback = true;
+                var fromUrl = window.location.href;
+                var attempts = 0;
+
+                function finish(success) {
+                    window.__carhudAutoNextInFlight = false;
+                    if (success) {
+                        setTimeout(function() { window.__carhudStartingPlayback = false; }, 2500);
+                    } else {
+                        window.__carhudStartingPlayback = false;
+                        notifyState(false);
+                    }
+                }
+
+                function nextCandidate() {
+                    var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+
+                    // Desktop player API is the cleanest transition when available.
+                    if (player && typeof player.nextVideo === 'function') {
+                        try {
+                            player.nextVideo();
+                            return true;
+                        } catch(e) {}
+                    }
+
+                    var nextBtn = document.querySelector(
+                        '.ytp-next-button:not([aria-disabled="true"]), ' +
+                        'button[aria-label*="tiếp theo"]:not([disabled]), ' +
+                        'button[aria-label*="Tiếp theo"]:not([disabled]), ' +
+                        'button[aria-label*="Next"]:not([disabled])'
+                    );
+                    if (nextBtn) {
+                        try {
+                            triggerSyntheticClick(nextBtn);
+                            return true;
+                        } catch(e) {
+                            try { nextBtn.click(); return true; } catch(ex) {}
+                        }
+                    }
+
+                    // Mobile YouTube often has no visible next button. Fall back
+                    // to the first related/recommended watch item.
+                    var nextLink = document.querySelector(
+                        'ytm-video-with-context-renderer a[href*="/watch"], ' +
+                        'ytm-compact-video-renderer a[href*="/watch"], ' +
+                        'a.media-item-thumbnail-container[href*="/watch"], ' +
+                        'a[href*="/watch"]'
+                    );
+                    if (nextLink && nextLink.href && nextLink.href !== fromUrl) {
+                        try {
+                            triggerSyntheticClick(nextLink);
+                            return true;
+                        } catch(e) {
+                            try { nextLink.click(); return true; } catch(ex) {}
+                        }
+                    }
+                    return false;
+                }
+
+                function verifyOrRetry() {
+                    attempts += 1;
+                    var current = getMainVideo();
+                    var changedUrl = window.location.href !== fromUrl;
+                    var freshPlayback = current && current !== endedVideo &&
+                        !current.ended && (current.currentTime < 5 || !current.paused);
+
+                    if (changedUrl || freshPlayback) {
+                        startAggressivePlay();
+                        finish(true);
+                        return;
+                    }
+
+                    if (attempts > 6) {
+                        finish(false);
+                        return;
+                    }
+
+                    nextCandidate();
+                    setTimeout(verifyOrRetry, attempts === 1 ? 350 : 650);
+                }
+
+                nextCandidate();
+                setTimeout(verifyOrRetry, 350);
+                return true;
+            } catch(e) {
+                window.__carhudAutoNextInFlight = false;
+                window.__carhudStartingPlayback = false;
+                return false;
+            }
+        }
+
         function attachVideoListeners(v) {
             if (!v || v.getAttribute('data-carhud-attached') === 'true') return;
             var isMain = v.closest('#movie_player, .html5-video-player, ytm-player, .player-container, #player-container-id');
@@ -851,8 +999,10 @@ object YouTubePlayerHelper {
             }, true);
 
             v.addEventListener('ended', function() {
-                notifyState(false);
                 updateVideoProgress();
+                if (!startCarHudAutoNext(v)) {
+                    notifyState(false);
+                }
             }, true);
 
             v.addEventListener('loadedmetadata', function() {
@@ -1020,7 +1170,10 @@ object YouTubePlayerHelper {
 
             // Anti-pause watchdog: only unpause if paused for 3 consecutive seconds to avoid buffer flapping
             try {
-                if (window.location.pathname.indexOf('/watch') === 0 && !window.__carhudUserPaused) {
+                if (window.location.pathname.indexOf('/watch') === 0 &&
+                    window.__carhudHostForeground &&
+                    !window.__carhudUserPaused &&
+                    !window.__carhudExternalAudioTakeover) {
                     var curV = getMainVideo();
                     var curPlayer = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
                     var pState = (curPlayer && typeof curPlayer.getPlayerState === 'function') ? curPlayer.getPlayerState() : -1;
