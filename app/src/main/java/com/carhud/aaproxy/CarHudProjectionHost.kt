@@ -104,6 +104,7 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
 
     private var virtualDisplay: VirtualDisplay? = null
     private var presentation: CarPresentation? = null
+    private var projectionForeground = false
 
     // surfaceCreated + surfaceChanged both fire on start, and some head units repeat
     // surfaceChanged with identical geometry. Rebuilding the VirtualDisplay/Presentation
@@ -184,12 +185,23 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
         )
 
         surfaceView.setOnTouchListener { _, event ->
+            // Never consume touches once Android Auto has switched to Maps or
+            // another app. Some head units keep the old projection surface
+            // attached briefly during the handoff.
+            if (!projectionForeground) return@setOnTouchListener false
+
             // Keep complete pointer streams for fast typing and WebView gestures.
             if (presentation?.dispatchProjectedTouch(event) != true) {
                 gestureDetector.onTouchEvent(event)
             }
             true
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        projectionForeground = true
+        presentation?.onProjectionHostForegrounded()
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
@@ -217,17 +229,22 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
         try {
             virtualDisplay?.setSurface(null)
 
-            // Surface loss can be a resize/recreation while projection is still
-            // connected, so do not treat this callback alone as a cable detach.
-            // The service-level USB/power receiver owns full shutdown.
-            val web = CarMediaManager.getPersistentWebView()
-            web?.onResume()
-            web?.resumeTimers()
-
-            if (CarMediaManager.isPlaying || CarMediaManager.userWantsPlayback) {
-                CarMediaManager.registerService(this)
-                CarMediaManager.acquireWakeLock(this)
-                CarMediaManager.ensureAudioFocus()
+            // Surface loss also happens while Android Auto hands the screen to
+            // Google Maps. Do not force Chromium/timers/audio focus back to the
+            // foreground here: that used to make Maps janky and could steal
+            // navigation audio focus. Preserve only real background playback.
+            if (!projectionForeground) {
+                val web = CarMediaManager.getPersistentWebView()
+                val keepAudio = CarMediaManager.isPlaying && CarMediaManager.userWantsPlayback
+                if (web is BackgroundAudioWebView) web.enableBackgroundAudio = keepAudio
+                if (keepAudio) {
+                    CarMediaManager.registerService(this)
+                    CarMediaManager.acquireWakeLock(this)
+                } else {
+                    web?.clearFocus()
+                    web?.onPause()
+                    CarMediaManager.releaseWakeLock()
+                }
             }
         } catch (_: Exception) {}
     }
@@ -295,6 +312,8 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
             val persistentWeb = CarMediaManager.getPersistentCarWebView(createDisplayContext(vd.display))
             val p = CarPresentation(this, vd.display, persistentWeb)
             p.show()
+            if (projectionForeground) p.onProjectionHostForegrounded()
+            else p.onProjectionHostBackgrounded()
             presentation = p
             lastSetupKey = setupKey
             Log.i("CarHudProjection", "Surface=${width}x$height dpi=$dpi source=${density.source}")
@@ -321,6 +340,8 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
     }
 
     override fun onStop() {
+        projectionForeground = false
+        presentation?.onProjectionHostBackgrounded()
         CarDisconnectWatchdog.onProjectionLifecycleEnded(this, "projection activity stopped")
         super.onStop()
     }
