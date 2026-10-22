@@ -20,7 +20,7 @@ import android.webkit.WebView
  * and hides app-only promotion/challenge overlays.
  */
 internal object TikTokWebPolicy {
-    private const val POLICY_VERSION = 16
+    private const val POLICY_VERSION = 17
 
     private const val DESKTOP_UA =
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
@@ -30,6 +30,28 @@ internal object TikTokWebPolicy {
         val host = runCatching { Uri.parse(url.orEmpty()).host.orEmpty().lowercase() }
             .getOrDefault("")
         return host == "tiktok.com" || host.endsWith(".tiktok.com")
+    }
+
+    fun isLoginRoute(url: String?): Boolean {
+        if (!isTikTok(url)) return false
+        val path = runCatching { Uri.parse(url.orEmpty()).path.orEmpty().lowercase() }.getOrDefault("")
+        return path.startsWith("/login") ||
+            path.startsWith("/signup") ||
+            path.startsWith("/passport")
+    }
+
+    fun isSessionUrl(url: String?): Boolean {
+        if (isTikTok(url)) return true
+        val host = runCatching { Uri.parse(url.orEmpty()).host.orEmpty().lowercase() }.getOrDefault("")
+        return host == "accounts.google.com" ||
+            host.endsWith(".googleusercontent.com") ||
+            host == "appleid.apple.com" ||
+            host == "facebook.com" ||
+            host.endsWith(".facebook.com") ||
+            host == "x.com" ||
+            host.endsWith(".x.com") ||
+            host == "twitter.com" ||
+            host.endsWith(".twitter.com")
     }
 
     fun isSearch(url: String?): Boolean = isTikTok(url) &&
@@ -78,15 +100,21 @@ internal object TikTokWebPolicy {
         if (!isTikTok(url)) return
     }
 
-    fun userAgent(defaultUa: String): String = DESKTOP_UA
+    fun userAgent(defaultUa: String, url: String? = null): String {
+        if (!isLoginRoute(url)) return DESKTOP_UA
+        return defaultUa
+            .replace("; wv", "")
+            .replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
+    }
 
     /** Apply a stable, browser-like configuration before TikTok navigation. */
     fun configure(view: WebView, url: String?) {
         if (!isTikTok(url)) return
         applyRenderingPolicy(view, url)
 
+        val targetUa = userAgent(WebSettings.getDefaultUserAgent(view.context), url)
         view.settings.apply {
-            if (userAgentString != DESKTOP_UA) userAgentString = DESKTOP_UA
+            if (userAgentString != targetUa) userAgentString = targetUa
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
@@ -139,6 +167,34 @@ internal object TikTokWebPolicy {
                         (window.__ttubeTikTokWebOnly = {});
                     state.version = VERSION;
                     state.interval = 900;
+                    state.loginRoute =
+                        (location.pathname || '').indexOf('/login') === 0 ||
+                        (location.pathname || '').indexOf('/signup') === 0 ||
+                        (location.pathname || '').indexOf('/passport') === 0;
+
+                    if (state.loginRoute && !state.loginBridgeInstalled) {
+                        state.loginBridgeInstalled = true;
+                        document.addEventListener('click', function(e) {
+                            var target = e.target;
+                            var a = target && target.closest
+                                ? target.closest('a[target="_blank"]')
+                                : null;
+                            if (a) a.setAttribute('target', '_self');
+                        }, true);
+
+                        var nativeOpen = window.open;
+                        window.open = function(url, target, features) {
+                            try {
+                                if (url && typeof url === 'string') {
+                                    location.assign(url);
+                                    return window;
+                                }
+                            } catch (_) {}
+                            return nativeOpen
+                                ? nativeOpen.call(window, url, '_self', features)
+                                : window;
+                        };
+                    }
 
                     function ensureStyle() {
                         var style = document.getElementById('ttube-tiktok-web-only');
@@ -342,6 +398,16 @@ internal object TikTokWebPolicy {
                         state.pending = false;
                         state.lastSweepAt = Date.now();
                         ensureStyle();
+
+                        // Login/signup is real TikTok web UI. Never hide a large
+                        // authentication modal merely because it also advertises
+                        // the native app.
+                        if (state.loginRoute) {
+                            unlockPage();
+                            fitPageWidth();
+                            state.interval = 2400;
+                            return;
+                        }
 
                         var candidates = Array.prototype.slice.call(
                             document.querySelectorAll(
