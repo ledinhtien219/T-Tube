@@ -20,11 +20,14 @@ import android.webkit.WebView
  * and hides app-only promotion/challenge overlays.
  */
 internal object TikTokWebPolicy {
-    private const val POLICY_VERSION = 17
+    private const val POLICY_VERSION = 18
 
     private const val DESKTOP_UA =
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+
+    private const val QR_LOGIN_URL = "https://in.tiktok.com/login/qrcode"
+    private const val LOGIN_URL = "https://in.tiktok.com/login/"
 
     fun isTikTok(url: String?): Boolean {
         val host = runCatching { Uri.parse(url.orEmpty()).host.orEmpty().lowercase() }
@@ -51,7 +54,9 @@ internal object TikTokWebPolicy {
             (host == "google.com" && path.contains("oauth"))
     }
 
-    fun safeLoginUrl(): String = "https://www.tiktok.com/login"
+    fun safeLoginUrl(): String = LOGIN_URL
+
+    fun qrLoginUrl(): String = QR_LOGIN_URL
 
     fun isSessionUrl(url: String?): Boolean {
         if (isTikTok(url)) return true
@@ -114,10 +119,10 @@ internal object TikTokWebPolicy {
     }
 
     fun userAgent(defaultUa: String, url: String? = null): String {
-        if (!isLoginRoute(url)) return DESKTOP_UA
-        return defaultUa
-            .replace("; wv", "")
-            .replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
+        // TikTok's own QR/phone-email web login is designed for a full browser.
+        // Keep a stable desktop browser identity for the entire TikTok session;
+        // Google OAuth itself is never opened in this WebView.
+        return DESKTOP_UA
     }
 
     /** Apply a stable, browser-like configuration before TikTok navigation. */
@@ -185,19 +190,104 @@ internal object TikTokWebPolicy {
                         (location.pathname || '').indexOf('/signup') === 0 ||
                         (location.pathname || '').indexOf('/passport') === 0;
 
+                    state.qrLoginUrl = "https://in.tiktok.com/login/qrcode";
+                    state.loginUrl = "https://in.tiktok.com/login/";
+                    state.qrRoute = (location.pathname || '').indexOf('/login/qrcode') === 0;
+
+                    function looksLikeGoogleOAuth(url) {
+                        var u = String(url || '').toLowerCase();
+                        return u.indexOf('accounts.google.com') >= 0 ||
+                            u.indexOf('oauth2.googleapis.com') >= 0 ||
+                            u.indexOf('googleusercontent.com') >= 0;
+                    }
+
+                    function loginText(el) {
+                        return (((el && (el.innerText || el.textContent)) || '') + '')
+                            .toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 280);
+                    }
+
+                    function installLoginHelper() {
+                        if (!state.loginRoute || !document.body) return;
+
+                        var helper = document.getElementById('ttube-tiktok-login-helper');
+                        if (!helper) {
+                            helper = document.createElement('div');
+                            helper.id = 'ttube-tiktok-login-helper';
+                            helper.setAttribute('style',
+                                'position:fixed;right:12px;bottom:12px;z-index:2147483647;' +
+                                'display:flex;gap:8px;padding:8px;border-radius:12px;' +
+                                'background:rgba(10,15,24,.92);box-shadow:0 4px 18px rgba(0,0,0,.35);'
+                            );
+
+                            var primary = document.createElement('button');
+                            primary.type = 'button';
+                            primary.textContent = state.qrRoute ? 'Cách đăng nhập khác' : 'Đăng nhập QR';
+                            primary.setAttribute('style',
+                                'border:0;border-radius:9px;padding:10px 14px;' +
+                                'font:600 14px sans-serif;color:#fff;background:#fe2c55;'
+                            );
+                            primary.onclick = function(ev) {
+                                try {
+                                    ev.preventDefault();
+                                    ev.stopPropagation();
+                                } catch (_) {}
+                                location.assign(state.qrRoute ? state.loginUrl : state.qrLoginUrl);
+                                return false;
+                            };
+                            helper.appendChild(primary);
+
+                            if (!state.qrRoute) {
+                                var hint = document.createElement('div');
+                                hint.textContent = 'Google bị Google chặn trong WebView · dùng QR hoặc SĐT/email';
+                                hint.setAttribute('style',
+                                    'max-width:220px;align-self:center;color:#e2e8f0;' +
+                                    'font:12px/1.25 sans-serif;'
+                                );
+                                helper.appendChild(hint);
+                            }
+                            document.body.appendChild(helper);
+                        }
+                    }
+
                     if (state.loginRoute && !state.loginBridgeInstalled) {
                         state.loginBridgeInstalled = true;
+
+                        // Capture Google before TikTok can open an OAuth popup/iframe.
+                        // QR keeps authentication on TikTok's own web origin and the
+                        // resulting cookies remain inside this exact WebView session.
                         document.addEventListener('click', function(e) {
                             var target = e.target;
-                            var a = target && target.closest
-                                ? target.closest('a[target="_blank"]')
+                            var action = target && target.closest
+                                ? target.closest('a,button,[role="button"]')
                                 : null;
-                            if (a) a.setAttribute('target', '_self');
+                            if (!action) return;
+
+                            var text = loginText(action);
+                            var href = action.href ||
+                                (action.getAttribute ? action.getAttribute('href') : '') || '';
+
+                            if (text.indexOf('google') >= 0 || looksLikeGoogleOAuth(href)) {
+                                try {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+                                } catch (_) {}
+                                location.assign(state.qrLoginUrl);
+                                return false;
+                            }
+
+                            if (action.getAttribute && action.getAttribute('target') === '_blank') {
+                                action.setAttribute('target', '_self');
+                            }
                         }, true);
 
                         var nativeOpen = window.open;
                         window.open = function(url, target, features) {
                             try {
+                                if (looksLikeGoogleOAuth(url)) {
+                                    location.assign(state.qrLoginUrl);
+                                    return window;
+                                }
                                 if (url && typeof url === 'string') {
                                     location.assign(url);
                                     return window;
@@ -417,8 +507,16 @@ internal object TikTokWebPolicy {
                         // the native app.
                         if (state.loginRoute) {
                             unlockPage();
-                            fitPageWidth();
-                            state.interval = 2400;
+                            // Never scale the QR/auth UI with the feed-fit algorithm.
+                            // A large, native TikTok QR is easier for a phone to scan.
+                            try {
+                                if (document.body) {
+                                    document.body.style.removeProperty('zoom');
+                                    document.body.style.removeProperty('width');
+                                }
+                            } catch (_) {}
+                            installLoginHelper();
+                            state.interval = 1800;
                             return;
                         }
 
