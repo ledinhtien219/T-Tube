@@ -2649,10 +2649,7 @@ class MainActivity : AppCompatActivity() {
             finish()
             return
         }
-        youtubeWeb?.onResume()
-        iptvWeb?.onResume()
-        youtubeWeb?.resumeTimers()
-        iptvWeb?.resumeTimers()
+        resumePhoneWebViewsForForeground()
         applyPhoneTheme()
         setupPhoneAppGrid()
         updatePermissionStatusDisplay()
@@ -2666,43 +2663,64 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        // Another foreground app (especially Google Maps) should not compete with
+        // two hidden Chromium surfaces. Keep only the WebView that is ACTUALLY
+        // playing audio; pause every other phone WebView before focus leaves T Tube.
+        suspendPhoneWebViewsForExternalApp()
         super.onPause()
-        val bgAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
-        if (bgAudio) {
-            youtubeWeb?.onResume()
-            iptvWeb?.onResume()
-            youtubeWeb?.resumeTimers()
-            iptvWeb?.resumeTimers()
-            if (CarMediaManager.isPlaying || CarMediaManager.userWantsPlayback) {
-                CarMediaManager.acquireWakeLock(this)
-                ensureBackgroundPlaybackActive()
-            } else {
-                CarMediaManager.releaseWakeLock()
-            }
-        }
     }
 
     override fun onStop() {
+        suspendPhoneWebViewsForExternalApp()
         super.onStop()
-        val bgAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
-        if (bgAudio) {
-            youtubeWeb?.onResume()
-            iptvWeb?.onResume()
-            youtubeWeb?.resumeTimers()
-            iptvWeb?.resumeTimers()
-            if (CarMediaManager.isPlaying || CarMediaManager.userWantsPlayback) {
-                CarMediaManager.acquireWakeLock(this)
-                ensureBackgroundPlaybackActive()
-            } else {
-                CarMediaManager.releaseWakeLock()
-            }
+    }
+
+    private fun resumePhoneWebViewsForForeground() {
+        val backgroundAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
+        val activeMediaWeb = CarMediaManager.getActiveWebView()
+        val keepYoutube = activeTab == TAB_YOUTUBE ||
+            (backgroundAudio && CarMediaManager.isPlaying && activeMediaWeb === youtubeWeb)
+        val keepIptv = activeTab == TAB_IPTV ||
+            (backgroundAudio && CarMediaManager.isPlaying && activeMediaWeb === iptvWeb)
+
+        youtubeWeb?.let { web ->
+            web.enableBackgroundAudio = backgroundAudio && keepYoutube
+            if (keepYoutube) web.onResume() else web.onPause()
+        }
+        iptvWeb?.let { web ->
+            web.enableBackgroundAudio = backgroundAudio && keepIptv
+            if (keepIptv) web.onResume() else web.onPause()
+        }
+    }
+
+    private fun suspendPhoneWebViewsForExternalApp() {
+        val backgroundAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
+        val activeMediaWeb = CarMediaManager.getActiveWebView()
+        val keepYoutubeAudio = backgroundAudio && CarMediaManager.isPlaying && activeMediaWeb === youtubeWeb
+        val keepIptvAudio = backgroundAudio && CarMediaManager.isPlaying && activeMediaWeb === iptvWeb
+
+        youtubeWeb?.let { web ->
+            web.enableBackgroundAudio = keepYoutubeAudio
+            if (keepYoutubeAudio) web.onResume() else web.onPause()
+        }
+        iptvWeb?.let { web ->
+            web.enableBackgroundAudio = keepIptvAudio
+            if (keepIptvAudio) web.onResume() else web.onPause()
+        }
+
+        if (keepYoutubeAudio || keepIptvAudio) {
+            CarMediaManager.acquireWakeLock(this)
+            ensureBackgroundPlaybackActive()
+        } else {
+            CarMediaManager.releaseWakeLock()
         }
     }
 
     private fun ensureBackgroundPlaybackActive() {
         try {
-            if (CarMediaManager.isPlaying || CarMediaManager.userWantsPlayback) {
-                youtubeWeb?.evaluateJavascript(
+            if (!CarMediaManager.isPlaying) return
+            when (CarMediaManager.getActiveWebView()) {
+                youtubeWeb -> youtubeWeb?.evaluateJavascript(
                     """
                     (function() {
                         try {
@@ -2716,7 +2734,7 @@ class MainActivity : AppCompatActivity() {
                     """.trimIndent(),
                     null
                 )
-                iptvWeb?.evaluateJavascript(
+                iptvWeb -> iptvWeb?.evaluateJavascript(
                     """
                     (function() {
                         try {
@@ -2731,7 +2749,7 @@ class MainActivity : AppCompatActivity() {
                     null
                 )
             }
-        } catch (e: Exception) {}
+        } catch (_: Exception) {}
     }
 
     override fun onDestroy() {
