@@ -31,11 +31,11 @@ class TikTokWebPolicyTest {
 
             TikTokWebPolicy.configure(web, "https://www.tiktok.com/login/phone-or-email/email")
             val loginUa = web.settings.userAgentString
-            assertTrue(loginUa.contains("Android 16"))
-            assertTrue(loginUa.contains("Chrome/153.0.8010.36"))
-            assertTrue(loginUa.contains("Mobile"))
-            assertFalse(loginUa.contains("; wv"))
-            assertFalse(loginUa.contains("Version/4.0"))
+            assertEquals(searchUa, loginUa)
+            assertTrue(loginUa.contains("X11; Linux x86_64"))
+            assertTrue(loginUa.contains("Chrome/128.0.0.0"))
+            assertFalse(loginUa.contains("Android"))
+            assertFalse(loginUa.contains("Mobile"))
             TikTokWebPolicy.configure(web, "https://www.tiktok.com/search?q=nhac")
             assertEquals(searchUa, web.settings.userAgentString)
             TikTokWebPolicy.configure(web, "https://www.tiktok.com/search?q=khac")
@@ -61,7 +61,8 @@ class TikTokWebPolicyTest {
         assertTrue(TikTokWebPolicy.isGoogleOAuth("https://oauth2.googleapis.com/auth"))
         assertTrue(TikTokWebPolicy.isGoogleOAuth("https://foo.googleusercontent.com/callback"))
         assertFalse(TikTokWebPolicy.isGoogleOAuth("https://www.tiktok.com/login"))
-        assertEquals("https://www.tiktok.com/login", TikTokWebPolicy.safeLoginUrl())
+        assertEquals("https://in.tiktok.com/login/", TikTokWebPolicy.safeLoginUrl())
+        assertEquals("https://in.tiktok.com/login/qrcode", TikTokWebPolicy.qrLoginUrl())
     }
 
     @Test fun loginAndExternalAuthArePartOfTikTokSession() {
