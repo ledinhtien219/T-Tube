@@ -5154,6 +5154,7 @@ class CarPresentation(
                 CarMediaManager.releaseWakeLock()
             }
 
+            dashboardView?.setHostForeground(false)
             if (::root.isInitialized) root.visibility = View.INVISIBLE
         } catch (_: Exception) {}
     }
@@ -5161,6 +5162,7 @@ class CarPresentation(
     fun onProjectionHostForegrounded() {
         projectionHostForeground = true
         try {
+            dashboardView?.setHostForeground(true)
             if (::root.isInitialized) root.visibility = View.VISIBLE
             if (web is BackgroundAudioWebView) {
                 web.enableBackgroundAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
