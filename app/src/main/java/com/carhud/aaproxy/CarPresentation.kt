@@ -474,6 +474,14 @@ class CarPresentation(
             }
 
             @JavascriptInterface
+            fun onExternalAudioTakeover() {
+                mainHandler.post {
+                    CarMediaManager.yieldToExternalAudio(web)
+                    if (web is BackgroundAudioWebView) web.enableBackgroundAudio = false
+                }
+            }
+
+            @JavascriptInterface
             fun onTrackChanged(title: String, artist: String) {
                 mainHandler.post {
                     CarMediaManager.updateTrack(title, artist, null)
@@ -5128,6 +5136,7 @@ class CarPresentation(
     fun onProjectionHostBackgrounded() {
         if (!projectionHostForeground) return
         projectionHostForeground = false
+        YouTubePlayerHelper.setHostForeground(web, false)
         projectedTouchActive = false
         barsVisibilityGeneration += 1L
         autoHideHandler.removeCallbacks(hideBarsRunnable)
@@ -5162,6 +5171,7 @@ class CarPresentation(
 
     fun onProjectionHostForegrounded() {
         projectionHostForeground = true
+        YouTubePlayerHelper.setHostForeground(web, true)
         try {
             val mediaWeb = web
             dashboardView?.setHostForeground(true)
