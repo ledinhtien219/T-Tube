@@ -40,6 +40,19 @@ internal object TikTokWebPolicy {
             path.startsWith("/passport")
     }
 
+    fun isGoogleOAuth(url: String?): Boolean {
+        val parsed = runCatching { Uri.parse(url.orEmpty()) }.getOrNull() ?: return false
+        val host = parsed.host.orEmpty().lowercase()
+        val path = parsed.path.orEmpty().lowercase()
+        return host == "accounts.google.com" ||
+            host.endsWith(".accounts.google.com") ||
+            host == "oauth2.googleapis.com" ||
+            host.endsWith(".googleusercontent.com") ||
+            (host == "google.com" && path.contains("oauth"))
+    }
+
+    fun safeLoginUrl(): String = "https://www.tiktok.com/login"
+
     fun isSessionUrl(url: String?): Boolean {
         if (isTikTok(url)) return true
         val host = runCatching { Uri.parse(url.orEmpty()).host.orEmpty().lowercase() }.getOrDefault("")
