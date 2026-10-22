@@ -16,6 +16,14 @@ assert.match(tiktok, /state\.loginRoute/);
 assert.match(tiktok, /if \(state\.loginRoute\) \{[\s\S]*?fitPageWidth\(\);[\s\S]*?return;/);
 assert.match(tiktok, /target\.closest\('a\[target="_blank"\]'\)/);
 assert.match(tiktok, /location\.assign\(url\)/);
+assert.match(tiktok, /fun isGoogleOAuth/);
+assert.match(tiktok, /accounts\.google\.com/);
+assert.match(tiktok, /oauth2\.googleapis\.com/);
+assert.match(tiktok, /fun safeLoginUrl\(\): String = "https:\/\/www\.tiktok\.com\/login"/);
+assert.match(car, /currentActiveAppId == "tiktok" && TikTokWebPolicy\.isGoogleOAuth\(target\)/);
+assert.match(phone, /activePhoneWebAppId == "tiktok" && TikTokWebPolicy\.isGoogleOAuth\(target\)/);
+assert.match(car, /Google không cho đăng nhập trong WebView/);
+assert.match(phone, /Google không cho đăng nhập trong WebView/);
 
 // VTVgo and TV360 must treat service subdomains as the same app/session.
 assert.match(streaming, /host == root \|\| host\.endsWith\("\.\$root"\)/);
