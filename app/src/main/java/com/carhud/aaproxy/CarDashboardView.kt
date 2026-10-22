@@ -1191,7 +1191,10 @@ class CarDashboardView(
         if (view.text.toString() != value.toString()) view.text = value
     }
 
-    // Stop animated/video wallpaper while fullscreen apps cover the dashboard.
+    // Stop animated/video wallpaper while fullscreen apps cover the dashboard
+    // or while Android Auto has handed the foreground to another app (e.g. Maps).
+    private var hostForeground = true
+
     private fun setWallpaperPlaying(playing: Boolean) {
         try {
             animatedWallpaper?.let { if (playing) it.start() else it.stop() }
@@ -1209,9 +1212,14 @@ class CarDashboardView(
         }
     }
 
+    fun setHostForeground(foreground: Boolean) {
+        hostForeground = foreground
+        setWallpaperPlaying(foreground && visibility == View.VISIBLE)
+    }
+
     override fun onVisibilityChanged(changedView: View, visibility: Int) {
         super.onVisibilityChanged(changedView, visibility)
-        if (changedView === this) setWallpaperPlaying(visibility == View.VISIBLE)
+        if (changedView === this) setWallpaperPlaying(hostForeground && visibility == View.VISIBLE)
     }
 
     override fun onDetachedFromWindow() {
