@@ -637,8 +637,23 @@ class CarPresentation(
             }
 
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
-                YouTubeAdBlocker.shouldIntercept(request)?.let { return it }
+                // YouTube blocking rules must never touch TikTok/VTVgo/TV360 auth,
+                // DRM, CDN or playback requests.
+                if (currentActiveAppId != "youtube") {
+                    return super.shouldInterceptRequest(view, request)
+                }
+
                 val url = request?.url?.toString()
+                if (url != null && (
+                        url.contains("accounts.google.com", true) ||
+                        url.contains("ssl.gstatic.com/accounts", true) ||
+                        url.contains("myaccount.google.com", true)
+                    )
+                ) {
+                    return super.shouldInterceptRequest(view, request)
+                }
+
+                YouTubeAdBlocker.shouldIntercept(request)?.let { return it }
                 if (url != null && YouTubePlayerHelper.isAdUrl(url)) {
                     val origin = request.requestHeaders?.get("Origin") ?: request.requestHeaders?.get("origin")
                     return YouTubePlayerHelper.createEmptyResponse(origin)
