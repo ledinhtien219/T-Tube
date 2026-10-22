@@ -612,7 +612,10 @@ class CarPresentation(
                 if (TikTokWebPolicy.isAppRedirect(target)) {
                     return true // Web-only TikTok: never leave for the native app/store.
                 }
-                if (request.isForMainFrame && view != null) TikTokWebPolicy.configure(view, target)
+                if (request.isForMainFrame && view != null) {
+                    TikTokWebPolicy.configure(view, target)
+                    StreamingWebPolicy.configure(view, currentActiveAppId, target)
+                }
                 return false
             }
 
@@ -626,7 +629,10 @@ class CarPresentation(
                 if (TikTokWebPolicy.isAppRedirect(target)) {
                     return true
                 }
-                if (view != null) TikTokWebPolicy.configure(view, target)
+                if (view != null) {
+                    TikTokWebPolicy.configure(view, target)
+                    StreamingWebPolicy.configure(view, currentActiveAppId, target)
+                }
                 return false
             }
 
@@ -644,6 +650,7 @@ class CarPresentation(
                 super.onPageStarted(view, url, favicon)
                 if (view !== web || !isCurrentAppPage(url)) return
                 TikTokWebPolicy.applyRenderingPolicy(view, url)
+                StreamingWebPolicy.configure(view, currentActiveAppId, url)
                 // Starting navigation does not mean the new document is visible.
                 browserLoading = true
                 updateBrowserToolbar(url)
@@ -715,6 +722,7 @@ class CarPresentation(
                 applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
                 TikTokWebPolicy.fitLayout(view, url)
                 TikTokWebPolicy.recoverSearchIfBlank(view, url)
+                StreamingWebPolicy.onPageFinished(view, currentActiveAppId, url)
                 val isYouTube = currentActiveAppId == "youtube" && (url.contains("youtube.com") || url.contains("youtu.be"))
                 if (isYouTube) {
                     YouTubePlayerHelper.inject(view, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
@@ -2406,6 +2414,8 @@ class CarPresentation(
                 CookieManager.getInstance().setAcceptCookie(true)
                 CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
             } catch (e: Exception) {}
+        } else if (app.id == "tv360" || app.id == "vtvgo") {
+            StreamingWebPolicy.configure(web, app.id, startUrl ?: app.url)
         } else if (isDesktop) {
             web.settings.userAgentString = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
         } else {
@@ -2476,6 +2486,7 @@ class CarPresentation(
         if (shouldNavigateFresh) {
             pendingSessionRestoreAppId = app.id
             TikTokWebPolicy.configure(web, homeUrl)
+            StreamingWebPolicy.configure(web, app.id, homeUrl)
             web.stopLoading()
             if (isChangingApp || !isAlreadyLoaded) {
                 try {
@@ -2503,7 +2514,9 @@ class CarPresentation(
         val tiktok = host == "tiktok.com" || host.endsWith(".tiktok.com")
         return when (app.id) {
             "youtube" -> youtube || host == "accounts.google.com" || host == "myaccount.google.com"
-            "tiktok" -> tiktok
+            "tiktok" -> TikTokWebPolicy.isSessionUrl(url)
+            "tv360" -> StreamingWebPolicy.isTv360(url)
+            "vtvgo" -> StreamingWebPolicy.isVtvGo(url)
             "iptv" -> uri.scheme == "file" && uri.path == "/android_asset/iptv_player.html"
             "web" -> !youtube && !tiktok &&
                 !(uri.scheme == "file" && uri.path == "/android_asset/iptv_player.html") &&
@@ -2524,7 +2537,9 @@ class CarPresentation(
         val tiktok = host == "tiktok.com" || host.endsWith(".tiktok.com")
         return when (currentActiveAppId) {
             "youtube" -> youtube || host == "accounts.google.com" || host == "myaccount.google.com"
-            "tiktok" -> tiktok
+            "tiktok" -> TikTokWebPolicy.isSessionUrl(url)
+            "tv360" -> StreamingWebPolicy.isTv360(url)
+            "vtvgo" -> StreamingWebPolicy.isVtvGo(url)
             "iptv" -> uri.scheme == "file" && uri.path == "/android_asset/iptv_player.html"
             "web" -> !youtube && !tiktok && uri.scheme in setOf("http", "https")
             else -> {
