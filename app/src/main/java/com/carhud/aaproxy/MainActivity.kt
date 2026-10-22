@@ -1647,6 +1647,15 @@ class MainActivity : AppCompatActivity() {
                 if (TikTokWebPolicy.isAppRedirect(target)) {
                     return true
                 }
+                if (activePhoneWebAppId == "tiktok" && TikTokWebPolicy.isGoogleOAuth(target)) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Google không cho đăng nhập trong WebView. Hãy dùng số điện thoại/email/QR trên TikTok.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    view?.post { view.loadUrl(TikTokWebPolicy.safeLoginUrl()) }
+                    return true
+                }
                 if (view != null && request.isForMainFrame) {
                     if (TikTokWebPolicy.isTikTok(target)) TikTokWebPolicy.configure(view, target)
                     StreamingWebPolicy.configure(view, activePhoneWebAppId, target)
