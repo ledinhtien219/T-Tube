@@ -104,6 +104,7 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
 
     private var virtualDisplay: VirtualDisplay? = null
     private var presentation: CarPresentation? = null
+    private var hostForeground = false
 
     // surfaceCreated + surfaceChanged both fire on start, and some head units repeat
     // surfaceChanged with identical geometry. Rebuilding the VirtualDisplay/Presentation
@@ -185,11 +186,18 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
 
         surfaceView.setOnTouchListener { _, event ->
             // Keep complete pointer streams for fast typing and WebView gestures.
+            if (!hostForeground) return@setOnTouchListener false
             if (presentation?.dispatchProjectedTouch(event) != true) {
                 gestureDetector.onTouchEvent(event)
             }
             true
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        hostForeground = true
+        reattachProjectionSurfaceIfReady()
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
@@ -215,20 +223,8 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
         lastSetupKey = ""
         CarDisconnectWatchdog.onProjectionLifecycleEnded(this, "projection surface destroyed")
         try {
+            presentation?.onProjectionHostVisibilityChanged(false)
             virtualDisplay?.setSurface(null)
-
-            // Surface loss can be a resize/recreation while projection is still
-            // connected, so do not treat this callback alone as a cable detach.
-            // The service-level USB/power receiver owns full shutdown.
-            val web = CarMediaManager.getPersistentWebView()
-            web?.onResume()
-            web?.resumeTimers()
-
-            if (CarMediaManager.isPlaying || CarMediaManager.userWantsPlayback) {
-                CarMediaManager.registerService(this)
-                CarMediaManager.acquireWakeLock(this)
-                CarMediaManager.ensureAudioFocus()
-            }
         } catch (_: Exception) {}
     }
 
@@ -273,7 +269,13 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
         val density = resolveDensity(width, height)
         val dpi = density.dpi
         val setupKey = "${System.identityHashCode(surface)}|$width|$height|$dpi"
-        if (setupKey == lastSetupKey && virtualDisplay != null && presentation != null) return
+        if (setupKey == lastSetupKey && virtualDisplay != null && presentation != null) {
+            if (hostForeground) {
+                try { virtualDisplay?.setSurface(surface) } catch (_: Throwable) {}
+                presentation?.onProjectionHostVisibilityChanged(true)
+            }
+            return
+        }
 
         try {
             presentation?.dismiss()
@@ -297,6 +299,10 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
             p.show()
             presentation = p
             lastSetupKey = setupKey
+            if (!hostForeground) {
+                p.onProjectionHostVisibilityChanged(false)
+                try { vd.setSurface(null) } catch (_: Throwable) {}
+            }
             Log.i("CarHudProjection", "Surface=${width}x$height dpi=$dpi source=${density.source}")
 
             CarMediaManager.setCarConnectionState(true)
@@ -321,11 +327,39 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
     }
 
     override fun onStop() {
+        hostForeground = false
+        // Android Auto can keep this Activity/VirtualDisplay alive when the user
+        // switches to Google Maps. Detach our producer surface immediately so
+        // T Tube cannot keep rendering frames behind Maps or consume its touch/GPU budget.
+        try {
+            presentation?.onProjectionHostVisibilityChanged(false)
+            virtualDisplay?.setSurface(null)
+        } catch (_: Throwable) {}
         CarDisconnectWatchdog.onProjectionLifecycleEnded(this, "projection activity stopped")
         super.onStop()
     }
 
+    private fun reattachProjectionSurfaceIfReady() {
+        if (!::surfaceView.isInitialized) return
+        val surface = surfaceView.holder.surface
+        val frame = surfaceView.holder.surfaceFrame
+        if (!surface.isValid || frame.width() <= 0 || frame.height() <= 0) return
+
+        if (virtualDisplay != null && presentation != null) {
+            try {
+                virtualDisplay?.setSurface(surface)
+                presentation?.onProjectionHostVisibilityChanged(true)
+            } catch (_: Throwable) {
+                lastSetupKey = ""
+                setupPresentation(surface, frame.width(), frame.height())
+            }
+        } else {
+            setupPresentation(surface, frame.width(), frame.height())
+        }
+    }
+
     override fun onDestroy() {
+        hostForeground = false
         (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager).unregisterDisplayListener(displayListener)
         CarDisconnectWatchdog.onProjectionLifecycleEnded(this, "projection activity destroyed")
         try {
