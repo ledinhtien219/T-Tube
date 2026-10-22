@@ -3,8 +3,8 @@
 ## Build identity
 - App name: T Tube
 - Package: `com.ledinhtien.ttube`
-- Version: `1.0.81`
-- Version code: `277`
+- Version: `1.0.82`
+- Version code: `278`
 - minSdk: 29
 - targetSdk / compileSdk: 36
 - Artifact: Android App Bundle (`.aab`)
@@ -22,7 +22,11 @@ This internal-test build restores the full Android Auto host used by the previou
 
 This build is intended for **Internal testing**. Before Production submission, re-check current Google Play / Android Auto policy because the private projection path is not the same as a conventional Play-approved media-only app.
 
-## 1.0.81 internal-test change
+## 1.0.82 internal-test change
+- TikTok login: preserve the real login/signup UI, use a browser-like mobile UA on auth routes, and keep Google/Apple/Facebook/X auth redirects in the TikTok session.
+- VTVgo / TV360: treat service subdomains as the same app, persist first/third-party cookies, use browser-like WebView identity, and keep login popup navigation in the same WebView.
+- YouTube request blocking is scoped to YouTube only, so it cannot block TikTok/VTVgo/TV360 auth, CDN or playback requests.
+- Keeps the 1.0.81 external-audio handoff + YouTube auto-next and the 1.0.80 Google Maps handoff fixes.
 - External audio handoff: when T Tube is backgrounded and SoundCloud/Spotify/Zing takes audio, T Tube no longer fights the focus or auto-resumes.
 - Returning to T Tube does not steal audio back; playback resumes only after an explicit Play/user selection.
 - YouTube auto-next: when a video truly ends, T Tube advances to the next video with player API/button/recommendation fallbacks and bounded retries.
@@ -58,7 +62,7 @@ Use the published public policy URL:\n`https://github.com/ledinhtien219/T-Tube/b
 3. Production only after Play Console grants production access
 
 ## Release
-Upload the signed bundle `TTube_v1.0.81_build277_FullAA_Internal_signed.aab`.
+Upload the signed bundle `TTube_v1.0.82_build278_FullAA_Internal_signed.aab`.
 Do not upload the GitHub/full APK to Play Console.
 
 ### Không giữ bundle cũ trong cùng bản phát hành
