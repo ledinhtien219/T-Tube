@@ -3,8 +3,8 @@
 ## Build identity
 - App name: T Tube
 - Package: `com.ledinhtien.ttube`
-- Version: `1.0.82`
-- Version code: `278`
+- Version: `1.0.83`
+- Version code: `279`
 - minSdk: 29
 - targetSdk / compileSdk: 36
 - Artifact: Android App Bundle (`.aab`)
@@ -22,7 +22,10 @@ This internal-test build restores the full Android Auto host used by the previou
 
 This build is intended for **Internal testing**. Before Production submission, re-check current Google Play / Android Auto policy because the private projection path is not the same as a conventional Play-approved media-only app.
 
-## 1.0.82 internal-test change
+## 1.0.83 internal-test change
+- TikTok: block unsupported Google OAuth inside Android WebView before navigation, preventing the black-screen/disallowed-useragent path.
+- Return to TikTok's normal login page and tell the user to use phone/email/QR, which can keep a WebView session.
+- Keep 1.0.82 VTVgo/TV360 compatibility, 1.0.81 audio handoff + YouTube auto-next, and 1.0.80 Maps handoff.
 - TikTok login: preserve the real login/signup UI, use a browser-like mobile UA on auth routes, and keep Google/Apple/Facebook/X auth redirects in the TikTok session.
 - VTVgo / TV360: treat service subdomains as the same app, persist first/third-party cookies, use browser-like WebView identity, and keep login popup navigation in the same WebView.
 - YouTube request blocking is scoped to YouTube only, so it cannot block TikTok/VTVgo/TV360 auth, CDN or playback requests.
@@ -62,7 +65,7 @@ Use the published public policy URL:\n`https://github.com/ledinhtien219/T-Tube/b
 3. Production only after Play Console grants production access
 
 ## Release
-Upload the signed bundle `TTube_v1.0.82_build278_FullAA_Internal_signed.aab`.
+Upload the signed bundle `TTube_v1.0.83_build279_FullAA_Internal_signed.aab`.
 Do not upload the GitHub/full APK to Play Console.
 
 ### Không giữ bundle cũ trong cùng bản phát hành
