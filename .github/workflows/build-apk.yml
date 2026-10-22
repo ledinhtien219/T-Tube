@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: ttube-v170-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
