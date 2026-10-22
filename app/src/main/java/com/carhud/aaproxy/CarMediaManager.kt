@@ -336,6 +336,14 @@ object CarMediaManager {
             }
 
             @android.webkit.JavascriptInterface
+            fun onExternalAudioTakeover() {
+                if (!ownsMedia()) return
+                mainHandler.post {
+                    if (ownsMedia()) yieldToExternalAudio(web)
+                }
+            }
+
+            @android.webkit.JavascriptInterface
             fun onTrackChanged(title: String, artist: String) {
                 mainHandler.post { if (ownsMedia()) updateTrack(title, artist, null) }
             }
@@ -837,6 +845,29 @@ object CarMediaManager {
                     }
                 }
             } catch (e: Exception) {}
+        }
+    }
+
+    fun yieldToExternalAudio(sourceWeb: WebView? = null) {
+        userWantsPlayback = false
+        mainHandler.post {
+            try {
+                navigationDuckCount = 0
+                val web = sourceWeb ?: getActiveWebView()
+                if (web is BackgroundAudioWebView) {
+                    web.enableBackgroundAudio = false
+                }
+                web?.let {
+                    YouTubePlayerHelper.setDuckingVolume(it, 1.0f)
+                    it.clearFocus()
+                    it.onPause()
+                }
+                releaseWakeLock()
+                setPlaybackState(false)
+            } catch (_: Exception) {
+                releaseWakeLock()
+                setPlaybackState(false)
+            }
         }
     }
 
