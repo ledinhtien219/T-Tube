@@ -8,7 +8,7 @@
 
 ## ✅ Bản Google Play trên nhánh này
 
-- **Play candidate:** `v1.0.84` / Build `280`
+- **Play candidate:** `v1.0.85` / Build `283`
 - **Branch:** `release/play`
 - **Play Application ID:** `com.ledinhtien.ttube`
 - **GitHub stable Application ID:** `com.tcar.auto` (package riêng)
@@ -30,6 +30,8 @@
 > 1.0.83 chặn **TikTok Google OAuth black-screen** trong WebView và trả người dùng về login TikTok an toàn.
 >
 > 1.0.84 bổ sung **TikTok QR fallback hardening**: bắt click/popup Google ngay trong DOM, chuyển sang QR chính thức của TikTok, giữ cookie cùng WebView và tách hoàn toàn theme T Tube khỏi TikTok/VTVgo/TV360.
+>
+> 1.0.85 bổ sung **2 giao diện Waze HUD mới** từ nhánh `feature/waze-hud-reference-layouts`: #6 Waze Panel Lớn và #7 Waze Thanh Ngang.
 
 ---
 

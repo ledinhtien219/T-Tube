@@ -105,6 +105,7 @@ jobs:
             tests/google-maps-handoff.test.cjs
             tests/iptv-aspect.test.cjs
             tests/projection-viewport.test.cjs
+            tests/waze-hud-reference-layouts.test.cjs
             tests/tiktok-phone-layout.test.cjs
             tests/youtube-quality.test.cjs
             tests/youtube-screen-settings.test.cjs

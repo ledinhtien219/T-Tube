@@ -3,8 +3,8 @@
 ## Build identity
 - App name: T Tube
 - Package: `com.ledinhtien.ttube`
-- Version: `1.0.84`
-- Version code: `280`
+- Version: `1.0.85`
+- Version code: `283`
 - minSdk: 29
 - targetSdk / compileSdk: 36
 - Artifact: Android App Bundle (`.aab`)
@@ -22,7 +22,10 @@ This internal-test build restores the full Android Auto host used by the previou
 
 This build is intended for **Internal testing**. Before Production submission, re-check current Google Play / Android Auto policy because the private projection path is not the same as a conventional Play-approved media-only app.
 
-## 1.0.84 internal-test change
+## 1.0.85 internal-test change
+- Đồng bộ nhánh `feature/waze-hud-reference-layouts` vào Play build.
+- Thêm HUD #6 **Waze Panel Lớn**: biển giới hạn + tốc độ lớn + hướng rẽ + cảnh báo xếp bên phải.
+- Thêm HUD #7 **Waze Thanh Ngang**: thanh thấp một hàng cho màn hình Android Auto hẹp.
 - TikTok Google sign-in: capture the Google button/popup before OAuth opens and redirect to TikTok's official QR login page so the authenticated TikTok cookies stay in the same WebView.
 - Add an always-visible TikTok login helper button for QR / alternate login methods; QR pages are not scaled by feed CSS.
 - Disable T Tube universal theme/CSS injection on TikTok, VTVgo and TV360 pages to avoid black auth/player surfaces.
@@ -69,7 +72,7 @@ Use the published public policy URL:\n`https://github.com/ledinhtien219/T-Tube/b
 3. Production only after Play Console grants production access
 
 ## Release
-Upload the signed bundle `TTube_v1.0.84_build280_FullAA_Internal_signed.aab`.
+Upload the signed bundle `TTube_v1.0.85_build283_WazeHudLayouts_signed.aab`.
 Do not upload the GitHub/full APK to Play Console.
 
 ### Không giữ bundle cũ trong cùng bản phát hành
