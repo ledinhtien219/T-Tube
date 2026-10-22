@@ -2182,6 +2182,26 @@ object YouTubePlayerHelper {
     }
 
 
+    fun setHostForeground(view: WebView?, foreground: Boolean) {
+        try {
+            val value = if (foreground) "true" else "false"
+            view?.evaluateJavascript(
+                """
+                (function() {
+                    try {
+                        if (window.__carhudSetHostForeground) {
+                            window.__carhudSetHostForeground($value);
+                        } else {
+                            window.__carhudHostForeground = $value;
+                        }
+                    } catch(e) {}
+                })();
+                """.trimIndent(),
+                null
+            )
+        } catch (_: Exception) {}
+    }
+
     fun toggleAutoplay(view: WebView?, callback: ((Boolean) -> Unit)? = null) {
         val js = """
             (function(){
