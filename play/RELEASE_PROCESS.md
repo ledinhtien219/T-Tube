@@ -40,10 +40,13 @@ Workflow `.github/workflows/build-play-aab.yml` tự đọc `versionName`, `vers
 ## Đưa lên Internal testing
 
 1. Tạo bản phát hành mới trong **Thử nghiệm nội bộ**.
-2. Upload AAB mới.
-3. Xem trước và xác nhận.
-4. **Lưu và xuất bản**.
-5. Tester hiện có không cần link mời mới; Google Play sẽ cung cấp bản cập nhật.
+2. Upload **chỉ AAB mới nhất**.
+3. **Bắt buộc kiểm tra bundle cũ:** nếu Play Console tự giữ versionCode trước trong mục **Gói ứng dụng được giữ lại / Retained app bundles**, xóa bundle cũ khỏi draft. Ví dụ phát hành 277 thì không để 276 nằm chung trong cùng release.
+4. Không chọn **Thêm từ thư viện** cho AAB cũ khi đang phát hành bản cập nhật mới.
+5. Xem trước và xác nhận.
+6. Nếu có lỗi “APK này sẽ không được phân phối ... vì APK khác có mã phiên bản cao hơn đã thay thế hoàn toàn”, quay lại và xóa versionCode cũ khỏi bản phát hành.
+7. **Lưu và xuất bản**.
+8. Tester hiện có không cần link mời mới; Google Play sẽ cung cấp bản cập nhật.
 
 ## Lưu ý signing
 
