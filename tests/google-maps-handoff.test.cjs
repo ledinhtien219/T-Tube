@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const phone = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/MainActivity.kt', 'utf8');
 const host = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarHudProjectionHost.kt', 'utf8');
 const presentation = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarPresentation.kt', 'utf8');
+const dashboard = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt', 'utf8');
 
 function section(source, startNeedle, endNeedle) {
   const start = source.indexOf(startNeedle);
@@ -41,5 +42,11 @@ assert.match(presentation, /fun onProjectionHostBackgrounded\(\)/);
 assert.match(presentation, /projectedTouchActive = false/);
 assert.match(presentation, /root\.visibility = View\.INVISIBLE/);
 assert.match(presentation, /fun onProjectionHostForegrounded\(\)[\s\S]*?root\.visibility = View\.VISIBLE/);
+assert.match(presentation, /dashboardView\?\.setHostForeground\(false\)/);
+assert.match(presentation, /dashboardView\?\.setHostForeground\(true\)/);
+
+// Dynamic dashboard wallpaper is a major GPU user; it must stop while Maps is foreground.
+assert.match(dashboard, /fun setHostForeground\(foreground: Boolean\)/);
+assert.match(dashboard, /setWallpaperPlaying\(foreground && visibility == View\.VISIBLE\)/);
 
 console.log('PASS Google Maps handoff: background WebViews suspended, projection touch released, no forced audio-focus reacquire');
