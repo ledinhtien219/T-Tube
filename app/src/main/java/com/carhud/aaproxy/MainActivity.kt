@@ -1578,7 +1578,7 @@ class MainActivity : AppCompatActivity() {
         val defaultUa = android.webkit.WebSettings.getDefaultUserAgent(this)
         val cleanUa = defaultUa.replace("; wv", "").replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
         if (app.id == "tiktok" || TikTokWebPolicy.isTikTok(targetUrl)) {
-            TikTokWebPolicy.configure(view, targetUrl)
+            TikTokWebPolicy.configurePhone(view, targetUrl)
         } else if (app.id == "tv360" || app.id == "vtvgo" ||
             StreamingWebPolicy.isTv360(targetUrl) || StreamingWebPolicy.isVtvGo(targetUrl)) {
             StreamingWebPolicy.configure(view, app.id, targetUrl)
@@ -1657,7 +1657,7 @@ class MainActivity : AppCompatActivity() {
                     return true
                 }
                 if (view != null && request.isForMainFrame) {
-                    if (TikTokWebPolicy.isTikTok(target)) TikTokWebPolicy.configure(view, target)
+                    if (TikTokWebPolicy.isTikTok(target)) TikTokWebPolicy.configurePhone(view, target)
                     StreamingWebPolicy.configure(view, activePhoneWebAppId, target)
                 }
                 return false
@@ -1668,8 +1668,8 @@ class MainActivity : AppCompatActivity() {
                 TikTokWebPolicy.applyRenderingPolicy(view, url)
                 YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this@MainActivity))
                 if (TikTokWebPolicy.isSessionUrl(url) && activePhoneWebAppId == "tiktok") {
-                    TikTokWebPolicy.configure(view, url)
-                    TikTokWebPolicy.fitLayout(view, url)
+                    TikTokWebPolicy.configurePhone(view, url)
+                    TikTokWebPolicy.fitPhoneLayout(view, url)
                 }
                 StreamingWebPolicy.configure(view, activePhoneWebAppId, url)
             }
@@ -1678,14 +1678,14 @@ class MainActivity : AppCompatActivity() {
                 super.doUpdateVisitedHistory(view, url, isReload)
                 if (view != null) {
                     YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this@MainActivity))
-                    TikTokWebPolicy.fitLayout(view, url)
+                    TikTokWebPolicy.fitPhoneLayout(view, url)
                 }
             }
 
             override fun onPageCommitVisible(view: WebView, url: String) {
                 super.onPageCommitVisible(view, url)
                 YouTubePlayerHelper.applyUniversalWebTheme(view, SettingsActivity.resolveIsDay(this@MainActivity))
-                TikTokWebPolicy.fitLayout(view, url)
+                TikTokWebPolicy.fitPhoneLayout(view, url)
             }
 
             override fun shouldInterceptRequest(view: WebView?, request: android.webkit.WebResourceRequest?): android.webkit.WebResourceResponse? {
@@ -1713,7 +1713,7 @@ class MainActivity : AppCompatActivity() {
                     activePhoneWebAppId = "youtube"
                 }
                 if (TikTokWebPolicy.isSessionUrl(url) && activePhoneWebAppId == "tiktok") {
-                    TikTokWebPolicy.fitLayout(view, url)
+                    TikTokWebPolicy.fitPhoneLayout(view, url)
                     TikTokWebPolicy.recoverSearchIfBlank(view, url)
                 }
                 StreamingWebPolicy.onPageFinished(view, activePhoneWebAppId, url)
