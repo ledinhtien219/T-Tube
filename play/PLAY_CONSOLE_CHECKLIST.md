@@ -61,6 +61,12 @@ Use the published public policy URL:\n`https://github.com/ledinhtien219/T-Tube/b
 Upload the signed bundle `TTube_v1.0.81_build277_FullAA_Internal_signed.aab`.
 Do not upload the GitHub/full APK to Play Console.
 
+### Không giữ bundle cũ trong cùng bản phát hành
+- Chỉ để **versionCode mới nhất** trong bản phát hành đang tạo.
+- Nếu Play Console hiện mục **Gói ứng dụng được giữ lại / Retained app bundles**, hãy xóa các versionCode cũ khỏi bản phát hành hiện tại trước khi **Xem trước và xác nhận**.
+- Không dùng **Thêm từ thư viện** để kéo lại AAB cũ khi đang tạo bản cập nhật mới.
+- Nếu Play báo kiểu: “APK này sẽ không được phân phối ... vì APK khác có mã phiên bản cao hơn đã thay thế hoàn toàn”, nghĩa là bundle cũ đang bị giữ chung với bundle mới; xóa bundle cũ khỏi draft rồi tiếp tục.
+
 
 ## Upload key already prepared
 - Alias: `ttube-play-upload`
