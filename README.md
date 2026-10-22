@@ -8,7 +8,7 @@
 
 ## ✅ Bản Google Play trên nhánh này
 
-- **Play candidate:** `v1.0.80` / Build `276`
+- **Play candidate:** `v1.0.81` / Build `277`
 - **Branch:** `release/play`
 - **Play Application ID:** `com.ledinhtien.ttube`
 - **GitHub stable Application ID:** `com.tcar.auto` (package riêng)
@@ -19,9 +19,11 @@
 
 > Package Google Play được tách khỏi package stable GitHub để tránh xung đột package đã tồn tại và để hai bản có thể cài song song.
 >
-> Play candidate 1.0.80 giữ **YouTube screen modes** ngay trong nút bánh răng: Tràn viền, Chuẩn 16:9, Phóng to/cắt viền, 4:3 và 21:9.
+> Play candidate 1.0.81 giữ **YouTube screen modes** ngay trong nút bánh răng: Tràn viền, Chuẩn 16:9, Phóng to/cắt viền, 4:3 và 21:9.
 >
 > 1.0.80 cũng sửa **Google Maps handoff**: khi chuyển khỏi T Tube, projection input và WebView nền được nhả/suspend để Maps nhận touch mượt hơn.
+>
+> 1.0.81 bổ sung **external audio handoff** cho SoundCloud/Spotify/Zing và **YouTube auto-next** khi video kết thúc.
 
 ---
 
