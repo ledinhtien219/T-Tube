@@ -5,7 +5,7 @@ const policy = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/TikTokWebPo
 const main = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/MainActivity.kt', 'utf8');
 const car = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarPresentation.kt', 'utf8');
 
-assert.match(policy, /private const val PHONE_UA =[sS]*Android 15; Mobile[sS]*Mobile Safari/);
+assert.match(policy, /private const val PHONE_UA =[\s\S]*Android 15; Mobile[\s\S]*Mobile Safari/);
 assert.match(policy, /fun configurePhone\(view: WebView, url: String\?\)/);
 assert.match(policy, /loadWithOverviewMode = false/);
 assert.match(policy, /fun fitPhoneLayout\(view: WebView, url: String\?\)/);
