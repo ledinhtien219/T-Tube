@@ -26,6 +26,10 @@ internal object TikTokWebPolicy {
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
+    private const val PHONE_UA =
+        "Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
+
     private const val QR_LOGIN_URL = "https://in.tiktok.com/login/qrcode"
     private const val LOGIN_URL = "https://in.tiktok.com/login/"
 
@@ -123,6 +127,120 @@ internal object TikTokWebPolicy {
         // Keep a stable desktop browser identity for the entire TikTok session;
         // Google OAuth itself is never opened in this WebView.
         return DESKTOP_UA
+    }
+
+    /**
+     * Phone TikTok must use the responsive mobile site. Reusing the Android Auto
+     * desktop identity makes TikTok render a desktop rail plus a narrow video
+     * column in the middle of a portrait phone WebView.
+     */
+    fun configurePhone(view: WebView, url: String?) {
+        if (!isTikTok(url)) return
+        applyRenderingPolicy(view, url)
+
+        view.settings.apply {
+            if (userAgentString != PHONE_UA) userAgentString = PHONE_UA
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            databaseEnabled = true
+            mediaPlaybackRequiresUserGesture = false
+            useWideViewPort = true
+            // Do not shrink a desktop canvas to fit the phone. TikTok mobile
+            // owns the viewport and should render at the real WebView width.
+            loadWithOverviewMode = false
+            textZoom = 100
+            cacheMode = WebSettings.LOAD_DEFAULT
+            javaScriptCanOpenWindowsAutomatically = true
+            setSupportMultipleWindows(false)
+            builtInZoomControls = false
+            displayZoomControls = false
+            setSupportZoom(false)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            runCatching {
+                view.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
+            }
+        }
+
+        runCatching {
+            CookieManager.getInstance().apply {
+                setAcceptCookie(true)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    setAcceptThirdPartyCookies(view, true)
+                }
+            }
+        }
+    }
+
+    /**
+     * Restore a real phone viewport and undo any desktop/AA zoom left on the
+     * shared WebView. Safe to call repeatedly during TikTok SPA navigation.
+     */
+    fun fitPhoneLayout(view: WebView, url: String?) {
+        if (!isTikTok(url)) return
+        view.evaluateJavascript(
+            """
+            (function() {
+                try {
+                    var host = (location.hostname || '').toLowerCase();
+                    if (!(host === 'tiktok.com' || host.endsWith('.tiktok.com'))) return;
+
+                    var viewport = document.querySelector('meta[name="viewport"]');
+                    if (!viewport) {
+                        viewport = document.createElement('meta');
+                        viewport.name = 'viewport';
+                        (document.head || document.documentElement).appendChild(viewport);
+                    }
+                    viewport.setAttribute(
+                        'content',
+                        'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, viewport-fit=cover'
+                    );
+
+                    var body = document.body;
+                    var html = document.documentElement;
+                    if (body) {
+                        body.style.removeProperty('zoom');
+                        body.style.removeProperty('transform');
+                        body.style.removeProperty('width');
+                        body.style.removeProperty('min-width');
+                        body.style.removeProperty('max-width');
+                    }
+                    if (html) {
+                        html.style.removeProperty('zoom');
+                        html.style.removeProperty('transform');
+                        html.style.removeProperty('width');
+                        html.style.removeProperty('min-width');
+                        html.style.removeProperty('max-width');
+                    }
+
+                    var style = document.getElementById('ttube-tiktok-phone-layout');
+                    if (!style) {
+                        style = document.createElement('style');
+                        style.id = 'ttube-tiktok-phone-layout';
+                        (document.head || document.documentElement).appendChild(style);
+                    }
+                    style.textContent = [
+                        'html,body{',
+                        'width:100% !important;',
+                        'min-width:0 !important;',
+                        'max-width:100vw !important;',
+                        'margin:0 !important;',
+                        'overflow-x:hidden !important;',
+                        'overscroll-behavior-x:none !important;',
+                        '}',
+                        'video,img{max-width:100% !important;}'
+                    ].join('');
+
+                    window.__ttubePhoneViewport = {
+                        width: Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1),
+                        dpr: window.devicePixelRatio || 1
+                    };
+                } catch (_) {}
+            })();
+            """.trimIndent(),
+            null
+        )
     }
 
     /** Apply a stable, browser-like configuration before TikTok navigation. */
