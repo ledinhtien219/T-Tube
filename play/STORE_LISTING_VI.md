@@ -21,7 +21,10 @@ Trên kênh thử nghiệm nội bộ, T Tube tiếp tục kiểm thử giao di�
 
 Một số chức năng phụ thuộc vào quyền người dùng cấp, dịch vụ hệ thống hoặc dịch vụ bên thứ ba. T Tube không yêu cầu mã kích hoạt hoặc thanh toán ngoài ứng dụng trong bản phân phối Google Play.
 
-## Ghi chú phát hành 1.0.80
+## Ghi chú phát hành 1.0.81
+- Nhường âm thanh sạch cho SoundCloud/Spotify/Zing khi chuyển khỏi T Tube, không tự giành lại audio.
+- Khi quay lại T Tube, chỉ phát lại khi người dùng chủ động bấm Play hoặc chọn video.
+- YouTube tự chuyển sang bài/video tiếp theo khi video hiện tại kết thúc, có cơ chế retry nếu nút Next tải chậm.
 - Sửa lỗi chuyển từ T Tube sang Google Maps bị lag hoặc khó kéo bản đồ.
 - Nhả touch/projection và giảm tải WebView nền khi T Tube không còn ở foreground.
 - Không cưỡng bức giành lại audio focus khi Android Auto chuyển sang ứng dụng khác.
@@ -32,6 +35,6 @@ Một số chức năng phụ thuộc vào quyền người dùng cấp, dịch 
 - Release build không debuggable.
 - Bản Play không dùng luồng kích hoạt/bản quyền ngoài ứng dụng.
 - Giữ các cải tiến chuyển app, tìm kiếm, voice, media và hiệu năng của 1.0.75.
-- Tạo lại App Bundle cho kênh thử nghiệm nội bộ với versionCode 276.
+- Tạo lại App Bundle cho kênh thử nghiệm nội bộ với versionCode 277.
 - Khôi phục đầy đủ giao diện Android Auto/dashboard/HUD projection như bản trước để kiểm thử nội bộ.
 - Gỡ 2 quyền AndroidX Navigation bị Google Play chặn (`ACCESS_SURFACE`, `NAVIGATION_TEMPLATES`) nhưng giữ projection host riêng.
