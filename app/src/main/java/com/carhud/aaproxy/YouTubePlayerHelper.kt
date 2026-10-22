@@ -1612,6 +1612,16 @@ object YouTubePlayerHelper {
 
     fun applyUniversalWebTheme(view: WebView?, isDay: Boolean? = null) {
         if (view == null) return
+        val pageUrl = view.url.orEmpty()
+        if (
+            TikTokWebPolicy.isTikTok(pageUrl) ||
+            StreamingWebPolicy.isTv360(pageUrl) ||
+            StreamingWebPolicy.isVtvGo(pageUrl)
+        ) {
+            // These services own their authentication/player styling. Injecting
+            // global color-scheme/inversion CSS can black out login/QR pages.
+            return
+        }
         val effectiveIsDay = isDay ?: SettingsActivity.resolveIsDay(view.context)
         view.post {
             try {
