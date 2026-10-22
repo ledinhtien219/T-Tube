@@ -3,8 +3,8 @@
 ## Build identity
 - App name: T Tube
 - Package: `com.ledinhtien.ttube`
-- Version: `1.0.80`
-- Version code: `276`
+- Version: `1.0.81`
+- Version code: `277`
 - minSdk: 29
 - targetSdk / compileSdk: 36
 - Artifact: Android App Bundle (`.aab`)
@@ -22,7 +22,10 @@ This internal-test build restores the full Android Auto host used by the previou
 
 This build is intended for **Internal testing**. Before Production submission, re-check current Google Play / Android Auto policy because the private projection path is not the same as a conventional Play-approved media-only app.
 
-## 1.0.80 internal-test change
+## 1.0.81 internal-test change
+- External audio handoff: when T Tube is backgrounded and SoundCloud/Spotify/Zing takes audio, T Tube no longer fights the focus or auto-resumes.
+- Returning to T Tube does not steal audio back; playback resumes only after an explicit Play/user selection.
+- YouTube auto-next: when a video truly ends, T Tube advances to the next video with player API/button/recommendation fallbacks and bounded retries.
 - Fix Google Maps handoff: T Tube releases projection touch/input when it loses foreground.
 - Phone/background WebViews are suspended instead of being forcibly resumed behind Maps.
 - Projection surface teardown no longer forces Chromium timers or audio focus back on while Maps is active.
@@ -55,7 +58,7 @@ Use the published public policy URL:\n`https://github.com/ledinhtien219/T-Tube/b
 3. Production only after Play Console grants production access
 
 ## Release
-Upload the signed bundle `TTube_v1.0.80_build276_FullAA_Internal_signed.aab`.
+Upload the signed bundle `TTube_v1.0.81_build277_FullAA_Internal_signed.aab`.
 Do not upload the GitHub/full APK to Play Console.
 
 
