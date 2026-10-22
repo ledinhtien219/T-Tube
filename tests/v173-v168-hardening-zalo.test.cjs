@@ -19,9 +19,11 @@ assert.match(gradle, /versionName = "1\.0\.\d+"/);
 assert.doesNotMatch(activation, /219171|setDevBypass|handleDevBypassClick|showDevPasswordDialog/);
 assert.doesNotMatch(license, /fun setDevBypass/);
 
-// Background audio only holds the CPU wake lock while playback is active/desired.
+// Background audio only keeps the actually-playing WebView alive; hidden phone
+// WebViews are suspended before external apps such as Google Maps take focus.
 const pauseStop = main.match(/override fun onPause\(\)[\s\S]*?override fun onDestroy\(\)/)?.[0] || '';
-assert.match(pauseStop, /CarMediaManager\.isPlaying \|\| CarMediaManager\.userWantsPlayback/);
+assert.match(pauseStop, /suspendPhoneWebViewsForExternalApp\(\)/);
+assert.match(pauseStop, /backgroundAudio && CarMediaManager\.isPlaying/);
 assert.match(pauseStop, /CarMediaManager\.releaseWakeLock\(\)/);
 
 // Remaining wireless/AC charge must not hide a wired Android Auto USB loss.
@@ -41,6 +43,6 @@ assert.doesNotMatch(main, /btnHomeZalo|Nhóm Zalo/);
 
 // Normal CI now runs the Kotlin/JVM unit suite before distributing the APK.
 assert.match(workflow, /\.\/gradlew testDebugUnitTest --stacktrace/);
-assert.match(workflow, /TTube-v1\.0\.(?:70|75)-build(?:261|270)-APK/);
+assert.match(workflow, /TTube-v1\.0\.(?:70|75)-build(?:261|270|272)-APK/);
 
-console.log('PASS v1.0.75 build 270: no Zalo group UI + license/wakelock/cable/Waze/CI hardening');
+console.log('PASS v1.0.75 build 272: no Zalo group UI + license/wakelock/cable/Waze/CI hardening');
