@@ -16,9 +16,12 @@ assert.match(projection, /CarDisconnectWatchdog\.onCableDetachBroadcast/);
 assert.match(projection, /CarDisconnectWatchdog\.onProjectionServiceDestroyed/);
 assert.doesNotMatch(projection, /if \(wasConnected\)/);
 
-// Surface recreation is not itself treated as a disconnect; cable/service lifecycle
-// owns the full exit so resize/config changes do not terminate the app.
-assert.match(projection, /Surface loss can be a resize\/recreation[\s\S]*?service-level USB\/power receiver owns full shutdown/);
+// Surface recreation/app switching is not itself treated as a disconnect.
+// The surface is detached to stop background rendering, while the independent
+// cable watchdog still owns full shutdown decisions.
+assert.match(projection, /surfaceDestroyed[\s\S]*?CarDisconnectWatchdog\.onProjectionLifecycleEnded/);
+assert.match(projection, /surfaceDestroyed[\s\S]*?virtualDisplay\?\.setSurface\(null\)/);
+assert.doesNotMatch(projection, /surfaceDestroyed[\s\S]*?CarAppShutdownManager\.shutdownCompletely/);
 
 // Full shutdown disables playback, does not wake the phone WebView, and stops services.
 assert.match(shutdown, /CarMediaManager\.userWantsPlayback = false/);
