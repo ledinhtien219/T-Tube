@@ -4798,9 +4798,11 @@ class CarPresentation(
     }
 
     private var projectedTouchActive = false
+    private var projectionHostForeground = true
 
     /** Keep the receiver chosen on DOWN until UP/CANCEL, even when a key closes the overlay. */
     fun dispatchProjectedTouch(event: MotionEvent): Boolean {
+        if (!projectionHostForeground) return false
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             val editing = ::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE
             val tikTok = currentActiveAppId == "tiktok" && !isDashboardShowing &&
@@ -4838,6 +4840,7 @@ class CarPresentation(
     }
 
     fun dispatchTouch(x: Float, y: Float) {
+        if (!projectionHostForeground) return
         videoQualityOverlay?.let { dispatchOverlayClick(it, x, y); return }
         if (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) {
             carKeyboard?.let { keyboard ->
@@ -4914,6 +4917,7 @@ class CarPresentation(
     }
 
     fun dispatchScroll(dx: Float, dy: Float) {
+        if (!projectionHostForeground) return
         if (videoQualityOverlay != null) { videoQualityOverlay?.findViewById<ScrollView>(android.R.id.content)?.scrollBy(0, dy.toInt()); return }
         if (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) return
         onUserInteraction()
@@ -4945,6 +4949,7 @@ class CarPresentation(
     }
 
     fun dispatchFling(vx: Float, vy: Float) {
+        if (!projectionHostForeground) return
         if (videoQualityOverlay != null) return
         if (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) return
         onUserInteraction()
@@ -5120,30 +5125,53 @@ class CarPresentation(
         web.resumeTimers()
     }
 
-    override fun onStop() {
+    fun onProjectionHostBackgrounded() {
+        if (!projectionHostForeground) return
+        projectionHostForeground = false
+        projectedTouchActive = false
+        barsVisibilityGeneration += 1L
         autoHideHandler.removeCallbacks(hideBarsRunnable)
-        // Snapshot the current browser/YouTube session before Android Auto hides
-        // this app. The live WebView is still kept running below, while this
-        // snapshot is a fallback if the host recreates the surface/renderer.
+        cancelSystemVoiceRequest()
+        voiceManager.stop()
+
+        // Snapshot state, then stop visual Chromium work while Google Maps or
+        // another Android Auto app owns the screen. Only a genuinely playing
+        // media session may remain alive for background audio.
         CarMediaManager.saveWebAppSession(currentActiveAppId, web)
-        // Do not force Chromium/WebView to stay resumed when T Tube loses the foreground.
-        // Keeping it resumed here makes Chromium retain AUDIOFOCUS_GAIN and blocks external
-        // players such as Zing MP3 or SoundCloud. Background playback is preserved only when
-        // the user explicitly enabled it and T Tube is actually playing.
         try {
-            val mediaWeb = web
             val backgroundAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
-            if (backgroundAudio && CarMediaManager.isPlaying && CarMediaManager.userWantsPlayback) {
-                if (mediaWeb is BackgroundAudioWebView) mediaWeb.enableBackgroundAudio = true
+            val keepAudio = backgroundAudio &&
+                CarMediaManager.isPlaying &&
+                CarMediaManager.userWantsPlayback
+
+            if (web is BackgroundAudioWebView) web.enableBackgroundAudio = keepAudio
+            if (keepAudio) {
                 CarMediaManager.registerService(context)
                 CarMediaManager.acquireWakeLock(context)
             } else {
-                if (mediaWeb is BackgroundAudioWebView) mediaWeb.enableBackgroundAudio = false
-                CarMediaManager.pausePlayback()
-                mediaWeb.onPause()
+                web.clearFocus()
+                web.onPause()
                 CarMediaManager.releaseWakeLock()
             }
+
+            if (::root.isInitialized) root.visibility = View.INVISIBLE
         } catch (_: Exception) {}
+    }
+
+    fun onProjectionHostForegrounded() {
+        projectionHostForeground = true
+        try {
+            if (::root.isInitialized) root.visibility = View.VISIBLE
+            if (web is BackgroundAudioWebView) {
+                web.enableBackgroundAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
+            }
+            web.onResume()
+            web.resumeTimers()
+        } catch (_: Exception) {}
+    }
+
+    override fun onStop() {
+        onProjectionHostBackgrounded()
         super.onStop()
     }
 
