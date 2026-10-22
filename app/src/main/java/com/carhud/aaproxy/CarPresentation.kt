@@ -618,7 +618,7 @@ class CarPresentation(
                         "Google không cho đăng nhập trong WebView. Hãy dùng số điện thoại/email/QR trên TikTok.",
                         Toast.LENGTH_LONG
                     ).show()
-                    view?.post { view.loadUrl(TikTokWebPolicy.safeLoginUrl()) }
+                    view?.post { view.loadUrl(TikTokWebPolicy.qrLoginUrl()) }
                     return true
                 }
                 if (request.isForMainFrame && view != null) {
@@ -644,7 +644,7 @@ class CarPresentation(
                         "Google không cho đăng nhập trong WebView. Hãy dùng số điện thoại/email/QR trên TikTok.",
                         Toast.LENGTH_LONG
                     ).show()
-                    view?.post { view.loadUrl(TikTokWebPolicy.safeLoginUrl()) }
+                    view?.post { view.loadUrl(TikTokWebPolicy.qrLoginUrl()) }
                     return true
                 }
                 if (view != null) {
