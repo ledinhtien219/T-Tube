@@ -82,6 +82,20 @@ object WazeHudManager {
             category = CATEGORY_HORIZONTAL,
             description = "Tốc độ, giới hạn, rẽ và một ô cảnh báo Waze cực gọn",
             isRecommended = true
+        ),
+        HudStyle(
+            id = 6,
+            name = "#6 Waze Panel Lớn",
+            category = CATEGORY_HORIZONTAL,
+            description = "Bố cục lớn như mẫu: biển giới hạn + tốc độ nổi bật, rẽ và cảnh báo xếp bên phải",
+            isRecommended = true
+        ),
+        HudStyle(
+            id = 7,
+            name = "#7 Waze Thanh Ngang",
+            category = CATEGORY_HORIZONTAL,
+            description = "Thanh ngang thấp như mẫu: giới hạn + tốc độ + rẽ + cảnh báo trên một hàng",
+            isRecommended = true
         )
     )
 
