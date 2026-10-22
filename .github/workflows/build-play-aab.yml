@@ -101,6 +101,7 @@ jobs:
           set -euo pipefail
           tests=(
             tests/app-switching.test.cjs
+            tests/google-maps-handoff.test.cjs
             tests/iptv-aspect.test.cjs
             tests/projection-viewport.test.cjs
             tests/youtube-quality.test.cjs
