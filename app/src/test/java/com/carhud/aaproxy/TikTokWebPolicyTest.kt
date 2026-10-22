@@ -56,6 +56,14 @@ class TikTokWebPolicyTest {
         assertFalse(TikTokWebPolicy.isSearch("https://example.org/?url=tiktok.com/search"))
     }
 
+    @Test fun googleOauthIsDetectedBeforeEmbeddedNavigation() {
+        assertTrue(TikTokWebPolicy.isGoogleOAuth("https://accounts.google.com/o/oauth2/v2/auth?client_id=x"))
+        assertTrue(TikTokWebPolicy.isGoogleOAuth("https://oauth2.googleapis.com/auth"))
+        assertTrue(TikTokWebPolicy.isGoogleOAuth("https://foo.googleusercontent.com/callback"))
+        assertFalse(TikTokWebPolicy.isGoogleOAuth("https://www.tiktok.com/login"))
+        assertEquals("https://www.tiktok.com/login", TikTokWebPolicy.safeLoginUrl())
+    }
+
     @Test fun loginAndExternalAuthArePartOfTikTokSession() {
         assertTrue(TikTokWebPolicy.isLoginRoute("https://www.tiktok.com/login"))
         assertTrue(TikTokWebPolicy.isLoginRoute("https://www.tiktok.com/signup"))
