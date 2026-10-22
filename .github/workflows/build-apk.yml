@@ -110,6 +110,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Upload internal HUD test APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TTube-HUD-internal-test-APK
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
       # APK is intentionally uploaded only after the live Android/WebView smoke
       # test succeeds. A black/empty TikTok feed or search blocks distribution.
       - name: Upload APK
