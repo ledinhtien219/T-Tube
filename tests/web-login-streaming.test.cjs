@@ -31,8 +31,8 @@ assert.match(car, /currentActiveAppId == "tiktok" && TikTokWebPolicy\.isGoogleOA
 assert.match(phone, /activePhoneWebAppId == "tiktok" && TikTokWebPolicy\.isGoogleOAuth\(target\)/);
 assert.match(car, /view\.loadUrl\(TikTokWebPolicy\.qrLoginUrl\(\)\)/);
 assert.match(phone, /view\.loadUrl\(TikTokWebPolicy\.qrLoginUrl\(\)\)/);
-assert.match(car, /Google không cho đăng nhập trong WebView/);
-assert.match(phone, /Google không cho đăng nhập trong WebView/);
+assert.match(car, /Google chặn đăng nhập trong WebView/);
+assert.match(phone, /Google chặn đăng nhập trong WebView/);
 assert.match(helper, /TikTokWebPolicy\.isTikTok\(pageUrl\)/);
 assert.match(helper, /StreamingWebPolicy\.isTv360\(pageUrl\)/);
 assert.match(helper, /StreamingWebPolicy\.isVtvGo\(pageUrl\)/);
