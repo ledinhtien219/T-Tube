@@ -85,3 +85,21 @@ const showGrid = section(
 assert.match(showGrid, /rebuildAppGrid\(\)/);
 
 console.log('PASS app switching: single transitions, quick IPTV routing, pause preservation, stale-resume guards');
+
+
+// Regression: fullscreen apps must always retain an escape path after repeated switching.
+const sidebar = section(
+  presentation,
+  'private fun rebuildSidebar()',
+  'private fun buildYouTubeMediaToolbar'
+);
+assert.match(sidebar, /currentActiveAppId == "iptv" && !isDashboardShowing/);
+assert.match(sidebar, /createBarIcon\(R\.drawable\.ic_bar_home, 56\) \{ showDashboard\(\) \}/);
+
+const showBars = section(presentation, 'fun showBars()', 'fun hideBars()');
+assert.match(showBars, /sidebarContainer == null/);
+assert.match(showBars, /rebuildSidebar\(\)/);
+
+const goBack = section(presentation, 'fun goBack()', 'fun goHome()');
+assert.match(goBack, /else if \(!isDashboardShowing\)/);
+assert.match(goBack, /showDashboard\(\)/);
