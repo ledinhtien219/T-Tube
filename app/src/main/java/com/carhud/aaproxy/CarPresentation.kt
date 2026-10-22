@@ -4957,7 +4957,6 @@ class CarPresentation(
             } catch (e: Exception) {}
         }
         web.onResume()
-        web.resumeTimers()
         return web
     }
 
@@ -4970,7 +4969,35 @@ class CarPresentation(
             }
         } catch (e: Exception) {}
         web.onResume()
-        web.resumeTimers()
+    }
+
+    fun onProjectionHostVisibilityChanged(foreground: Boolean) {
+        try {
+            val mediaWeb = web
+            val backgroundAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
+            val keepBackgroundAudio = backgroundAudio &&
+                CarMediaManager.isPlaying &&
+                CarMediaManager.userWantsPlayback
+
+            if (foreground) {
+                if (mediaWeb is BackgroundAudioWebView) {
+                    mediaWeb.enableBackgroundAudio = backgroundAudio
+                }
+                mediaWeb.onResume()
+                return
+            }
+
+            autoHideHandler.removeCallbacks(hideBarsRunnable)
+            if (keepBackgroundAudio) {
+                if (mediaWeb is BackgroundAudioWebView) mediaWeb.enableBackgroundAudio = true
+                CarMediaManager.registerService(context)
+                CarMediaManager.acquireWakeLock(context)
+            } else {
+                if (mediaWeb is BackgroundAudioWebView) mediaWeb.enableBackgroundAudio = false
+                mediaWeb.onPause()
+                CarMediaManager.releaseWakeLock()
+            }
+        } catch (_: Throwable) {}
     }
 
     override fun onStop() {
@@ -4979,24 +5006,10 @@ class CarPresentation(
         // this app. The live WebView is still kept running below, while this
         // snapshot is a fallback if the host recreates the surface/renderer.
         CarMediaManager.saveWebAppSession(currentActiveAppId, web)
-        // Do not force Chromium/WebView to stay resumed when T Tube loses the foreground.
-        // Keeping it resumed here makes Chromium retain AUDIOFOCUS_GAIN and blocks external
-        // players such as Zing MP3 or SoundCloud. Background playback is preserved only when
-        // the user explicitly enabled it and T Tube is actually playing.
-        try {
-            val mediaWeb = web
-            val backgroundAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
-            if (backgroundAudio && CarMediaManager.isPlaying && CarMediaManager.userWantsPlayback) {
-                if (mediaWeb is BackgroundAudioWebView) mediaWeb.enableBackgroundAudio = true
-                CarMediaManager.registerService(context)
-                CarMediaManager.acquireWakeLock(context)
-            } else {
-                if (mediaWeb is BackgroundAudioWebView) mediaWeb.enableBackgroundAudio = false
-                CarMediaManager.pausePlayback()
-                mediaWeb.onPause()
-                CarMediaManager.releaseWakeLock()
-            }
-        } catch (_: Exception) {}
+        // The host may simply be switching to Google Maps. Suspend rendering
+        // immediately unless real background audio is active; do not keep a full
+        // WebView/VirtualDisplay pipeline competing for GPU time behind Maps.
+        onProjectionHostVisibilityChanged(false)
         super.onStop()
     }
 
