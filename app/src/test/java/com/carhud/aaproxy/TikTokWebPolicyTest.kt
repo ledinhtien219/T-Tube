@@ -28,6 +28,14 @@ class TikTokWebPolicyTest {
             assertFalse(videoUa.contains("Android"))
             assertFalse(videoUa.contains("Mobile"))
             assertFalse(videoUa.contains("; wv"))
+
+            TikTokWebPolicy.configure(web, "https://www.tiktok.com/login/phone-or-email/email")
+            val loginUa = web.settings.userAgentString
+            assertTrue(loginUa.contains("Android 16"))
+            assertTrue(loginUa.contains("Chrome/153.0.8010.36"))
+            assertTrue(loginUa.contains("Mobile"))
+            assertFalse(loginUa.contains("; wv"))
+            assertFalse(loginUa.contains("Version/4.0"))
             TikTokWebPolicy.configure(web, "https://www.tiktok.com/search?q=nhac")
             assertEquals(searchUa, web.settings.userAgentString)
             TikTokWebPolicy.configure(web, "https://www.tiktok.com/search?q=khac")
@@ -46,6 +54,15 @@ class TikTokWebPolicyTest {
         assertFalse(TikTokWebPolicy.isSearch("https://www.tiktok.com/@user/video/123"))
         assertFalse(TikTokWebPolicy.isSearch("https://tiktok.com.example.org/search"))
         assertFalse(TikTokWebPolicy.isSearch("https://example.org/?url=tiktok.com/search"))
+    }
+
+    @Test fun loginAndExternalAuthArePartOfTikTokSession() {
+        assertTrue(TikTokWebPolicy.isLoginRoute("https://www.tiktok.com/login"))
+        assertTrue(TikTokWebPolicy.isLoginRoute("https://www.tiktok.com/signup"))
+        assertTrue(TikTokWebPolicy.isSessionUrl("https://accounts.google.com/o/oauth2/v2/auth"))
+        assertTrue(TikTokWebPolicy.isSessionUrl("https://appleid.apple.com/auth/authorize"))
+        assertTrue(TikTokWebPolicy.isSessionUrl("https://m.facebook.com/login"))
+        assertFalse(TikTokWebPolicy.isSessionUrl("https://example.org/login"))
     }
 
     @Test fun webViewIdentityUsesStableDesktopChromeUa() {
