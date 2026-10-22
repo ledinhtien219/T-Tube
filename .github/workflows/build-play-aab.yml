@@ -110,6 +110,7 @@ jobs:
             tests/youtube-search-routing.test.cjs
             tests/youtube-theme.test.cjs
             tests/youtube-voice-toolbar.test.cjs
+            tests/web-login-streaming.test.cjs
           )
           for f in "${tests[@]}"; do
             echo "==> $f"
