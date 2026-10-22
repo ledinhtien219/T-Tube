@@ -2652,10 +2652,10 @@ class MainActivity : AppCompatActivity() {
             finish()
             return
         }
-        youtubeWeb?.onResume()
-        iptvWeb?.onResume()
+        setPhoneWebViewsForeground(true)
+        // resumeTimers() is process-wide for WebView. Only resume it when the
+        // phone activity is actually foreground; never from onPause/onStop.
         youtubeWeb?.resumeTimers()
-        iptvWeb?.resumeTimers()
         applyPhoneTheme()
         setupPhoneAppGrid()
         updatePermissionStatusDisplay()
@@ -2669,36 +2669,51 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        // Suspend phone Chromium before handing CPU/GPU to another foreground
+        // app such as Google Maps. When Android Auto owns the projection, the
+        // persistent car WebView is separate and must not be kept alive by the
+        // phone Activity's background-audio policy.
+        setPhoneWebViewsForeground(false)
         super.onPause()
-        val bgAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
-        if (bgAudio) {
-            youtubeWeb?.onResume()
-            iptvWeb?.onResume()
-            youtubeWeb?.resumeTimers()
-            iptvWeb?.resumeTimers()
-            if (CarMediaManager.isPlaying || CarMediaManager.userWantsPlayback) {
-                CarMediaManager.acquireWakeLock(this)
-                ensureBackgroundPlaybackActive()
-            } else {
-                CarMediaManager.releaseWakeLock()
-            }
-        }
     }
 
     override fun onStop() {
+        setPhoneWebViewsForeground(false)
         super.onStop()
+    }
+
+    private fun setPhoneWebViewsForeground(foreground: Boolean) {
         val bgAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
-        if (bgAudio) {
-            youtubeWeb?.onResume()
-            iptvWeb?.onResume()
-            youtubeWeb?.resumeTimers()
-            iptvWeb?.resumeTimers()
-            if (CarMediaManager.isPlaying || CarMediaManager.userWantsPlayback) {
-                CarMediaManager.acquireWakeLock(this)
-                ensureBackgroundPlaybackActive()
-            } else {
-                CarMediaManager.releaseWakeLock()
+        val keepPhoneAudio = !foreground &&
+            !CarMediaManager.isCarConnected &&
+            bgAudio &&
+            CarMediaManager.isPlaying &&
+            CarMediaManager.userWantsPlayback
+
+        val backgroundOwner = when (activeTab) {
+            TAB_YOUTUBE -> youtubeWeb
+            TAB_IPTV -> iptvWeb
+            else -> null
+        }
+
+        listOfNotNull(youtubeWeb, iptvWeb).distinct().forEach { web ->
+            val keepThisWeb = keepPhoneAudio && web === backgroundOwner
+            if (web is BackgroundAudioWebView) {
+                web.enableBackgroundAudio = foreground || keepThisWeb
             }
+            if (foreground || keepThisWeb) {
+                web.onResume()
+            } else {
+                web.clearFocus()
+                web.onPause()
+            }
+        }
+
+        if (keepPhoneAudio) {
+            CarMediaManager.acquireWakeLock(this)
+            ensureBackgroundPlaybackActive()
+        } else if (!foreground) {
+            CarMediaManager.releaseWakeLock()
         }
     }
 
