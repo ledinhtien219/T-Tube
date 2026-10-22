@@ -1650,7 +1650,7 @@ class MainActivity : AppCompatActivity() {
                 if (activePhoneWebAppId == "tiktok" && TikTokWebPolicy.isGoogleOAuth(target)) {
                     Toast.makeText(
                         this@MainActivity,
-                        "Google không cho đăng nhập trong WebView. Hãy dùng số điện thoại/email/QR trên TikTok.",
+                        "Google chặn đăng nhập trong WebView. Đang mở QR TikTok; trên điện thoại có thể dùng SĐT/email.",
                         Toast.LENGTH_LONG
                     ).show()
                     view?.post { view.loadUrl(TikTokWebPolicy.qrLoginUrl()) }
