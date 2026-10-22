@@ -5137,20 +5137,21 @@ class CarPresentation(
         // Snapshot state, then stop visual Chromium work while Google Maps or
         // another Android Auto app owns the screen. Only a genuinely playing
         // media session may remain alive for background audio.
-        CarMediaManager.saveWebAppSession(currentActiveAppId, web)
+        val mediaWeb = web
+        CarMediaManager.saveWebAppSession(currentActiveAppId, mediaWeb)
         try {
             val backgroundAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
             val keepAudio = backgroundAudio &&
                 CarMediaManager.isPlaying &&
                 CarMediaManager.userWantsPlayback
 
-            if (web is BackgroundAudioWebView) web.enableBackgroundAudio = keepAudio
+            if (mediaWeb is BackgroundAudioWebView) mediaWeb.enableBackgroundAudio = keepAudio
             if (keepAudio) {
                 CarMediaManager.registerService(context)
                 CarMediaManager.acquireWakeLock(context)
             } else {
-                web.clearFocus()
-                web.onPause()
+                mediaWeb.clearFocus()
+                mediaWeb.onPause()
                 CarMediaManager.releaseWakeLock()
             }
 
@@ -5162,13 +5163,14 @@ class CarPresentation(
     fun onProjectionHostForegrounded() {
         projectionHostForeground = true
         try {
+            val mediaWeb = web
             dashboardView?.setHostForeground(true)
             if (::root.isInitialized) root.visibility = View.VISIBLE
-            if (web is BackgroundAudioWebView) {
-                web.enableBackgroundAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
+            if (mediaWeb is BackgroundAudioWebView) {
+                mediaWeb.enableBackgroundAudio = prefs.getBoolean(SettingsActivity.KEY_BACKGROUND_AUDIO, true)
             }
-            web.onResume()
-            web.resumeTimers()
+            mediaWeb.onResume()
+            mediaWeb.resumeTimers()
         } catch (_: Exception) {}
     }
 
