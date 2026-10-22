@@ -2697,6 +2697,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         listOfNotNull(youtubeWeb, iptvWeb).distinct().forEach { web ->
+            YouTubePlayerHelper.setHostForeground(web, foreground)
             val keepThisWeb = keepPhoneAudio && web === backgroundOwner
             if (web is BackgroundAudioWebView) {
                 web.enableBackgroundAudio = foreground || keepThisWeb
