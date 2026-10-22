@@ -476,8 +476,9 @@ class CarPresentation(
             @JavascriptInterface
             fun onExternalAudioTakeover() {
                 mainHandler.post {
-                    CarMediaManager.yieldToExternalAudio(web)
-                    if (web is BackgroundAudioWebView) web.enableBackgroundAudio = false
+                    val mediaWeb = web
+                    CarMediaManager.yieldToExternalAudio(mediaWeb)
+                    if (mediaWeb is BackgroundAudioWebView) mediaWeb.enableBackgroundAudio = false
                 }
             }
 
