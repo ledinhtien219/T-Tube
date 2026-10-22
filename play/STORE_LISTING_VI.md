@@ -21,7 +21,11 @@ Trên kênh thử nghiệm nội bộ, T Tube tiếp tục kiểm thử giao di�
 
 Một số chức năng phụ thuộc vào quyền người dùng cấp, dịch vụ hệ thống hoặc dịch vụ bên thứ ba. T Tube không yêu cầu mã kích hoạt hoặc thanh toán ngoài ứng dụng trong bản phân phối Google Play.
 
-## Ghi chú phát hành 1.0.81
+## Ghi chú phát hành 1.0.82
+- Sửa TikTok đăng nhập: giữ nguyên giao diện đăng nhập web thật, tương thích các luồng Google/Apple/Facebook/X và lưu cookie phiên.
+- Tăng tương thích VTVgo/TV360: hỗ trợ redirect qua subdomain, cookie đăng nhập và popup đăng nhập trong cùng WebView.
+- Không để bộ lọc request của YouTube can thiệp vào đăng nhập/phát nội dung của TikTok, VTVgo hoặc TV360.
+- Giữ sửa lỗi Google Maps, nhường audio cho SoundCloud/Spotify/Zing và YouTube tự chuyển bài.
 - Nhường âm thanh sạch cho SoundCloud/Spotify/Zing khi chuyển khỏi T Tube, không tự giành lại audio.
 - Khi quay lại T Tube, chỉ phát lại khi người dùng chủ động bấm Play hoặc chọn video.
 - YouTube tự chuyển sang bài/video tiếp theo khi video hiện tại kết thúc, có cơ chế retry nếu nút Next tải chậm.
@@ -35,6 +39,6 @@ Một số chức năng phụ thuộc vào quyền người dùng cấp, dịch 
 - Release build không debuggable.
 - Bản Play không dùng luồng kích hoạt/bản quyền ngoài ứng dụng.
 - Giữ các cải tiến chuyển app, tìm kiếm, voice, media và hiệu năng của 1.0.75.
-- Tạo lại App Bundle cho kênh thử nghiệm nội bộ với versionCode 277.
+- Tạo lại App Bundle cho kênh thử nghiệm nội bộ với versionCode 278.
 - Khôi phục đầy đủ giao diện Android Auto/dashboard/HUD projection như bản trước để kiểm thử nội bộ.
 - Gỡ 2 quyền AndroidX Navigation bị Google Play chặn (`ACCESS_SURFACE`, `NAVIGATION_TEMPLATES`) nhưng giữ projection host riêng.
