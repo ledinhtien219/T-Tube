@@ -1366,11 +1366,42 @@ class CarPresentation(
         youtubeSeekTimeLabel = null
         youtubeSeekDragging = false
 
-        // Settings/theme rebuilds must never restore the floating controls on home.
-        if (isDashboardShowing || currentActiveAppId == "iptv" || currentActiveAppId == "web") {
+        // Settings/theme rebuilds must never restore floating controls on home/browser.
+        // IPTV still needs a native escape hatch: its web controls can disappear after
+        // repeated app switches, which previously left the driver trapped until reconnect.
+        if (isDashboardShowing || currentActiveAppId == "web") {
             sidebarContainer?.animate()?.cancel()
             sidebarContainer?.visibility = View.GONE
             sidebarContainer = null
+            autoHideHandler.removeCallbacks(hideBarsRunnable)
+            return
+        }
+
+        if (currentActiveAppId == "iptv" && !isDashboardShowing) {
+            val home = createBarIcon(R.drawable.ic_bar_home, 56) { showDashboard() }
+            val controls = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                background = rounded(Color.parseColor("#F50B132B"), 999f, Color.parseColor("#00E5FF"), 2)
+                setPadding(dp(6), dp(6), dp(6), dp(6))
+                addView(home)
+                elevation = dp(24).toFloat()
+            }
+            val wrapper = FrameLayout(context).apply {
+                isClickable = false
+                addView(controls)
+            }
+            sidebarView = controls
+            sidebarContainer = wrapper
+            root.addView(wrapper, FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM or Gravity.START
+            ).apply {
+                leftMargin = dp(10)
+                bottomMargin = dp(10)
+            })
+            root.bringChildToFront(wrapper)
             autoHideHandler.removeCallbacks(hideBarsRunnable)
             return
         }
@@ -1842,9 +1873,12 @@ class CarPresentation(
         if ((::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) ||
             appGridOverlay?.visibility == View.VISIBLE || addAppOverlay?.visibility == View.VISIBLE) return
         updateYouTubeHomeObstacles()
-        // IPTV has its own on-screen controls. Keep the native Android Auto
-        // navigation/control pill hidden for the whole IPTV session.
-        if (isDashboardShowing || currentActiveAppId == "iptv") {
+        if (!isDashboardShowing && currentActiveAppId != "web" && sidebarContainer == null) {
+            rebuildSidebar()
+        }
+        // Dashboard has no floating chrome. IPTV keeps a persistent native Home
+        // escape hatch even if its web controls fail after repeated app switching.
+        if (isDashboardShowing) {
             sidebarContainer?.animate()?.cancel()
             topToolbarContainer?.animate()?.cancel()
             youtubeSeekContainer?.animate()?.cancel()
@@ -1887,9 +1921,8 @@ class CarPresentation(
     }
 
     fun hideBars() {
-        // Browser chrome and TikTok Back/Home controls are persistent controls.
-        // Never auto-hide them while their app is visible.
-        if ((currentActiveAppId == "web" || currentActiveAppId == "tiktok") && !isDashboardShowing) return
+        // Browser, TikTok and IPTV escape controls are persistent.
+        if ((currentActiveAppId == "web" || currentActiveAppId == "tiktok" || currentActiveAppId == "iptv") && !isDashboardShowing) return
         if (youtubeSeekDragging) return
         val hideGeneration = ++barsVisibilityGeneration
 
@@ -1930,7 +1963,7 @@ class CarPresentation(
 
     fun resetAutoHideTimer() {
         autoHideHandler.removeCallbacks(hideBarsRunnable)
-        if (currentActiveAppId == "web" || currentActiveAppId == "tiktok") return
+        if (currentActiveAppId == "web" || currentActiveAppId == "tiktok" || currentActiveAppId == "iptv") return
         autoHideHandler.postDelayed(hideBarsRunnable, 10000L)
     }
 
@@ -5086,6 +5119,9 @@ class CarPresentation(
             val history = targetWeb.copyBackForwardList()
             TikTokWebPolicy.configure(targetWeb, history.getItemAtIndex(history.currentIndex - 1)?.url)
             targetWeb.goBack()
+        } else if (!isDashboardShowing) {
+            // Fail-safe: Back must always provide a way out of a fullscreen app.
+            showDashboard()
         }
     }
 
