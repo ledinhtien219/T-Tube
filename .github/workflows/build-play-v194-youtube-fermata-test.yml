@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: play-v194-youtube-fermata-${{ github.ref }}
-  cancel-in-progress: true
+  group: play-v194-youtube-fermata-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   build:
