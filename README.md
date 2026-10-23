@@ -34,6 +34,8 @@
 > 1.0.85 bổ sung **2 giao diện Waze HUD mới** từ nhánh `feature/waze-hud-reference-layouts`: #6 Waze Panel Lớn và #7 Waze Thanh Ngang.
 >
 > 1.0.86 tinh chỉnh #6/#7 theo đúng ảnh tham chiếu: lane guidance, nhiều cảnh báo, tỷ lệ panel và nút Báo cáo.
+>
+> 1.0.88 chuẩn hóa kích thước HUD theo viewport Android Auto thật và reset vị trí cũ của #6/#7 để bám đúng ảnh mẫu.
 
 ---
 

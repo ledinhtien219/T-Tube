@@ -28,7 +28,7 @@ assert.match(overlay, /referenceAlertIcons\.getOrNull\(index\)\?\.setAlert/);
 assert.match(overlay, /laneGuidance = live\.laneGuidance \?: "↑  ↑  ↗"/);
 assert.match(overlay, /applyStyleBackground\(overSpeed = false\)/);
 
-assert.match(manager, /_style_\$\{styleId\}_photo_v2/);
+assert.match(manager, /_style_\$\{styleId\}_photo_v3/);
 assert.match(overlay, /6 -> 0\.70f/);
 assert.match(overlay, /7 -> 0\.75f/);
 assert.match(overlay, /pivotX = 0f/);
@@ -39,3 +39,10 @@ assert.match(settings, /val allStyles = WazeHudManager\.STYLES/);
 assert.match(settings, /WazeHudManager\.setActiveStyleId\(this@SettingsActivity, style\.id\)/);
 
 console.log('PASS Waze HUD photo-match layouts: large panel + compact strip + lanes + stacked alerts + report button');
+
+assert.match(overlay, /fun applyProjectionViewport\(widthPx: Int, heightPx: Int\)/);
+assert.match(overlay, /projectionViewportWidthPx \* 0\.255f/);
+assert.match(overlay, /projectionViewportWidthPx \* 0\.43f/);
+assert.match(overlay, /configuredScale \/ 120f/);
+assert.match(settings, /WazeHudManager\.STYLES/);
+console.log('PASS Waze HUD viewport sizing: photo layouts scale from AA viewport instead of phone density');

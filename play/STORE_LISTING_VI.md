@@ -22,6 +22,8 @@ Trên kênh thử nghiệm nội bộ, T Tube tiếp tục kiểm thử giao di�
 Một số chức năng phụ thuộc vào quyền người dùng cấp, dịch vụ hệ thống hoặc dịch vụ bên thứ ba. T Tube không yêu cầu mã kích hoạt hoặc thanh toán ngoài ứng dụng trong bản phân phối Google Play.
 
 ## Ghi chú phát hành 1.0.88
+- Sửa tỷ lệ HUD Waze theo viewport Android Auto thật để không còn bị phóng quá lớn.
+- Neo Panel Lớn ở góc trên phải và Thanh Ngang ở mép trên trái theo ảnh mẫu.
 - Căn lại kích thước HUD Waze #6/#7 theo ảnh test thực tế trên màn hình xe.
 - Reset vị trí riêng cho 2 layout mới và giữ khung cảnh báo ổn định khi chưa có dữ liệu Waze.
 - Làm lại 2 giao diện Waze HUD mới để bám sát ảnh mẫu: Panel Lớn và Thanh Ngang.

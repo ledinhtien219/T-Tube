@@ -23,6 +23,9 @@ This internal-test build restores the full Android Auto host used by the previou
 This build is intended for **Internal testing**. Before Production submission, re-check current Google Play / Android Auto policy because the private projection path is not the same as a conventional Play-approved media-only app.
 
 ## 1.0.88 internal-test change
+- Sửa kích thước #6/#7 theo viewport Android Auto thật, không còn phóng theo DPI điện thoại.
+- #6 neo góc trên phải theo tỷ lệ ảnh mẫu; #7 neo sát mép trên bên trái như ảnh mẫu.
+- Reset vị trí lưu cũ của #6/#7 để bản cập nhật không giữ tọa độ sai từ build trước.
 - Waze HUD photo v2: scale #6/#7 theo ảnh test thực tế trên màn hình xe.
 - Tách vị trí #6/#7 khỏi vị trí HUD cũ và reset sang vị trí mặc định mới khi cập nhật.
 - Giữ kích thước các ô lane/cảnh báo ổn định khi Waze chưa có dữ liệu, tránh HUD co thành thanh sai bố cục.
@@ -79,7 +82,7 @@ Use the published public policy URL:\n`https://github.com/ledinhtien219/T-Tube/b
 3. Production only after Play Console grants production access
 
 ## Release
-Upload the signed bundle `TTube_v1.0.88_build286_WazePhotoMatchV2_signed.aab`.
+Upload the signed bundle `TTube_v1.0.88_build286_WazeViewportFix_signed.aab`.
 Do not upload the GitHub/full APK to Play Console.
 
 ### Không giữ bundle cũ trong cùng bản phát hành
