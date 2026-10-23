@@ -263,7 +263,7 @@ object WazeHudManager {
     fun getPosition(context: Context): Pair<Int, Int> {
         val prefs = getPrefs(context)
         val styleId = getActiveStyleId(context)
-        val refSuffix = if (styleId >= 6) "_style_${styleId}_photo_v2" else "_style_$styleId"
+        val refSuffix = if (styleId >= 6) "_style_${styleId}_photo_v3" else "_style_$styleId"
         val sx = prefs.getInt("$KEY_HUD_POS_X$refSuffix", Int.MIN_VALUE)
         val sy = prefs.getInt("$KEY_HUD_POS_Y$refSuffix", Int.MIN_VALUE)
         if (sx != Int.MIN_VALUE && sy != Int.MIN_VALUE) return Pair(sx, sy)
@@ -283,11 +283,11 @@ object WazeHudManager {
         val styleId = getActiveStyleId(context)
         getPrefs(context).edit()
             .putInt(
-                if (styleId >= 6) "${KEY_HUD_POS_X}_style_${styleId}_photo_v2" else "${KEY_HUD_POS_X}_style_$styleId",
+                if (styleId >= 6) "${KEY_HUD_POS_X}_style_${styleId}_photo_v3" else "${KEY_HUD_POS_X}_style_$styleId",
                 x
             )
             .putInt(
-                if (styleId >= 6) "${KEY_HUD_POS_Y}_style_${styleId}_photo_v2" else "${KEY_HUD_POS_Y}_style_$styleId",
+                if (styleId >= 6) "${KEY_HUD_POS_Y}_style_${styleId}_photo_v3" else "${KEY_HUD_POS_Y}_style_$styleId",
                 y
             )
             .putInt(KEY_HUD_POS_X, x)
@@ -299,8 +299,8 @@ object WazeHudManager {
         val styleId = getActiveStyleId(context)
         if (styleId >= 6) {
             getPrefs(context).edit()
-                .remove("${KEY_HUD_POS_X}_style_${styleId}_photo_v2")
-                .remove("${KEY_HUD_POS_Y}_style_${styleId}_photo_v2")
+                .remove("${KEY_HUD_POS_X}_style_${styleId}_photo_v3")
+                .remove("${KEY_HUD_POS_Y}_style_${styleId}_photo_v3")
                 .apply()
         } else {
             setPosition(context, 28, 32)
