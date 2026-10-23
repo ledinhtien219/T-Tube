@@ -1065,10 +1065,24 @@ class VietmapHudOverlay @JvmOverloads constructor(
         addView(turnBox)
 
         roadNameText = TextView(context).apply {
-            visibility = GONE
             text = ""
+            textSize = 9.5f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER_VERTICAL
+            background = rounded(Color.parseColor("#4D252A30"), 8f, Color.parseColor("#22FFFFFF"), 1)
+            setPadding(dp(7), 0, dp(7), 0)
+            minWidth = dp(68)
+            maxWidth = dp(150)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            includeFontPadding = false
+            visibility = GONE
         }
-        addView(roadNameText, LayoutParams(0, 0))
+        addView(
+            roadNameText,
+            LayoutParams(LayoutParams.WRAP_CONTENT, dp(38)).apply { marginEnd = dp(4) }
+        )
 
         laneGuidanceText = TextView(context).apply {
             text = ""
@@ -1747,8 +1761,20 @@ class VietmapHudOverlay @JvmOverloads constructor(
             if (!laneGuidance.isNullOrBlank()) add("Làn: $laneGuidance")
         }.joinToString(" • ")
 
-        roadNameText?.text = road
-        roadNameText?.visibility = if (road.isBlank() || activeStyleId == 7) GONE else VISIBLE
+        val currentRoad = data.roadName
+            ?.trim()
+            ?.takeIf { it.isNotBlank() && !WazeHlpWebSocketManager.isIgnoredText(it) }
+
+        if (activeStyleId == 7) {
+            // Style #7 shows the road the car is currently on, straight from Waze
+            // st/currentRoad. Do not substitute next-road/alert-road here.
+            roadNameText?.text = currentRoad.orEmpty()
+            roadNameText?.contentDescription = currentRoad?.let { "Đường hiện tại: $it" }
+            roadNameText?.visibility = if (currentRoad.isNullOrBlank()) GONE else VISIBLE
+        } else {
+            roadNameText?.text = road
+            roadNameText?.visibility = if (road.isBlank()) GONE else VISIBLE
+        }
 
         val compactLane = laneGuidance
             ?.replace(",", "  ")
@@ -1825,7 +1851,13 @@ class VietmapHudOverlay @JvmOverloads constructor(
                 accent,
                 if (urgent) 2 else 1
             )
-            alertIconView?.setAlert(code, displayWarning, value)
+            alertIconView?.setAlert(
+                code = code,
+                warningType = displayWarning,
+                value = value,
+                sourceIcon = primaryAlert?.sourceIcon,
+                sourceSubtype = primaryAlert?.sourceSubtype
+            )
             alertDistanceText?.text = if (distance.isNotBlank()) distance else "•"
             alertDistanceText?.setTextColor(Color.WHITE)
             alertDistanceText?.visibility = VISIBLE
@@ -1852,7 +1884,13 @@ class VietmapHudOverlay @JvmOverloads constructor(
             referenceAlertContainers.forEachIndexed { index, cell ->
                 val item = extras.getOrNull(index)
                 if (item != null && item.warningType != VietmapWarningType.NONE) {
-                    referenceAlertIcons.getOrNull(index)?.setAlert(item.code, item.warningType, item.value)
+                    referenceAlertIcons.getOrNull(index)?.setAlert(
+                        code = item.code,
+                        warningType = item.warningType,
+                        value = item.value,
+                        sourceIcon = item.sourceIcon,
+                        sourceSubtype = item.sourceSubtype
+                    )
                     referenceAlertDistances.getOrNull(index)?.text =
                         WazeAlertPolicy.formatDistance(item.distanceMeters).ifBlank { "•" }
                     cell.visibility = VISIBLE
@@ -1904,23 +1942,29 @@ class VietmapHudOverlay @JvmOverloads constructor(
                     code = 2,
                     warningType = VietmapWarningType.SPEED_CAMERA,
                     title = "Camera tốc độ",
-                    distanceMeters = 400
+                    distanceMeters = 400,
+                    sourceIcon = "speed_camera",
+                    sourceSubtype = "camera_speed"
                 ),
                 WazeAlertItem(
                     code = 8,
                     warningType = VietmapWarningType.SPEED_LIMIT_ZONE,
                     title = "Giới hạn tốc độ",
                     distanceMeters = 700,
-                    value = 80
+                    value = 80,
+                    sourceIcon = "speed_limit",
+                    sourceSubtype = "speed_limit_zone"
                 ),
                 WazeAlertItem(
                     code = 4,
                     warningType = VietmapWarningType.HAZARD,
                     title = "Nguy hiểm",
-                    distanceMeters = 950
+                    distanceMeters = 950,
+                    sourceIcon = "hazard",
+                    sourceSubtype = "road_hazard"
                 )
             ),
-            roadName = live.roadName,
+            roadName = live.roadName ?: "Đ. Nguyễn Văn Linh",
             nextRoadName = live.nextRoadName ?: "Nguyễn Văn Linh",
             laneGuidance = live.laneGuidance ?: "↑  ↑  ↗",
             etaTime = live.etaTime,
