@@ -886,6 +886,11 @@ object WazeHlpWebSocketManager {
             var alertDistanceMeters = firstDistanceMeters(json, "alertDistanceMeters", "alert_distance_meters", "alertDistance", "alert_distance", "alrD", "alrDst", "alertDist", "reportDistance", "report_distance", "aheadDistance", "ahead_distance")
                 ?.takeIf { it >= 0 }
             var alertRoad: String? = null
+            var alertIconName: String? = firstString(json, "icon", "iconName", "icon_name")
+            var alertSubtype: String? = firstString(
+                json,
+                "subtype", "subType", "reportSubtype", "report_subtype", "hazardType", "hazard_type"
+            )
 
             // Real Waze/Waze-Mod builds may send the warning as a nested report
             // object instead of flat alr/alrD fields. Prefer the actual Waze
@@ -915,12 +920,19 @@ object WazeHlpWebSocketManager {
                     "aheadDistance", "ahead_distance"
                 )?.takeIf { it >= 0 }
                 val objectRoad = firstString(alertObject, "road", "street", "roadName", "road_name")
+                val objectIcon = firstString(alertObject, "icon", "iconName", "icon_name")
+                val objectSubtype = firstString(
+                    alertObject,
+                    "subtype", "subType", "reportSubtype", "report_subtype", "hazardType", "hazard_type"
+                )
 
                 if (alertCode <= 0 && objectCode > 0) alertCode = objectCode
                 if (rawAlertStr.isNullOrBlank() || rawAlertStr?.trim()?.startsWith("{") == true) rawAlertStr = objectType
                 if (rawCandidate.isNullOrBlank()) rawCandidate = objectTitle
                 if (alertDistanceMeters == null) alertDistanceMeters = objectDistance
                 if (alertRoad.isNullOrBlank()) alertRoad = objectRoad
+                if (alertIconName.isNullOrBlank()) alertIconName = objectIcon
+                if (alertSubtype.isNullOrBlank()) alertSubtype = objectSubtype
             }
 
             // Some builds send a list of upcoming alerts instead of one flat alert.
@@ -955,7 +967,9 @@ object WazeHlpWebSocketManager {
                         value = itemValue,
                         jamSeverity = itemSeverity,
                         jamDelayMinutes = itemDelay,
-                        roadName = itemRoad
+                        roadName = itemRoad,
+                        sourceIcon = itemIcon,
+                        sourceSubtype = itemSubtype
                     )
                 }
                 val deduped = WazeAlertPolicy.dedupeAlerts(parsed)
@@ -974,6 +988,8 @@ object WazeHlpWebSocketManager {
                     rawCandidate = first.title
                     alertDistanceMeters = first.distanceMeters
                     alertRoad = first.roadName
+                    alertIconName = first.sourceIcon
+                    alertSubtype = first.sourceSubtype
                 }
             }
 
@@ -1034,7 +1050,9 @@ object WazeHlpWebSocketManager {
                         value = alertValue,
                         jamSeverity = alertJamSeverity,
                         jamDelayMinutes = alertJamDelay,
-                        roadName = finalRoad
+                        roadName = finalRoad,
+                        sourceIcon = alertIconName,
+                        sourceSubtype = alertSubtype
                     )
                 )
             }
@@ -1065,7 +1083,9 @@ object WazeHlpWebSocketManager {
                 distanceMeters = if (hasActiveAlert) finalAlertDistance else null,
                 warningType = if (hasActiveAlert) alertType else null,
                 alertTitle = if (hasActiveAlert) alertTitle else null,
-                roadName = finalRoad,
+                // Keep st/currentRoad as the road the car is actually on. Alert-road
+                // metadata belongs to the alert item and must not replace current street.
+                roadName = roadName,
                 nextRoadName = nextRoadName,
                 laneGuidance = laneGuidance,
                 trafficLevel = trafficLevel,
