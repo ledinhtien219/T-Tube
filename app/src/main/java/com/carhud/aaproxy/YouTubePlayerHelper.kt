@@ -580,11 +580,19 @@ object YouTubePlayerHelper {
                     }
                 }
 
-                // 4. For video ads: accelerate at 16x speed and mute during ad playback
+                // 4. Fermata-style fallback: keep YouTube's own HTML5 player/session
+                // and seek the active ad to its end. Avoid playbackRate/mute tricks because
+                // they can leak into the real video after YouTube swaps player state.
                 var video = getMainVideo();
                 if (video && isAd) {
-                    video.muted = true;
-                    video.playbackRate = 16.0;
+                    try {
+                        var duration = Number(video.duration);
+                        var current = Number(video.currentTime);
+                        if (isFinite(duration) && duration > 0 && isFinite(current) && current >= 0 &&
+                            duration - current > 0.20) {
+                            video.currentTime = duration;
+                        }
+                    } catch(e) {}
                 }
 
                 // 5. Global touch listener to show toolbars on touch
@@ -623,11 +631,13 @@ object YouTubePlayerHelper {
             } catch(e) {}
         }
         observePlayer();
+        // Slow recovery watchdog only. MutationObserver + playing/timeupdate
+        // provide the normal fast path without hammering the WebView.
         setInterval(function() {
             if (isPlayerShowingAd()) {
                 killYouTubeAds();
             }
-        }, 1400);
+        }, 1800);
 
         // ==========================================
         // SPONSORBLOCK (FermataSB) - Skip Ads & Sponsors Stably
@@ -972,10 +982,14 @@ object YouTubePlayerHelper {
 
             v.addEventListener('timeupdate', function() {
                 updateVideoProgress();
+                if (isPlayerShowingAd()) skipYouTubeAds();
                 if (window.FermataSB) window.FermataSB.skipIfNeeded(v);
             }, true);
 
             v.addEventListener('playing', function() {
+                // Fast path: YouTube emits playing as soon as an ad/video starts.
+                // Skip ads here instead of waiting for the watchdog interval.
+                if (isPlayerShowingAd()) skipYouTubeAds();
                 ensureAudio();
                 notifyState(true);
                 updateVideoProgress();
