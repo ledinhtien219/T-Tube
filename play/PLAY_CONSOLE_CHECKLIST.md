@@ -23,6 +23,9 @@ This internal-test build restores the full Android Auto host used by the previou
 This build is intended for **Internal testing**. Before Production submission, re-check current Google Play / Android Auto policy because the private projection path is not the same as a conventional Play-approved media-only app.
 
 ## 1.0.87 internal-test change
+- Waze HUD photo v2: scale #6/#7 theo ảnh test thực tế trên màn hình xe.
+- Tách vị trí #6/#7 khỏi vị trí HUD cũ và reset sang vị trí mặc định mới khi cập nhật.
+- Giữ kích thước các ô lane/cảnh báo ổn định khi Waze chưa có dữ liệu, tránh HUD co thành thanh sai bố cục.
 - Làm lại HUD #6/#7 bám sát 2 ảnh mẫu người dùng cung cấp.
 - #6: biển giới hạn lớn + tốc độ lớn + ô rẽ/đường/làn + nhiều cảnh báo xếp dọc + nút Báo cáo.
 - #7: thanh ngang thấp một hàng với giới hạn, tốc độ, rẽ, lane guidance, nhiều cảnh báo và nút Báo cáo nhỏ.
