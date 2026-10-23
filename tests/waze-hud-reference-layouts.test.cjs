@@ -9,7 +9,10 @@ assert.match(manager, /id = 6,[\s\S]*name = "#6 Waze Panel Lớn"/);
 assert.match(manager, /id = 7,[\s\S]*name = "#7 Waze Thanh Ngang"/);
 
 assert.match(overlay, /6 -> buildStyle6WazePanelLon\(\)/);
-assert.match(overlay, /7 -> \{[\s\S]*designWidthPx = 510f \* density[\s\S]*projectionViewportWidthPx \* 0\.65f \/ designWidthPx[\s\S]*configuredScale \/ 100f[\s\S]*\}/);
+assert.match(
+  overlay,
+  /7 -> \{[\s\S]*projectionViewportWidthPx \/ 1280f[\s\S]*1\.55f \* viewportFactor \* \(configuredScale \/ 100f\)[\s\S]*\}/
+);
 
 assert.match(overlay, /private fun buildStyle6WazePanelLon\(\)/);
 assert.match(overlay, /private fun buildStyle6WazePanelLon\(\)[\s\S]*?minimumWidth = 0/);
@@ -19,12 +22,16 @@ assert.match(overlay, /laneGuidanceText = TextView\(context\)/);
 assert.match(overlay, /createReferenceAlertCell\(dp\(50\), dp\(38\), compact = false\)/);
 
 assert.match(overlay, /private fun buildStyle7WazeThanhNgang\(\)/);
-assert.match(overlay, /private fun buildStyle7WazeThanhNgang\(\)[\s\S]*?minimumWidth = dp\(430\)/);
-assert.match(overlay, /createReferenceAlertCell\(dp\(54\), dp\(38\), compact = true\)/);
+assert.match(overlay, /private fun buildStyle7WazeThanhNgang\(\)[\s\S]*?minimumWidth = 0/);
+assert.match(overlay, /createReferenceAlertCell\(dp\(48\), dp\(40\), compact = true\)/);
 assert.match(overlay, /text = "⚠"/);
 assert.match(
   overlay,
   /private fun buildStyle7WazeThanhNgang\(\)[\s\S]*createLockButton\(\)[\s\S]*LayoutParams\(dp\(34\), dp\(34\)\)/
+);
+assert.match(
+  overlay,
+  /private fun buildStyle7WazeThanhNgang\(\)[\s\S]*alertIconView\?\.layoutParams = LayoutParams\(dp\(22\), dp\(22\)\)[\s\S]*LayoutParams\(dp\(48\), dp\(40\)\)/
 );
 assert.match(
   overlay,
@@ -42,6 +49,10 @@ assert.match(
   overlay,
   /activeStyleId == 7 -> if \(isPreviewMode \|\| \(data\.isConnected && hasAnyVisibleAlert\)\) VISIBLE else GONE/
 );
+assert.match(
+  overlay,
+  /if \(activeStyleId == 7\) \{[\s\S]*minimumWidth = 0[\s\S]*requestLayout\(\)/
+);
 
 assert.match(overlay, /val extras = if \(primaryAlert != null\) data\.upcomingAlerts\.drop\(1\) else data\.upcomingAlerts/);
 assert.match(overlay, /referenceAlertIcons\.getOrNull\(index\)\?\.setAlert/);
@@ -56,10 +67,10 @@ assert.match(overlay, /activeStyleId == 6 -> INVISIBLE/);
 assert.match(settings, /val allStyles = WazeHudManager\.STYLES/);
 assert.match(settings, /WazeHudManager\.setActiveStyleId\(this@SettingsActivity, style\.id\)/);
 
-console.log('PASS Waze HUD photo-match layouts: #7 lock + translucent background + auto-collapsing alerts');
+console.log('PASS Waze HUD #7: compact no-alert strip + lock + translucent background + non-overlapping alerts');
 
 assert.match(overlay, /fun applyProjectionViewport\(widthPx: Int, heightPx: Int\)/);
 assert.match(overlay, /projectionViewportWidthPx \* 0\.255f/);
-assert.match(overlay, /7 -> \{[\s\S]*designWidthPx = 510f \* density[\s\S]*projectionViewportWidthPx \* 0\.65f \/ designWidthPx[\s\S]*configuredScale \/ 100f[\s\S]*\}/);
+assert.match(overlay, /projectionViewportWidthPx \/ 1280f/);
 assert.match(settings, /WazeHudManager\.STYLES/);
-console.log('PASS Waze HUD sizing: #6 stays viewport-adaptive while #7 grows to car-screen reference size');
+console.log('PASS Waze HUD sizing: #6 viewport-adaptive; #7 stable viewport scale without inflating no-alert width');
