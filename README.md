@@ -8,7 +8,7 @@
 
 ## ✅ Bản Google Play trên nhánh này
 
-- **Play candidate:** `v1.0.89` / Build `287`
+- **Play candidate:** `v1.0.90` / Build `288`
 - **Branch:** `release/play`
 - **Play Application ID:** `com.ledinhtien.ttube`
 - **GitHub stable Application ID:** `com.tcar.auto` (package riêng)
