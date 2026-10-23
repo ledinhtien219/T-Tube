@@ -14,10 +14,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      PLAY_UPLOAD_KEYSTORE_PATH: /home/runner/.android/debug.keystore
-      PLAY_UPLOAD_STORE_PASSWORD: android
-      PLAY_UPLOAD_KEY_ALIAS: androiddebugkey
-      PLAY_UPLOAD_KEY_PASSWORD: android
+      PLAY_UPLOAD_KEYSTORE_BASE64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+      PLAY_UPLOAD_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+      PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+      PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+      PLAY_UPLOAD_KEYSTORE_PATH: ${{ github.workspace }}/.play/ttube-play-upload.jks
+      EXPECTED_PLAY_SHA1: 7D:96:A0:0C:2F:49:C4:C5:F4:4C:3D:9F:71:43:68:12:0B:F0:D0:0C
 
     steps:
       - uses: actions/checkout@v4
@@ -29,20 +31,27 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Restore stable signing key
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: thtv-stable-debug-keystore-v1
-
-      - name: Verify stable signing key
+      - name: Restore required Play upload key
         shell: bash
         run: |
           set -euo pipefail
-          test -f "$PLAY_UPLOAD_KEYSTORE_PATH"
-          CERT_SHA="$(keytool -exportcert -keystore "$PLAY_UPLOAD_KEYSTORE_PATH" -alias "$PLAY_UPLOAD_KEY_ALIAS" -storepass "$PLAY_UPLOAD_STORE_PASSWORD" 2>/dev/null | sha256sum | cut -d ' ' -f1)"
-          echo "Signing certificate SHA-256: $CERT_SHA"
-          test "$CERT_SHA" = "dbdb9e695d351e19899e17d9fd9258b11f9cc24ab6df386c21c138d5a70a3de2"
+          test -n "${PLAY_UPLOAD_KEYSTORE_BASE64:-}" || { echo "Missing PLAY_UPLOAD_KEYSTORE_BASE64"; exit 1; }
+          test -n "${PLAY_UPLOAD_STORE_PASSWORD:-}" || { echo "Missing PLAY_UPLOAD_STORE_PASSWORD"; exit 1; }
+          test -n "${PLAY_UPLOAD_KEY_ALIAS:-}" || { echo "Missing PLAY_UPLOAD_KEY_ALIAS"; exit 1; }
+          test -n "${PLAY_UPLOAD_KEY_PASSWORD:-}" || { echo "Missing PLAY_UPLOAD_KEY_PASSWORD"; exit 1; }
+          mkdir -p "$(dirname "$PLAY_UPLOAD_KEYSTORE_PATH")"
+          printf '%s' "$PLAY_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$PLAY_UPLOAD_KEYSTORE_PATH"
+          chmod 600 "$PLAY_UPLOAD_KEYSTORE_PATH"
+
+      - name: Verify exact Google Play upload certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL_SHA1="$(keytool -list -v             -keystore "$PLAY_UPLOAD_KEYSTORE_PATH"             -storepass "$PLAY_UPLOAD_STORE_PASSWORD"             -alias "$PLAY_UPLOAD_KEY_ALIAS" 2>/dev/null             | sed -n 's/^[[:space:]]*SHA1: //p' | head -1)"
+          echo "Expected Play SHA1: $EXPECTED_PLAY_SHA1"
+          echo "Actual key SHA1:    $ACTUAL_SHA1"
+          test "$PLAY_UPLOAD_KEY_ALIAS" = "ttube-play-upload"
+          test "$ACTUAL_SHA1" = "$EXPECTED_PLAY_SHA1"
 
       - name: Verify exact Play test source
         shell: bash
@@ -63,22 +72,26 @@ jobs:
       - name: Build signed Play AAB
         run: ./gradlew bundleRelease --stacktrace
 
-      - name: Verify signed AAB
+      - name: Verify AAB signature and Play certificate
         shell: bash
         run: |
           set -euo pipefail
           AAB="$(find app/build/outputs/bundle/release -name '*.aab' | head -n 1)"
           test -n "$AAB"
           jarsigner -verify -verbose -certs "$AAB" | tee /tmp/jarsigner.txt
-          ! grep -q "jar is unsigned" /tmp/jarsigner.txt
           grep -q "jar verified" /tmp/jarsigner.txt
-          cp "$AAB" TTube_v1.0.94_build293_CHPlay_Tester_SIGNED.aab
-          sha256sum TTube_v1.0.94_build293_CHPlay_Tester_SIGNED.aab
+          ! grep -q "jar is unsigned" /tmp/jarsigner.txt
+          AAB_SHA1="$(keytool -printcert -jarfile "$AAB" 2>/dev/null | sed -n 's/^[[:space:]]*SHA1: //p' | head -1)"
+          echo "Expected Play SHA1: $EXPECTED_PLAY_SHA1"
+          echo "AAB signer SHA1:    $AAB_SHA1"
+          test "$AAB_SHA1" = "$EXPECTED_PLAY_SHA1"
+          cp "$AAB" TTube_v1.0.94_build293_CHPlay_Tester_PLAYKEY.aab
+          sha256sum TTube_v1.0.94_build293_CHPlay_Tester_PLAYKEY.aab
 
-      - name: Upload signed AAB
+      - name: Upload Play-key signed AAB
         uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.0.94-build293-CHPlay-Tester-SIGNED-AAB
-          path: TTube_v1.0.94_build293_CHPlay_Tester_SIGNED.aab
+          name: TTube-v1.0.94-build293-CHPlay-Tester-PLAYKEY-AAB
+          path: TTube_v1.0.94_build293_CHPlay_Tester_PLAYKEY.aab
           if-no-files-found: error
           retention-days: 14
