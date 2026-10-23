@@ -71,14 +71,13 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
           script: |
-            set -euo pipefail
+            set -eu
             chmod +x gradlew
             ./gradlew assembleDebug --stacktrace
             apk="$(find app/build/outputs/apk/debug -name '*.apk' | head -1)"
             test -n "$apk"
             adb install -r "$apk"
 
-            # Make the emulator canvas match a common Android Auto landscape viewport.
             adb shell wm size 1280x720
             adb shell wm density 160
             adb shell settings put system accelerometer_rotation 0
