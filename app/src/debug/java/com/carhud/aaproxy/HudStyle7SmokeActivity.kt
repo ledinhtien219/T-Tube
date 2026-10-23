@@ -25,11 +25,15 @@ class HudStyle7SmokeActivity : Activity() {
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
 
         val requestedScale = intent.getIntExtra("scale", 100).coerceIn(60, 150)
+        val showAlerts = intent.getBooleanExtra("alerts", false)
         WazeHudManager.setActiveStyleId(this, 7)
         WazeHudManager.setScale(this, requestedScale)
+        WazeHudManager.setLocked(this, true)
 
         val root = FrameLayout(this).apply {
-            setBackgroundColor(Color.rgb(18, 18, 18))
+            // Slightly lighter backing makes the translucent HUD background visible
+            // in CI screenshots without pretending this is an Android Auto map.
+            setBackgroundColor(Color.rgb(45, 52, 61))
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -37,9 +41,6 @@ class HudStyle7SmokeActivity : Activity() {
         }
 
         val overlay = VietmapHudOverlay(this).apply {
-            // Fill the real view with deterministic sample Waze data first.
-            setSamplePreview(7)
-            // Then re-apply production scaling using a 1280x720 AA viewport.
             setPreviewMode(false)
             applyProjectionViewport(1280, 720)
         }
@@ -58,11 +59,60 @@ class HudStyle7SmokeActivity : Activity() {
 
         setContentView(root)
 
-        // Re-apply after measurement/attachment so the screenshot reflects
-        // the same scale transform used by the production projection overlay.
+        // Stop live state from racing the deterministic screenshot payload.
         overlay.post {
+            overlay.stopObservingState()
             overlay.setPreviewMode(false)
             overlay.applyProjectionViewport(1280, 720)
+
+            if (showAlerts) {
+                val now = System.currentTimeMillis()
+                overlay.updateUi(
+                    VietmapAlertData(
+                        isConnected = true,
+                        currentSpeed = 57,
+                        speedLimit = 60,
+                        turnCode = 3,
+                        turnAction = "right",
+                        turnDescription = "Rẽ phải",
+                        distanceToTurnMeters = 250,
+                        laneGuidance = "↑  ↑  ↗",
+                        warningType = VietmapWarningType.SPEED_CAMERA,
+                        alertTitle = "Camera tốc độ",
+                        distanceMeters = 400,
+                        upcomingAlerts = listOf(
+                            WazeAlertItem(
+                                code = 2,
+                                warningType = VietmapWarningType.SPEED_CAMERA,
+                                title = "Camera tốc độ",
+                                distanceMeters = 400
+                            ),
+                            WazeAlertItem(
+                                code = 4,
+                                warningType = VietmapWarningType.HAZARD,
+                                title = "Nguy hiểm",
+                                distanceMeters = 900
+                            )
+                        ),
+                        alertSource = "WAZE_HLP",
+                        alertTimestamp = now,
+                        source = "WAZE_HLP",
+                        sourceUpdatedAt = now,
+                        lastUpdated = now
+                    )
+                )
+            } else {
+                overlay.updateUi(
+                    VietmapAlertData(
+                        isConnected = true,
+                        currentSpeed = 57,
+                        speedLimit = 60,
+                        source = "WAZE_HLP",
+                        sourceUpdatedAt = System.currentTimeMillis(),
+                        lastUpdated = System.currentTimeMillis()
+                    )
+                )
+            }
         }
     }
 }
