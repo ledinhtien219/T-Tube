@@ -9,6 +9,10 @@ const blocker = fs.readFileSync(
   'app/src/main/java/com/carhud/aaproxy/YouTubeAdBlocker.kt',
   'utf8'
 );
+const presentation = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/CarPresentation.kt',
+  'utf8'
+);
 
 assert.match(
   blocker,
@@ -18,6 +22,10 @@ assert.doesNotMatch(
   blocker.match(/fun shouldIntercept\([\s\S]*?\n    \}/)?.[0] || '',
   /createEmptyResponse/
 );
+const interceptBlock =
+  presentation.match(/override fun shouldInterceptRequest\([\s\S]*?return super\.shouldInterceptRequest\(view, request\)\n            \}/)?.[0] || '';
+assert.doesNotMatch(interceptBlock, /YouTubePlayerHelper\.isAdUrl/);
+assert.doesNotMatch(interceptBlock, /YouTubePlayerHelper\.createEmptyResponse/);
 
 const helperAdBlock =
   helper.match(/function killYouTubeAds\(\)[\s\S]*?var skipYouTubeAds = killYouTubeAds;/)?.[0] || '';
