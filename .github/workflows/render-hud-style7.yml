@@ -5,6 +5,7 @@ on:
     branches: [ "release/play" ]
     paths:
       - ".github/workflows/render-hud-style7.yml"
+      - "scripts/render_hud_style7.sh"
       - "app/src/debug/**"
       - "app/src/main/java/com/carhud/aaproxy/VietmapHudOverlay.kt"
       - "app/src/main/java/com/carhud/aaproxy/WazeHudManager.kt"
@@ -70,34 +71,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
-          script: |
-            set -eu
-            chmod +x gradlew
-            ./gradlew assembleDebug --stacktrace
-            apk="$(find app/build/outputs/apk/debug -name '*.apk' | head -1)"
-            test -n "$apk"
-            adb install -r "$apk"
-
-            adb shell wm size 1280x720
-            adb shell wm density 160
-            adb shell settings put system accelerometer_rotation 0
-            adb shell settings put system user_rotation 1
-            sleep 2
-
-            mkdir -p hud-render-artifacts
-
-            adb shell am force-stop com.ledinhtien.ttube
-            adb shell am start -W               -n com.ledinhtien.ttube/com.carhud.aaproxy.HudStyle7SmokeActivity               --ei scale 100
-            sleep 3
-            adb exec-out screencap -p > hud-render-artifacts/style7-100-real.png
-
-            adb shell am force-stop com.ledinhtien.ttube
-            adb shell am start -W               -n com.ledinhtien.ttube/com.carhud.aaproxy.HudStyle7SmokeActivity               --ei scale 150
-            sleep 3
-            adb exec-out screencap -p > hud-render-artifacts/style7-150-real.png
-
-            adb shell dumpsys window windows > hud-render-artifacts/window.txt || true
-            file hud-render-artifacts/*.png || true
+          script: bash scripts/render_hud_style7.sh
 
       - name: Upload real HUD renders
         if: always()
