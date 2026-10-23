@@ -188,7 +188,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
         // 1. Red circle speed limit sign
         speedLimitBadge = FrameLayout(context).apply {
             val size = dp(44)
-            layoutParams = LayoutParams(size, size).apply { marginEnd = dp(6) }
+            layoutParams = LayoutParams(size, size).apply { marginEnd = dp(4) }
             background = circle(Color.WHITE, Color.parseColor("#DC2626"), 3f)
 
             speedLimitText = TextView(context).apply {
@@ -222,7 +222,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
 
             currentSpeedUnit = TextView(context).apply {
                 text = "KM/H"
-                textSize = 11f
+                textSize = 6.5f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.parseColor("#E2E8F0"))
                 gravity = Gravity.CENTER
@@ -311,7 +311,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
 
                 speedLimitText = TextView(context).apply {
                     text = "0"
-                    textSize = 16f
+                    textSize = 11f
                     typeface = Typeface.DEFAULT_BOLD
                     setTextColor(Color.BLACK)
                     gravity = Gravity.CENTER
@@ -327,7 +327,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
 
                 secondaryLimitText = TextView(context).apply {
                     text = "--"
-                    textSize = 11f
+                    textSize = 9f
                     typeface = Typeface.DEFAULT_BOLD
                     setTextColor(Color.WHITE)
                     gravity = Gravity.CENTER
@@ -345,11 +345,11 @@ class VietmapHudOverlay @JvmOverloads constructor(
         currentSpeedContainer = LinearLayout(context).apply {
             orientation = VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(4), 0, dp(4), 0)
+            setPadding(dp(2), 0, dp(2), 0)
 
             currentSpeedText = TextView(context).apply {
                 text = "0"
-                textSize = 28f
+                textSize = 20f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
@@ -358,7 +358,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
 
             currentSpeedUnit = TextView(context).apply {
                 text = "KM/H"
-                textSize = 8.5f
+                textSize = 7f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.parseColor("#8097AC"))
                 gravity = Gravity.CENTER
@@ -395,7 +395,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
 
                 turnDistanceText = TextView(context).apply {
                     text = "0m"
-                    textSize = 12f
+                    textSize = 9f
                     typeface = Typeface.DEFAULT_BOLD
                     setTextColor(Color.parseColor("#38BDF8"))
                     gravity = Gravity.CENTER
@@ -479,7 +479,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
 
             secondaryLimitText = TextView(context).apply {
                 text = "60"
-                textSize = 11f
+                textSize = 8.5f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
@@ -499,7 +499,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
 
             currentSpeedText = TextView(context).apply {
                 text = "0"
-                textSize = 25f
+                textSize = 20f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
@@ -599,7 +599,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
 
                 secondaryLimitText = TextView(context).apply {
                     text = "--"
-                    textSize = 10f
+                    textSize = 7.5f
                     typeface = Typeface.DEFAULT_BOLD
                     setTextColor(Color.WHITE)
                     gravity = Gravity.CENTER
@@ -804,13 +804,13 @@ class VietmapHudOverlay @JvmOverloads constructor(
     private fun buildStyle6WazePanelLon() {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(10), dp(7), dp(8), dp(7))
-        minimumWidth = dp(360)
+        setPadding(dp(5), dp(4), dp(4), dp(4))
+        minimumWidth = 0
         applyStyleBackground(overSpeed = false)
 
         speedLimitBadge = FrameLayout(context).apply {
-            val size = dp(66)
-            layoutParams = LayoutParams(size, size).apply { marginEnd = dp(8) }
+            val size = dp(44)
+            layoutParams = LayoutParams(size, size).apply { marginEnd = dp(4) }
             background = circle(Color.WHITE, Color.parseColor("#E31B23"), 5f)
             speedLimitText = TextView(context).apply {
                 text = "--"
@@ -827,10 +827,10 @@ class VietmapHudOverlay @JvmOverloads constructor(
         currentSpeedContainer = LinearLayout(context).apply {
             orientation = VERTICAL
             gravity = Gravity.CENTER
-            layoutParams = LayoutParams(dp(76), LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(8) }
+            layoutParams = LayoutParams(dp(46), LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(4) }
             currentSpeedText = TextView(context).apply {
                 text = "0"
-                textSize = 46f
+                textSize = 34f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
@@ -851,14 +851,14 @@ class VietmapHudOverlay @JvmOverloads constructor(
         val navColumn = LinearLayout(context).apply {
             orientation = VERTICAL
             gravity = Gravity.CENTER
-            layoutParams = LayoutParams(dp(104), LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(7) }
+            layoutParams = LayoutParams(dp(54), LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(4) }
         }
 
         val turnBox = LinearLayout(context).apply {
             orientation = VERTICAL
             gravity = Gravity.CENTER
             background = rounded(Color.parseColor("#176AC8"), 10f, Color.parseColor("#4DFFFFFF"), 1)
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, dp(58))
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, dp(50))
             val top = LinearLayout(context).apply {
                 orientation = HORIZONTAL
                 gravity = Gravity.CENTER
@@ -891,45 +891,45 @@ class VietmapHudOverlay @JvmOverloads constructor(
                 ellipsize = TextUtils.TruncateAt.END
                 includeFontPadding = false
             }
-            addView(roadNameText, LayoutParams(LayoutParams.MATCH_PARENT, dp(16)))
+            addView(roadNameText, LayoutParams(LayoutParams.MATCH_PARENT, dp(14)))
         }
         turnContainer = turnBox
         navColumn.addView(turnBox)
 
         laneGuidanceText = TextView(context).apply {
             text = ""
-            textSize = 13f
+            textSize = 9f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.parseColor("#D6D9DE"))
             gravity = Gravity.CENTER
             background = rounded(Color.parseColor("#5A22282F"), 7f, Color.parseColor("#24FFFFFF"), 1)
-            setPadding(dp(4), dp(2), dp(4), dp(2))
+            setPadding(dp(2), dp(1), dp(2), dp(1))
             visibility = GONE
         }
         navColumn.addView(
             laneGuidanceText,
-            LayoutParams(LayoutParams.MATCH_PARENT, dp(22)).apply { topMargin = dp(3) }
+            LayoutParams(LayoutParams.MATCH_PARENT, dp(18)).apply { topMargin = dp(2) }
         )
         addView(navColumn)
 
         val alertsColumn = LinearLayout(context).apply {
             orientation = VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            layoutParams = LayoutParams(dp(76), LayoutParams.WRAP_CONTENT)
+            layoutParams = LayoutParams(dp(50), LayoutParams.WRAP_CONTENT)
         }
 
         alertsColumn.addView(
             createAlertBadge(isVertical = false).apply {
                 minimumWidth = 0
-                setPadding(dp(3), dp(2), dp(3), dp(2))
+                setPadding(dp(2), dp(1), dp(2), dp(1))
                 background = rounded(Color.parseColor("#E6161B22"), 9f, Color.parseColor("#38536A7A"), 1)
-                alertIconView?.layoutParams = LayoutParams(dp(30), dp(30)).apply { gravity = Gravity.CENTER_HORIZONTAL }
-                alertDistanceText?.textSize = 9.5f
+                alertIconView?.layoutParams = LayoutParams(dp(24), dp(24)).apply { gravity = Gravity.CENTER_HORIZONTAL }
+                alertDistanceText?.textSize = 8f
             },
-            LayoutParams(LayoutParams.MATCH_PARENT, dp(49))
+            LayoutParams(LayoutParams.MATCH_PARENT, dp(40))
         )
 
-        alertsColumn.addView(createReferenceAlertCell(dp(76), dp(46), compact = false))
+        alertsColumn.addView(createReferenceAlertCell(dp(50), dp(38), compact = false))
         alertsColumn.addView(createReferenceAlertCell(dp(76), dp(46), compact = false))
 
         referenceReportButton = TextView(context).apply {
@@ -943,7 +943,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
         }
         alertsColumn.addView(
             referenceReportButton,
-            LayoutParams(LayoutParams.MATCH_PARENT, dp(34)).apply { topMargin = dp(3) }
+            LayoutParams(LayoutParams.MATCH_PARENT, dp(28)).apply { topMargin = dp(2) }
         )
 
         addView(alertsColumn)
@@ -956,17 +956,17 @@ class VietmapHudOverlay @JvmOverloads constructor(
     private fun buildStyle7WazeThanhNgang() {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(7), dp(4), dp(7), dp(4))
-        minimumWidth = dp(410)
+        setPadding(dp(4), dp(1), dp(4), dp(1))
+        minimumWidth = 0
         applyStyleBackground(overSpeed = false)
 
         speedLimitBadge = FrameLayout(context).apply {
-            val size = dp(42)
+            val size = dp(25)
             layoutParams = LayoutParams(size, size).apply { marginEnd = dp(6) }
             background = circle(Color.WHITE, Color.parseColor("#E31B23"), 3.5f)
             speedLimitText = TextView(context).apply {
                 text = "--"
-                textSize = 18f
+                textSize = 11.5f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.BLACK)
                 gravity = Gravity.CENTER
@@ -979,10 +979,10 @@ class VietmapHudOverlay @JvmOverloads constructor(
         currentSpeedContainer = LinearLayout(context).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LayoutParams(dp(73), dp(44)).apply { marginEnd = dp(5) }
+            layoutParams = LayoutParams(dp(52), dp(26)).apply { marginEnd = dp(3) }
             currentSpeedText = TextView(context).apply {
                 text = "0"
-                textSize = 31f
+                textSize = 19f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 includeFontPadding = false
@@ -992,7 +992,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
                 text = " km/h"
                 textSize = 8f
                 setTextColor(Color.parseColor("#B9BEC5"))
-                setPadding(dp(1), dp(13), 0, 0)
+                setPadding(dp(1), dp(7), 0, 0)
                 includeFontPadding = false
             }
             addView(currentSpeedUnit)
@@ -1002,11 +1002,11 @@ class VietmapHudOverlay @JvmOverloads constructor(
         val turnBox = LinearLayout(context).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER
-            layoutParams = LayoutParams(dp(78), dp(40)).apply { marginEnd = dp(5) }
+            layoutParams = LayoutParams(dp(58), dp(25)).apply { marginEnd = dp(3) }
             background = rounded(Color.parseColor("#176AC8"), 8f, Color.parseColor("#4DFFFFFF"), 1)
             turnIcon = TextView(context).apply {
                 text = "↱"
-                textSize = 21f
+                textSize = 15f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
@@ -1044,20 +1044,20 @@ class VietmapHudOverlay @JvmOverloads constructor(
         }
         addView(
             laneGuidanceText,
-            LayoutParams(dp(65), dp(38)).apply { marginEnd = dp(5) }
+            LayoutParams(dp(44), dp(25)).apply { marginEnd = dp(3) }
         )
 
         addView(
             createAlertBadge(isVertical = false).apply {
                 minimumWidth = 0
                 setPadding(dp(2), dp(1), dp(2), dp(1))
-                alertIconView?.layoutParams = LayoutParams(dp(27), dp(27)).apply { gravity = Gravity.CENTER_HORIZONTAL }
-                alertDistanceText?.textSize = 8.5f
+                alertIconView?.layoutParams = LayoutParams(dp(20), dp(20)).apply { gravity = Gravity.CENTER_HORIZONTAL }
+                alertDistanceText?.textSize = 6.8f
             },
-            LayoutParams(dp(54), dp(42)).apply { marginEnd = dp(4) }
+            LayoutParams(dp(40), dp(25)).apply { marginEnd = dp(3) }
         )
 
-        addView(createReferenceAlertCell(dp(54), dp(42), compact = true))
+        addView(createReferenceAlertCell(dp(40), dp(25), compact = true))
         addView(createReferenceAlertCell(dp(54), dp(42), compact = true))
 
         referenceReportButton = TextView(context).apply {
@@ -1071,7 +1071,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
         }
         addView(
             referenceReportButton,
-            LayoutParams(dp(38), dp(38)).apply { marginStart = dp(3) }
+            LayoutParams(dp(28), dp(25)).apply { marginStart = dp(2) }
         )
     }
 
@@ -1088,14 +1088,14 @@ class VietmapHudOverlay @JvmOverloads constructor(
             }
         }
         val icon = WazeAlertIconView(context).apply {
-            layoutParams = LayoutParams(dp(if (compact) 27 else 29), dp(if (compact) 27 else 29)).apply {
+            layoutParams = LayoutParams(dp(if (compact) 20 else 24), dp(if (compact) 20 else 24)).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
             }
             setAlert(4, VietmapWarningType.HAZARD)
         }
         val distance = TextView(context).apply {
             text = ""
-            textSize = if (compact) 8.5f else 9.5f
+            textSize = if (compact) 6.8f else 8f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
@@ -1797,7 +1797,8 @@ class VietmapHudOverlay @JvmOverloads constructor(
                     cell.visibility = GONE
                 }
             }
-            referenceReportButton?.alpha = if (data.isConnected || isPreviewMode) 1f else 0.68f
+            referenceReportButton?.visibility = if (data.isConnected || isPreviewMode) VISIBLE else GONE
+            referenceReportButton?.alpha = 1f
         } else {
             referenceAlertContainers.forEach { it.visibility = GONE }
         }
