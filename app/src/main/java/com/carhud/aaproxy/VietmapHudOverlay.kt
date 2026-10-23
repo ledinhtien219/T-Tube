@@ -117,8 +117,8 @@ class VietmapHudOverlay @JvmOverloads constructor(
             } else {
                 val userScale = WazeHudManager.getScale(context) / 100f
                 val referenceScale = when (activeStyleId) {
-                    6 -> 0.46f
-                    7 -> 0.58f
+                    6 -> 0.70f
+                    7 -> 0.75f
                     else -> 1.0f
                 }
                 val scale = userScale * referenceScale
