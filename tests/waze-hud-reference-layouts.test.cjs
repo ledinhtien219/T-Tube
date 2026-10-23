@@ -22,6 +22,26 @@ assert.match(overlay, /private fun buildStyle7WazeThanhNgang\(\)/);
 assert.match(overlay, /private fun buildStyle7WazeThanhNgang\(\)[\s\S]*?minimumWidth = dp\(430\)/);
 assert.match(overlay, /createReferenceAlertCell\(dp\(54\), dp\(38\), compact = true\)/);
 assert.match(overlay, /text = "⚠"/);
+assert.match(
+  overlay,
+  /private fun buildStyle7WazeThanhNgang\(\)[\s\S]*createLockButton\(\)[\s\S]*LayoutParams\(dp\(34\), dp\(34\)\)/
+);
+assert.match(
+  overlay,
+  /7 -> background = rounded\([\s\S]*#800B0D10[\s\S]*#24FFFFFF/
+);
+assert.match(
+  overlay,
+  /alertContainer\?\.visibility = if \(activeStyleId == 6\) INVISIBLE else GONE/
+);
+assert.match(
+  overlay,
+  /cell\.visibility = if \(activeStyleId == 6\) INVISIBLE else GONE/
+);
+assert.match(
+  overlay,
+  /activeStyleId == 7 -> if \(isPreviewMode \|\| \(data\.isConnected && hasAnyVisibleAlert\)\) VISIBLE else GONE/
+);
 
 assert.match(overlay, /val extras = if \(primaryAlert != null\) data\.upcomingAlerts\.drop\(1\) else data\.upcomingAlerts/);
 assert.match(overlay, /referenceAlertIcons\.getOrNull\(index\)\?\.setAlert/);
@@ -36,7 +56,7 @@ assert.match(overlay, /activeStyleId == 6 -> INVISIBLE/);
 assert.match(settings, /val allStyles = WazeHudManager\.STYLES/);
 assert.match(settings, /WazeHudManager\.setActiveStyleId\(this@SettingsActivity, style\.id\)/);
 
-console.log('PASS Waze HUD photo-match layouts: large panel + compact strip + lanes + stacked alerts + report button');
+console.log('PASS Waze HUD photo-match layouts: #7 lock + translucent background + auto-collapsing alerts');
 
 assert.match(overlay, /fun applyProjectionViewport\(widthPx: Int, heightPx: Int\)/);
 assert.match(overlay, /projectionViewportWidthPx \* 0\.255f/);
