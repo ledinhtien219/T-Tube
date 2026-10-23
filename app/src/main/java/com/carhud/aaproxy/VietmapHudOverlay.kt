@@ -135,9 +135,16 @@ class VietmapHudOverlay @JvmOverloads constructor(
                         viewportScale * (configuredScale / 120f)
                     }
                     7 -> {
-                        // Style #7 uses the user's percentage literally:
-                        // 100% = the full reference strip size, never an extra auto-shrink.
-                        configuredScale / 100f
+                        // On Android Auto the projection density can make a raw 430dp strip
+                        // look tiny. Treat 100% as a car-screen reference size: grow #7 until
+                        // the complete strip is about 65% of the AA viewport, but never shrink
+                        // below its native layout size. At 150% it still stays around one screen.
+                        val designWidthPx = 510f * density
+                        val referenceScale = if (projectionViewportWidthPx > 0) {
+                            maxOf(1f, projectionViewportWidthPx * 0.65f / designWidthPx)
+                                .coerceAtMost(3.0f)
+                        } else 1.55f
+                        referenceScale * (configuredScale / 100f)
                     }
                     else -> configuredScale / 100f
                 }
