@@ -28,8 +28,12 @@ assert.match(overlay, /referenceAlertIcons\.getOrNull\(index\)\?\.setAlert/);
 assert.match(overlay, /laneGuidance = live\.laneGuidance \?: "↑  ↑  ↗"/);
 assert.match(overlay, /applyStyleBackground\(overSpeed = false\)/);
 
-assert.match(manager, /private fun positionKey\(base: String, styleId: Int\)/);
-assert.match(manager, /if \(styleId >= 6\) "\$\{base\}_style_\$\{styleId\}" else base/);
+assert.match(manager, /_style_\$\{styleId\}_photo_v2/);
+assert.match(overlay, /6 -> 0\.70f/);
+assert.match(overlay, /7 -> 0\.75f/);
+assert.match(overlay, /pivotX = 0f/);
+assert.match(overlay, /pivotY = 0f/);
+assert.match(overlay, /activeStyleId == 6 \|\| activeStyleId == 7 -> INVISIBLE/);
 
 assert.match(settings, /val allStyles = WazeHudManager\.STYLES/);
 assert.match(settings, /WazeHudManager\.setActiveStyleId\(this@SettingsActivity, style\.id\)/);
