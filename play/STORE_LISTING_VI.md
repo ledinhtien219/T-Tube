@@ -21,8 +21,8 @@ Trên kênh thử nghiệm nội bộ, T Tube tiếp tục kiểm thử giao di�
 
 Một số chức năng phụ thuộc vào quyền người dùng cấp, dịch vụ hệ thống hoặc dịch vụ bên thứ ba. T Tube không yêu cầu mã kích hoạt hoặc thanh toán ngoài ứng dụng trong bản phân phối Google Play.
 
-## Ghi chú phát hành 1.0.89
-- Phóng lớn giao diện Waze Thanh Ngang (#7); mức 100% giờ hiển thị đúng kích thước chuẩn thay vì bị tự co nhỏ.
+## Ghi chú phát hành 1.0.90
+- Phóng lớn Waze Thanh Ngang (#7): mức 100% giờ bám theo viewport Android Auto, mục tiêu khoảng 65% chiều ngang màn xe thay vì chỉ dùng kích thước dp thô.
 - Sửa chỉ dẫn rẽ Waze bị kẹt ở mũi tên đi thẳng; trái/phải/chếch/quay đầu/vòng xuyến dùng đúng mã HLP/1.
 - Xóa trạng thái chỉ đường cũ ngay khi Waze kết thúc hoặc đổi tuyến.
 - Sửa tỷ lệ HUD Waze theo viewport Android Auto thật để không còn bị phóng quá lớn.
@@ -57,6 +57,6 @@ Một số chức năng phụ thuộc vào quyền người dùng cấp, dịch 
 - Release build không debuggable.
 - Bản Play không dùng luồng kích hoạt/bản quyền ngoài ứng dụng.
 - Giữ các cải tiến chuyển app, tìm kiếm, voice, media và hiệu năng của 1.0.75.
-- Tạo lại App Bundle cho kênh thử nghiệm nội bộ với versionCode 287.
+- Tạo lại App Bundle cho kênh thử nghiệm nội bộ với versionCode 288.
 - Khôi phục đầy đủ giao diện Android Auto/dashboard/HUD projection như bản trước để kiểm thử nội bộ.
 - Gỡ 2 quyền AndroidX Navigation bị Google Play chặn (`ACCESS_SURFACE`, `NAVIGATION_TEMPLATES`) nhưng giữ projection host riêng.
