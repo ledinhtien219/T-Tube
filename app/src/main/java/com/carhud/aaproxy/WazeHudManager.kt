@@ -37,8 +37,8 @@ object WazeHudManager {
     const val ALERT_TONE_PROMPT = "prompt"
     const val ALERT_TONE_STRONG = "strong"
 
-    const val KEY_HUD_POS_X = "key_hud_pos_x" // default 28
-    const val KEY_HUD_POS_Y = "key_hud_pos_y" // default 32
+    const val KEY_HUD_POS_X = "key_hud_pos_x" // legacy shared position
+    const val KEY_HUD_POS_Y = "key_hud_pos_y" // legacy shared position
     const val KEY_SHOW_IN_APP_PREVIEW = "key_show_in_app_hud_preview" // default true
     const val KEY_SHOW_FLOATING_OVERLAY = "key_show_floating_hud_overlay" // default true
     const val KEY_HUD_LOCKED = "key_hud_is_locked" // default false (allows drag until locked)
@@ -261,20 +261,30 @@ object WazeHudManager {
         if (styleId >= 6) "${base}_style_${styleId}" else base
 
     fun getPosition(context: Context): Pair<Int, Int> {
-        val styleId = getActiveStyleId(context)
-        val defaultX = if (styleId >= 6) -1 else 28
-        val defaultY = if (styleId >= 6) -1 else 32
         val prefs = getPrefs(context)
-        val x = prefs.getInt(positionKey(KEY_HUD_POS_X, styleId), defaultX)
-        val y = prefs.getInt(positionKey(KEY_HUD_POS_Y, styleId), defaultY)
-        return Pair(x, y)
+        val styleId = getActiveStyleId(context)
+        val sx = prefs.getInt("${KEY_HUD_POS_X}_style_$styleId", Int.MIN_VALUE)
+        val sy = prefs.getInt("${KEY_HUD_POS_Y}_style_$styleId", Int.MIN_VALUE)
+        if (sx != Int.MIN_VALUE && sy != Int.MIN_VALUE) return Pair(sx, sy)
+
+        // Preserve the old shared position only for legacy styles. New Waze
+        // reference styles start from their own photo-matched default position.
+        if (styleId <= 5) {
+            return Pair(
+                prefs.getInt(KEY_HUD_POS_X, -1),
+                prefs.getInt(KEY_HUD_POS_Y, -1)
+            )
+        }
+        return Pair(-1, -1)
     }
 
     fun setPosition(context: Context, x: Int, y: Int) {
         val styleId = getActiveStyleId(context)
         getPrefs(context).edit()
-            .putInt(positionKey(KEY_HUD_POS_X, styleId), x)
-            .putInt(positionKey(KEY_HUD_POS_Y, styleId), y)
+            .putInt("${KEY_HUD_POS_X}_style_$styleId", x)
+            .putInt("${KEY_HUD_POS_Y}_style_$styleId", y)
+            .putInt(KEY_HUD_POS_X, x)
+            .putInt(KEY_HUD_POS_Y, y)
             .apply()
     }
 
