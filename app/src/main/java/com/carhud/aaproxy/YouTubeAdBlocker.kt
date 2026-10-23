@@ -114,15 +114,12 @@ object YouTubeAdBlocker {
      *   YouTubeAdBlocker.shouldIntercept(request)?.let { return it }
      */
     fun shouldIntercept(request: WebResourceRequest?): WebResourceResponse? {
+        // Keep YouTube's network graph intact. The player API, ad state and media
+        // requests are tightly coupled and blocking "ad-looking" requests can cause
+        // buffering, black frames or broken SPA transitions. We intentionally do
+        // player-level skipping instead, matching Fermata's smoother approach.
         request ?: return null
-        val uri = request.url ?: return null
-        if (!isAdUrl(uri)) return null
-
-        val origin = request.requestHeaders["Origin"]
-            ?: request.requestHeaders["origin"]
-            ?: "https://m.youtube.com"
-
-        return createEmptyResponse(origin)
+        return null
     }
 
     /**
@@ -299,14 +296,24 @@ object YouTubeAdBlocker {
 (function() {
     try {
         var existing = window.__carhudAdBlock;
-        if (existing && existing.version === 3) {
+        if (existing && existing.version === 4) {
             existing.sponsorEnabled = __ENABLE_SPONSOR_BLOCK__;
             if (typeof existing.tick === 'function') existing.tick();
             return;
         }
+        // Clean up an older injected generation before replacing it.
+        if (existing) {
+            try { if (existing.timer) clearInterval(existing.timer); } catch(e) {}
+            try { if (existing.playerObserver) existing.playerObserver.disconnect(); } catch(e) {}
+            try {
+                if (existing.video && existing.timeHandler) {
+                    existing.video.removeEventListener('timeupdate', existing.timeHandler, true);
+                }
+            } catch(e) {}
+        }
 
         var state = {
-            version: 3,
+            version: 4,
             sponsorEnabled: __ENABLE_SPONSOR_BLOCK__,
             timer: null,
             playerObserver: null,
@@ -485,21 +492,20 @@ object YouTubeAdBlocker {
                     if (visible(closeBtn)) clickElement(closeBtn);
                 }
 
-                // 4) Video-ad fallback: seek near end, then 16x + mute.
-                // Only runs while the player itself says an ad is active.
+                // 4) Fermata-style video-ad fallback: keep the same YouTube
+                // HTML5 player/session and seek the ad directly to its end.
+                // Never change playbackRate or mute state here; those properties can
+                // leak into the real video when YouTube switches ad/content state.
                 if (v) {
                     try {
                         var d = Number(v.duration);
                         var c = Number(v.currentTime);
                         if (isFinite(d) && d > 0 &&
                             isFinite(c) && c >= 0 &&
-                            d - c > 0.75) {
-                            v.currentTime = Math.max(c, d - 0.10);
+                            d - c > 0.20) {
+                            v.currentTime = d;
                         }
                     } catch(e) {}
-
-                    try { v.muted = true; } catch(e) {}
-                    try { v.playbackRate = 16.0; } catch(e) {}
                 }
             } catch(e) {}
         }
@@ -678,6 +684,11 @@ object YouTubeAdBlocker {
                     state.timeHandler,
                     true
                 );
+                v.addEventListener('playing', function() {
+                    try {
+                        if (isShowingAd()) skipAd();
+                    } catch(e) {}
+                }, true);
             } catch(e) {}
         }
 
@@ -701,9 +712,9 @@ object YouTubeAdBlocker {
 
         state.tick = tick;
 
-        // Main watchdog is intentionally slow; MutationObserver + timeupdate
-        // do the fast-path work.
-        state.timer = setInterval(tick, 1500);
+        // Main watchdog is only a recovery path; MutationObserver + playing/timeupdate
+        // handle normal transitions immediately.
+        state.timer = setInterval(tick, 1800);
 
         window.addEventListener('yt-navigate-finish', tick);
         window.addEventListener('yt-page-data-updated', tick);
