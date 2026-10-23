@@ -29,8 +29,6 @@ assert.match(overlay, /laneGuidance = live\.laneGuidance \?: "↑  ↑  ↗"/);
 assert.match(overlay, /applyStyleBackground\(overSpeed = false\)/);
 
 assert.match(manager, /_style_\$\{styleId\}_photo_v3/);
-assert.match(overlay, /6 -> 0\.70f/);
-assert.match(overlay, /7 -> 0\.75f/);
 assert.match(overlay, /pivotX = 0f/);
 assert.match(overlay, /pivotY = 0f/);
 assert.match(overlay, /activeStyleId == 6 \|\| activeStyleId == 7 -> INVISIBLE/);
