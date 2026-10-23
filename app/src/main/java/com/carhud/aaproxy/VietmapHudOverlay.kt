@@ -66,6 +66,8 @@ class VietmapHudOverlay @JvmOverloads constructor(
     private var pulseState = false
 
     private var lastData: VietmapAlertData? = null
+    private var projectionViewportWidthPx: Int = 0
+    private var projectionViewportHeightPx: Int = 0
 
     // Dragging & Locking
     private var isLocked = false
@@ -102,6 +104,12 @@ class VietmapHudOverlay @JvmOverloads constructor(
         this.isPreviewMode = preview
     }
 
+    fun applyProjectionViewport(widthPx: Int, heightPx: Int) {
+        projectionViewportWidthPx = widthPx.coerceAtLeast(0)
+        projectionViewportHeightPx = heightPx.coerceAtLeast(0)
+        applyHudConfig()
+    }
+
     fun applyHudConfig(styleIdOverride: Int? = null) {
         try {
             val newStyleId = styleIdOverride ?: WazeHudManager.getActiveStyleId(context)
@@ -115,13 +123,31 @@ class VietmapHudOverlay @JvmOverloads constructor(
                 scaleY = 1.0f
                 alpha = 1.0f
             } else {
-                val userScale = WazeHudManager.getScale(context) / 100f
-                val referenceScale = when (activeStyleId) {
-                    6 -> 0.70f
-                    7 -> 0.75f
-                    else -> 1.0f
+                val configuredScale = WazeHudManager.getScale(context)
+                val userScaleFactor = configuredScale / 120f
+                val density = context.resources.displayMetrics.density.coerceAtLeast(1f)
+                val viewportScale = when (activeStyleId) {
+                    6 -> {
+                        // Reference #1 occupies roughly one quarter of the AA viewport.
+                        val designWidthPx = 215f * density
+                        if (projectionViewportWidthPx > 0) {
+                            (projectionViewportWidthPx * 0.255f / designWidthPx).coerceIn(0.42f, 0.82f)
+                        } else 0.68f
+                    }
+                    7 -> {
+                        // Reference #2 is a low strip covering about 43% of the viewport.
+                        val designWidthPx = 350f * density
+                        if (projectionViewportWidthPx > 0) {
+                            (projectionViewportWidthPx * 0.43f / designWidthPx).coerceIn(0.42f, 0.80f)
+                        } else 0.68f
+                    }
+                    else -> configuredScale / 100f
                 }
-                val scale = userScale * referenceScale
+                val scale = if (activeStyleId == 6 || activeStyleId == 7) {
+                    viewportScale * userScaleFactor
+                } else {
+                    viewportScale
+                }
                 pivotX = 0f
                 pivotY = 0f
                 scaleX = scale
