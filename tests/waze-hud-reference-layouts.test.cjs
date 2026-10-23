@@ -9,9 +9,14 @@ assert.match(manager, /id = 6,[\s\S]*name = "#6 Waze Panel Lớn"/);
 assert.match(manager, /id = 7,[\s\S]*name = "#7 Waze Thanh Ngang"/);
 
 assert.match(overlay, /6 -> buildStyle6WazePanelLon\(\)/);
+assert.match(overlay, /7 -> style7RequestedScale\(configuredScale\)/);
 assert.match(
   overlay,
-  /7 -> \{[\s\S]*projectionViewportWidthPx \/ 1280f[\s\S]*1\.55f \* viewportFactor \* \(configuredScale \/ 100f\)[\s\S]*\}/
+  /private fun style7RequestedScale\([\s\S]*projectionViewportWidthPx \/ 1280f[\s\S]*1\.55f \* viewportFactor \* \(configuredScale \/ 100f\)/
+);
+assert.match(
+  overlay,
+  /private fun fitStyle7ScaleToViewport\(\)[\s\S]*projectionViewportWidthPx \* 0\.96f \/ width\.toFloat\(\)[\s\S]*minOf\(requested, fitScale\)/
 );
 
 assert.match(overlay, /private fun buildStyle6WazePanelLon\(\)/);
@@ -82,4 +87,4 @@ assert.match(overlay, /fun applyProjectionViewport\(widthPx: Int, heightPx: Int\
 assert.match(overlay, /projectionViewportWidthPx \* 0\.255f/);
 assert.match(overlay, /projectionViewportWidthPx \/ 1280f/);
 assert.match(settings, /WazeHudManager\.STYLES/);
-console.log('PASS Waze HUD sizing: #6 viewport-adaptive; #7 stable viewport scale without inflating no-alert width');
+console.log('PASS Waze HUD sizing: #7 keeps requested scale but clamps long road/alert strips inside viewport');
