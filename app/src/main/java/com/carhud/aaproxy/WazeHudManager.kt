@@ -257,21 +257,37 @@ object WazeHudManager {
     }
 
 
+    private fun positionKey(base: String, styleId: Int): String =
+        if (styleId >= 6) "${base}_style_${styleId}" else base
+
     fun getPosition(context: Context): Pair<Int, Int> {
-        val x = getPrefs(context).getInt(KEY_HUD_POS_X, 28)
-        val y = getPrefs(context).getInt(KEY_HUD_POS_Y, 32)
+        val styleId = getActiveStyleId(context)
+        val defaultX = if (styleId >= 6) -1 else 28
+        val defaultY = if (styleId >= 6) -1 else 32
+        val prefs = getPrefs(context)
+        val x = prefs.getInt(positionKey(KEY_HUD_POS_X, styleId), defaultX)
+        val y = prefs.getInt(positionKey(KEY_HUD_POS_Y, styleId), defaultY)
         return Pair(x, y)
     }
 
     fun setPosition(context: Context, x: Int, y: Int) {
+        val styleId = getActiveStyleId(context)
         getPrefs(context).edit()
-            .putInt(KEY_HUD_POS_X, x)
-            .putInt(KEY_HUD_POS_Y, y)
+            .putInt(positionKey(KEY_HUD_POS_X, styleId), x)
+            .putInt(positionKey(KEY_HUD_POS_Y, styleId), y)
             .apply()
     }
 
     fun resetPosition(context: Context) {
-        setPosition(context, 28, 32)
+        val styleId = getActiveStyleId(context)
+        if (styleId >= 6) {
+            getPrefs(context).edit()
+                .remove(positionKey(KEY_HUD_POS_X, styleId))
+                .remove(positionKey(KEY_HUD_POS_Y, styleId))
+                .apply()
+        } else {
+            setPosition(context, 28, 32)
+        }
     }
 
     fun isInAppPreviewEnabled(context: Context): Boolean {
