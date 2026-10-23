@@ -1,0 +1,93 @@
+name: Build v1.0.94 YouTube release test APK
+
+on:
+  push:
+    branches:
+      - test/play-v1.0.94-youtube-fermata-release-apk
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout exact test branch
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Create sideload signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -v \
+            -keystore "$HOME/.android/ttube-test-release.keystore" \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=TTube Test Release,O=TTube,C=VN"
+
+      - name: Verify v1.0.94 source and focused YouTube regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'versionCode = 292' app/build.gradle.kts
+          grep -q 'versionName = "1.0.94"' app/build.gradle.kts
+          node --test tests/youtube-*.test.cjs tests/v152-youtube-search-toolbar.test.cjs tests/v160-youtube-fast-search.test.cjs
+
+      - name: Build signed non-debuggable release APK
+        shell: bash
+        env:
+          PLAY_UPLOAD_KEYSTORE_PATH: ${{ github.workspace }}/../.android/unused
+          PLAY_UPLOAD_STORE_PASSWORD: android
+          PLAY_UPLOAD_KEY_ALIAS: androiddebugkey
+          PLAY_UPLOAD_KEY_PASSWORD: android
+        run: |
+          set -euo pipefail
+          export PLAY_UPLOAD_KEYSTORE_PATH="$HOME/.android/ttube-test-release.keystore"
+          ./gradlew assembleRelease --stacktrace
+
+      - name: Verify APK package, manifest and signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          echo "APK=$APK"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | tee /tmp/badging.txt
+          grep -q "package: name='com.ledinhtien.ttube'" /tmp/badging.txt
+          grep -q "versionCode='292'" /tmp/badging.txt
+          grep -q "versionName='1.0.94'" /tmp/badging.txt
+          sha256sum "$APK"
+
+      - name: Stage APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -n 1)"
+          cp "$APK" TTube_v1.0.94_YouTube_Fermata_RELEASE_TEST.apk
+
+      - name: Upload release test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TTube-v1.0.94-YouTube-Fermata-RELEASE-TEST
+          path: TTube_v1.0.94_YouTube_Fermata_RELEASE_TEST.apk
+          if-no-files-found: error
+          retention-days: 14
