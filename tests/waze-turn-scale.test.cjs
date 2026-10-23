@@ -4,10 +4,9 @@ const assert = require('node:assert/strict');
 const overlay = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/VietmapHudOverlay.kt', 'utf8');
 const hlp = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/WazeHlpWebSocketManager.kt', 'utf8');
 
-assert.match(
-  overlay,
-  /7 -> \{[\s\S]*projectionViewportWidthPx \/ 1280f[\s\S]*1\.55f \* viewportFactor \* \(configuredScale \/ 100f\)[\s\S]*\}/
-);
+assert.match(overlay, /7 -> style7RequestedScale\(configuredScale\)/);
+assert.match(overlay, /private fun style7RequestedScale\([\s\S]*projectionViewportWidthPx \/ 1280f/);
+assert.match(overlay, /private fun fitStyle7ScaleToViewport\(\)[\s\S]*projectionViewportWidthPx \* 0\.96f/);
 assert.match(overlay, /private fun buildStyle7WazeThanhNgang\(\)[\s\S]*minimumWidth = 0/);
 assert.match(overlay, /val size = dp\(36\)/);
 assert.match(overlay, /LayoutParams\(dp\(68\), dp\(38\)\)/);
@@ -29,4 +28,4 @@ assert.match(hlp, /turnDistancePresent -> parsedTurnDistance\?\.takeIf \{ it >= 
 assert.match(hlp, /nextRoadPresent -> ""/);
 assert.match(hlp, /lanePresent -> ""/);
 
-console.log('PASS Waze turn + scale: style #7 compacts cleanly, preserves proportions, and stale maneuver state cannot force straight arrow');
+console.log('PASS Waze turn + scale: style #7 compacts, fits viewport, and stale maneuver state cannot force straight arrow');
