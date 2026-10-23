@@ -51,6 +51,11 @@ assert.match(hlp, /rollback > 30_000L \|\| \(receiveGap > 2_000L && rollback > 1
 assert.match(hlp, /HLP timestamp reset detected/);
 assert.match(hlp, /VietmapStateRepository\.beginHlpSession\(\)/);
 assert.match(hlp, /WazeAlertPolicy\.dedupeAlerts\(parsed\)/);
+assert.match(state, /val sourceIcon: String\? = null/);
+assert.match(state, /val sourceSubtype: String\? = null/);
+assert.match(hlp, /sourceIcon = itemIcon/);
+assert.match(hlp, /sourceSubtype = itemSubtype/);
+assert.match(hlp, /roadName = roadName,/);
 assert.match(hlp, /serverStarted/);
 assert.match(hlp, /serverStarting/);
 assert.match(hlp, /private fun scheduleServerRestart\(delayMs: Long\)/);
