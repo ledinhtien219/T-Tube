@@ -19,7 +19,7 @@ jobs:
       PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
       PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
       PLAY_UPLOAD_KEYSTORE_PATH: ${{ github.workspace }}/.play/ttube-play-upload.jks
-      EXPECTED_PLAY_SHA1: 7D:96:A0:0C:2F:49:C4:C5:F4:4C:3D:9F:71:43:68:12:0B:F0:D0:0C
+      EXPECTED_PLAY_SHA1: 6B:29:49:A3:DA:2C:6D:10:CD:4F:E7:BD:8F:4E:74:04:2B:41:29:07
 
     steps:
       - uses: actions/checkout@v4
