@@ -12,12 +12,6 @@ jobs:
   build-aab:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      PLAY_UPLOAD_KEYSTORE_BASE64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
-      PLAY_UPLOAD_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
-      PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
-      PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
-      PLAY_UPLOAD_KEYSTORE_PATH: ${{ github.workspace }}/.play/ttube-play-upload.jks
 
     steps:
       - uses: actions/checkout@v4
@@ -28,19 +22,6 @@ jobs:
           java-version: '17'
 
       - uses: gradle/actions/setup-gradle@v4
-
-      - name: Restore required Play upload key
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "${PLAY_UPLOAD_KEYSTORE_BASE64:-}"
-          test -n "${PLAY_UPLOAD_STORE_PASSWORD:-}"
-          test -n "${PLAY_UPLOAD_KEY_ALIAS:-}"
-          test -n "${PLAY_UPLOAD_KEY_PASSWORD:-}"
-          mkdir -p "$(dirname "$PLAY_UPLOAD_KEYSTORE_PATH")"
-          printf '%s' "$PLAY_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$PLAY_UPLOAD_KEYSTORE_PATH"
-          chmod 600 "$PLAY_UPLOAD_KEYSTORE_PATH"
-          keytool -list -keystore "$PLAY_UPLOAD_KEYSTORE_PATH" -storepass "$PLAY_UPLOAD_STORE_PASSWORD" -alias "$PLAY_UPLOAD_KEY_ALIAS" >/dev/null
 
       - name: Verify exact Play test source
         shell: bash
@@ -58,23 +39,23 @@ jobs:
           set -euo pipefail
           node --test tests/youtube-*.test.cjs tests/v152-youtube-search-toolbar.test.cjs tests/v160-youtube-fast-search.test.cjs
 
-      - name: Build signed Play AAB
+      - name: Build Play AAB
         run: ./gradlew bundleRelease --stacktrace
 
-      - name: Verify signed AAB
+      - name: Stage AAB
         shell: bash
         run: |
           set -euo pipefail
           AAB="$(find app/build/outputs/bundle/release -name '*.aab' | head -n 1)"
           test -n "$AAB"
-          jarsigner -verify -verbose -certs "$AAB" >/dev/null
-          cp "$AAB" TTube_v1.0.94_build293_YouTube_Fermata_PlayTest.aab
-          sha256sum TTube_v1.0.94_build293_YouTube_Fermata_PlayTest.aab
+          cp "$AAB" TTube_v1.0.94_build293_YouTube_Fermata_PlayTest_UNSIGNED.aab
+          unzip -t TTube_v1.0.94_build293_YouTube_Fermata_PlayTest_UNSIGNED.aab >/dev/null
+          sha256sum TTube_v1.0.94_build293_YouTube_Fermata_PlayTest_UNSIGNED.aab
 
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.0.94-build293-YouTube-Fermata-PlayTest-AAB
-          path: TTube_v1.0.94_build293_YouTube_Fermata_PlayTest.aab
+          name: TTube-v1.0.94-build293-YouTube-Fermata-PlayTest-UNSIGNED-AAB
+          path: TTube_v1.0.94_build293_YouTube_Fermata_PlayTest_UNSIGNED.aab
           if-no-files-found: error
           retention-days: 14
