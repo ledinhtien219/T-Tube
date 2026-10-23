@@ -1125,7 +1125,7 @@ class CarPresentation(
         hudOverlay = overlay
         root.addView(overlay)
         updateHudLayoutParams()
-        overlay.applyHudConfig()
+        overlay.applyProjectionViewport(carWidth, carHeight)
         overlay.visibility = View.VISIBLE
         root.bringChildToFront(overlay)
     }
@@ -1140,7 +1140,7 @@ class CarPresentation(
             setupHudOverlay()
         } else {
             updateHudLayoutParams()
-            hudOverlay?.applyHudConfig()
+            hudOverlay?.applyProjectionViewport(carWidth, carHeight)
             hudOverlay?.visibility = View.VISIBLE
             hudOverlay?.let { root.bringChildToFront(it) }
         }
@@ -1169,14 +1169,15 @@ class CarPresentation(
                         leftMargin = dp((screenWdp - 95).coerceAtLeast(20))
                         topMargin = dp(60)
                     }
-                    6 -> { // Photo reference: large panel at upper-right
-                        val screenWdp = (carWidth / resources.displayMetrics.density).roundToInt()
-                        leftMargin = dp((screenWdp - 205).coerceAtLeast(24))
-                        topMargin = dp(18)
+                    6 -> { // Photo reference: compact panel anchored upper-right
+                        val targetWidthPx = (carWidth * 0.255f).roundToInt()
+                        leftMargin = (carWidth - targetWidthPx - (carWidth * 0.018f).roundToInt())
+                            .coerceAtLeast(dp(12))
+                        topMargin = (carHeight * 0.025f).roundToInt().coerceAtLeast(dp(6))
                     }
-                    7 -> { // Photo reference: low horizontal strip near upper-left
-                        leftMargin = dp(24)
-                        topMargin = dp(14)
+                    7 -> { // Photo reference: low strip near upper-left
+                        leftMargin = (carWidth * 0.04f).roundToInt().coerceAtLeast(dp(8))
+                        topMargin = (carHeight * 0.025f).roundToInt().coerceAtLeast(dp(6))
                     }
                     else -> {
                         leftMargin = dp(24)
