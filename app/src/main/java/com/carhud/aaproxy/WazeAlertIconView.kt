@@ -37,7 +37,10 @@ class WazeAlertIconView @JvmOverloads constructor(
         NO_OVERTAKING,
         END_NO_OVERTAKING,
         RESIDENTIAL,
-        SPEED_LIMIT
+        SPEED_LIMIT,
+        TOLL_BOOTH,
+        TUNNEL,
+        GAS_STATION
     }
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -62,8 +65,14 @@ class WazeAlertIconView @JvmOverloads constructor(
     private val beige = Color.rgb(254, 215, 170)
     private val gray = Color.rgb(148, 163, 184)
 
-    fun setAlert(code: Int, warningType: VietmapWarningType, value: Int? = null) {
-        kind = resolveKind(code, warningType)
+    fun setAlert(
+        code: Int,
+        warningType: VietmapWarningType,
+        value: Int? = null,
+        sourceIcon: String? = null,
+        sourceSubtype: String? = null
+    ) {
+        kind = resolveKind(code, warningType, sourceIcon, sourceSubtype)
         speedLimitValue = if (kind == Kind.SPEED_LIMIT) value?.takeIf { it > 0 } else null
         contentDescription = WazeHlpWebSocketManager.alertCodeLabel(code.takeIf { it > 0 } ?: when (warningType) {
             VietmapWarningType.POLICE -> 1
@@ -111,34 +120,75 @@ class WazeAlertIconView @JvmOverloads constructor(
             Kind.END_NO_OVERTAKING -> drawNoOvertaking(canvas, true)
             Kind.RESIDENTIAL -> drawResidential(canvas)
             Kind.SPEED_LIMIT -> drawSpeedLimit(canvas)
+            Kind.TOLL_BOOTH -> drawTollBooth(canvas)
+            Kind.TUNNEL -> drawTunnel(canvas)
+            Kind.GAS_STATION -> drawGasStation(canvas)
         }
         canvas.restore()
     }
 
-    private fun resolveKind(code: Int, warningType: VietmapWarningType): Kind = when {
-        code == 1 -> Kind.POLICE
-        code == 3 -> Kind.RED_LIGHT_CAMERA
-        code == 2 || code in 40..46 -> Kind.SPEED_CAMERA
-        code == 5 -> Kind.ACCIDENT
-        code == 6 -> Kind.TRAFFIC_JAM
-        code in setOf(8, 22) -> Kind.SPEED_LIMIT
-        code == 9 -> Kind.NO_OVERTAKING
-        code in setOf(10, 25) -> Kind.END_NO_OVERTAKING
-        code == 11 -> Kind.RAIL_CROSSING
-        code == 14 -> Kind.CONSTRUCTION
-        code in setOf(23, 24) -> Kind.RESIDENTIAL
-        code in setOf(61, 75) -> Kind.TRAFFIC_LIGHT
-        warningType == VietmapWarningType.POLICE -> Kind.POLICE
-        warningType == VietmapWarningType.SPEED_CAMERA -> Kind.SPEED_CAMERA
-        warningType == VietmapWarningType.RED_LIGHT_CAMERA -> Kind.RED_LIGHT_CAMERA
-        warningType == VietmapWarningType.ACCIDENT -> Kind.ACCIDENT
-        warningType == VietmapWarningType.TRAFFIC_JAM -> Kind.TRAFFIC_JAM
-        warningType == VietmapWarningType.CONSTRUCTION -> Kind.CONSTRUCTION
-        warningType == VietmapWarningType.NO_OVERTAKING -> Kind.NO_OVERTAKING
-        warningType == VietmapWarningType.END_NO_OVERTAKING -> Kind.END_NO_OVERTAKING
-        warningType == VietmapWarningType.RESIDENTIAL_START || warningType == VietmapWarningType.RESIDENTIAL_END -> Kind.RESIDENTIAL
-        warningType == VietmapWarningType.SPEED_LIMIT_ZONE -> Kind.SPEED_LIMIT
-        else -> Kind.HAZARD
+    private fun resolveKind(
+        code: Int,
+        warningType: VietmapWarningType,
+        sourceIcon: String?,
+        sourceSubtype: String?
+    ): Kind {
+        // Waze's own icon/subtype is the most specific signal when present.
+        // Keep numeric alert codes as the next fallback for HLP builds that omit icon names.
+        val sourceHint = listOfNotNull(sourceIcon, sourceSubtype).joinToString(" ").lowercase()
+        val fromSource = when {
+            sourceHint.contains("red_light") || sourceHint.contains("redlight") ||
+                sourceHint.contains("traffic_light_camera") -> Kind.RED_LIGHT_CAMERA
+            sourceHint.contains("speed_camera") || sourceHint.contains("speedcam") ||
+                sourceHint.contains("camera_speed") || sourceHint.contains("enforcement") -> Kind.SPEED_CAMERA
+            sourceHint.contains("police") || sourceHint.contains("cop") -> Kind.POLICE
+            sourceHint.contains("accident") || sourceHint.contains("crash") -> Kind.ACCIDENT
+            sourceHint.contains("traffic_jam") || sourceHint.contains("jam") -> Kind.TRAFFIC_JAM
+            sourceHint.contains("construction") || sourceHint.contains("roadwork") ||
+                sourceHint.contains("closure") -> Kind.CONSTRUCTION
+            sourceHint.contains("rail") || sourceHint.contains("crossing") -> Kind.RAIL_CROSSING
+            sourceHint.contains("end_no_overtaking") -> Kind.END_NO_OVERTAKING
+            sourceHint.contains("no_overtaking") -> Kind.NO_OVERTAKING
+            sourceHint.contains("residential") -> Kind.RESIDENTIAL
+            sourceHint.contains("speed_limit") || sourceHint.contains("speedlimit") -> Kind.SPEED_LIMIT
+            sourceHint.contains("toll") -> Kind.TOLL_BOOTH
+            sourceHint.contains("tunnel") -> Kind.TUNNEL
+            sourceHint.contains("gas") || sourceHint.contains("fuel") || sourceHint.contains("petrol") -> Kind.GAS_STATION
+            sourceHint.contains("traffic_light") || sourceHint.contains("trafficlight") -> Kind.TRAFFIC_LIGHT
+            sourceHint.contains("hazard") || sourceHint.contains("danger") -> Kind.HAZARD
+            else -> null
+        }
+        if (fromSource != null) return fromSource
+
+        return when {
+            code == 1 -> Kind.POLICE
+            code == 3 -> Kind.RED_LIGHT_CAMERA
+            code == 2 || code in 40..46 -> Kind.SPEED_CAMERA
+            code == 5 -> Kind.ACCIDENT
+            code == 6 -> Kind.TRAFFIC_JAM
+            code in setOf(8, 22) -> Kind.SPEED_LIMIT
+            code == 9 -> Kind.NO_OVERTAKING
+            code in setOf(10, 25) -> Kind.END_NO_OVERTAKING
+            code == 11 -> Kind.RAIL_CROSSING
+            code == 12 -> Kind.TOLL_BOOTH
+            code == 14 -> Kind.CONSTRUCTION
+            code in setOf(23, 24) -> Kind.RESIDENTIAL
+            code in setOf(61, 75) -> Kind.TRAFFIC_LIGHT
+            warningType == VietmapWarningType.POLICE -> Kind.POLICE
+            warningType == VietmapWarningType.SPEED_CAMERA -> Kind.SPEED_CAMERA
+            warningType == VietmapWarningType.RED_LIGHT_CAMERA -> Kind.RED_LIGHT_CAMERA
+            warningType == VietmapWarningType.ACCIDENT -> Kind.ACCIDENT
+            warningType == VietmapWarningType.TRAFFIC_JAM -> Kind.TRAFFIC_JAM
+            warningType == VietmapWarningType.CONSTRUCTION -> Kind.CONSTRUCTION
+            warningType == VietmapWarningType.NO_OVERTAKING -> Kind.NO_OVERTAKING
+            warningType == VietmapWarningType.END_NO_OVERTAKING -> Kind.END_NO_OVERTAKING
+            warningType == VietmapWarningType.RESIDENTIAL_START || warningType == VietmapWarningType.RESIDENTIAL_END -> Kind.RESIDENTIAL
+            warningType == VietmapWarningType.SPEED_LIMIT_ZONE -> Kind.SPEED_LIMIT
+            warningType == VietmapWarningType.TOLL_BOOTH -> Kind.TOLL_BOOTH
+            warningType == VietmapWarningType.TUNNEL -> Kind.TUNNEL
+            warningType == VietmapWarningType.GAS_STATION -> Kind.GAS_STATION
+            else -> Kind.HAZARD
+        }
     }
 
     private fun fill(color: Int) {
@@ -372,6 +422,52 @@ class WazeAlertIconView @JvmOverloads constructor(
         canvas.drawCircle(80f, 47f, 9f, paint)
         canvas.drawRect(78f, 54f, 82f, 78f, paint)
         canvas.drawRect(19f, 78f, 86f, 83f, paint)
+    }
+
+    private fun drawTollBooth(canvas: Canvas) {
+        circleBadge(canvas, blueDeep)
+        fill(white)
+        canvas.drawRect(20f, 38f, 80f, 46f, paint)
+        canvas.drawRect(26f, 46f, 34f, 78f, paint)
+        canvas.drawRect(46f, 46f, 54f, 78f, paint)
+        canvas.drawRect(66f, 46f, 74f, 78f, paint)
+        fill(yellow)
+        canvas.drawCircle(50f, 28f, 11f, paint)
+        paint.color = dark
+        paint.textAlign = Paint.Align.CENTER
+        paint.typeface = Typeface.DEFAULT_BOLD
+        paint.textSize = 16f
+        canvas.drawText("₫", 50f, 34f, paint)
+        paint.typeface = Typeface.DEFAULT
+        paint.textAlign = Paint.Align.LEFT
+    }
+
+    private fun drawTunnel(canvas: Canvas) {
+        circleBadge(canvas, blueDeep)
+        fill(white)
+        val outer = RectF(20f, 26f, 80f, 86f)
+        canvas.drawArc(outer, 180f, 180f, true, paint)
+        canvas.drawRect(20f, 56f, 80f, 86f, paint)
+        fill(dark)
+        val inner = RectF(31f, 38f, 69f, 88f)
+        canvas.drawArc(inner, 180f, 180f, true, paint)
+        canvas.drawRect(31f, 63f, 69f, 88f, paint)
+        stroke(white, 3f)
+        canvas.drawLine(50f, 66f, 50f, 83f, outline)
+    }
+
+    private fun drawGasStation(canvas: Canvas) {
+        circleBadge(canvas, green)
+        rr(canvas, 24f, 20f, 59f, 78f, 5f, white, dark, 4f)
+        fill(blue)
+        canvas.drawRect(31f, 28f, 52f, 43f, paint)
+        stroke(dark, 4f)
+        canvas.drawLine(59f, 34f, 72f, 34f, outline)
+        canvas.drawLine(72f, 34f, 76f, 48f, outline)
+        canvas.drawLine(76f, 48f, 76f, 69f, outline)
+        fill(dark)
+        canvas.drawCircle(76f, 73f, 5f, paint)
+        canvas.drawRect(19f, 78f, 64f, 84f, paint)
     }
 
     private fun drawSpeedLimit(canvas: Canvas) {
