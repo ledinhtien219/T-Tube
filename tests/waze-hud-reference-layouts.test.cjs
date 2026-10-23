@@ -12,21 +12,24 @@ assert.match(overlay, /6 -> buildStyle6WazePanelLon\(\)/);
 assert.match(overlay, /7 -> buildStyle7WazeThanhNgang\(\)/);
 
 assert.match(overlay, /private fun buildStyle6WazePanelLon\(\)/);
-assert.match(overlay, /minimumWidth = dp\(360\)/);
-assert.match(overlay, /textSize = 46f/);
+assert.match(overlay, /private fun buildStyle6WazePanelLon\(\)[\s\S]*?minimumWidth = 0/);
+assert.match(overlay, /private fun buildStyle6WazePanelLon\(\)[\s\S]*?textSize = 34f/);
 assert.match(overlay, /referenceReportButton = TextView\(context\)[\s\S]*text = "⚠  Báo cáo"/);
 assert.match(overlay, /laneGuidanceText = TextView\(context\)/);
-assert.match(overlay, /createReferenceAlertCell\(dp\(76\), dp\(46\), compact = false\)/);
+assert.match(overlay, /createReferenceAlertCell\(dp\(50\), dp\(38\), compact = false\)/);
 
 assert.match(overlay, /private fun buildStyle7WazeThanhNgang\(\)/);
-assert.match(overlay, /minimumWidth = dp\(410\)/);
-assert.match(overlay, /createReferenceAlertCell\(dp\(54\), dp\(42\), compact = true\)/);
+assert.match(overlay, /private fun buildStyle7WazeThanhNgang\(\)[\s\S]*?minimumWidth = 0/);
+assert.match(overlay, /createReferenceAlertCell\(dp\(40\), dp\(25\), compact = true\)/);
 assert.match(overlay, /text = "⚠"/);
 
 assert.match(overlay, /val extras = if \(primaryAlert != null\) data\.upcomingAlerts\.drop\(1\) else data\.upcomingAlerts/);
 assert.match(overlay, /referenceAlertIcons\.getOrNull\(index\)\?\.setAlert/);
 assert.match(overlay, /laneGuidance = live\.laneGuidance \?: "↑  ↑  ↗"/);
 assert.match(overlay, /applyStyleBackground\(overSpeed = false\)/);
+
+assert.match(manager, /private fun positionKey\(base: String, styleId: Int\)/);
+assert.match(manager, /if \(styleId >= 6\) "\$\{base\}_style_\$\{styleId\}" else base/);
 
 assert.match(settings, /val allStyles = WazeHudManager\.STYLES/);
 assert.match(settings, /WazeHudManager\.setActiveStyleId\(this@SettingsActivity, style\.id\)/);
