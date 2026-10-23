@@ -19,8 +19,8 @@ assert.match(overlay, /laneGuidanceText = TextView\(context\)/);
 assert.match(overlay, /createReferenceAlertCell\(dp\(50\), dp\(38\), compact = false\)/);
 
 assert.match(overlay, /private fun buildStyle7WazeThanhNgang\(\)/);
-assert.match(overlay, /private fun buildStyle7WazeThanhNgang\(\)[\s\S]*?minimumWidth = 0/);
-assert.match(overlay, /createReferenceAlertCell\(dp\(40\), dp\(25\), compact = true\)/);
+assert.match(overlay, /private fun buildStyle7WazeThanhNgang\(\)[\s\S]*?minimumWidth = dp\(430\)/);
+assert.match(overlay, /createReferenceAlertCell\(dp\(54\), dp\(38\), compact = true\)/);
 assert.match(overlay, /text = "⚠"/);
 
 assert.match(overlay, /val extras = if \(primaryAlert != null\) data\.upcomingAlerts\.drop\(1\) else data\.upcomingAlerts/);
@@ -31,7 +31,7 @@ assert.match(overlay, /applyStyleBackground\(overSpeed = false\)/);
 assert.match(manager, /_style_\$\{styleId\}_photo_v3/);
 assert.match(overlay, /pivotX = 0f/);
 assert.match(overlay, /pivotY = 0f/);
-assert.match(overlay, /activeStyleId == 6 \|\| activeStyleId == 7 -> INVISIBLE/);
+assert.match(overlay, /activeStyleId == 6 -> INVISIBLE/);
 
 assert.match(settings, /val allStyles = WazeHudManager\.STYLES/);
 assert.match(settings, /WazeHudManager\.setActiveStyleId\(this@SettingsActivity, style\.id\)/);
@@ -40,7 +40,6 @@ console.log('PASS Waze HUD photo-match layouts: large panel + compact strip + la
 
 assert.match(overlay, /fun applyProjectionViewport\(widthPx: Int, heightPx: Int\)/);
 assert.match(overlay, /projectionViewportWidthPx \* 0\.255f/);
-assert.match(overlay, /projectionViewportWidthPx \* 0\.43f/);
-assert.match(overlay, /configuredScale \/ 120f/);
+assert.match(overlay, /7 -> \{[\s\S]*configuredScale \/ 100f[\s\S]*\}/);
 assert.match(settings, /WazeHudManager\.STYLES/);
-console.log('PASS Waze HUD viewport sizing: photo layouts scale from AA viewport instead of phone density');
+console.log('PASS Waze HUD sizing: #6 stays viewport-adaptive while #7 uses literal user scale');
