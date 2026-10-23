@@ -12,8 +12,8 @@ android {
         applicationId = "com.ledinhtien.ttube"
         minSdk = 29
         targetSdk = 36
-        versionCode = 283
-        versionName = "1.0.85"
+        versionCode = 284
+        versionName = "1.0.86"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

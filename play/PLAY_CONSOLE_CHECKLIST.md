@@ -3,8 +3,8 @@
 ## Build identity
 - App name: T Tube
 - Package: `com.ledinhtien.ttube`
-- Version: `1.0.85`
-- Version code: `283`
+- Version: `1.0.86`
+- Version code: `284`
 - minSdk: 29
 - targetSdk / compileSdk: 36
 - Artifact: Android App Bundle (`.aab`)
@@ -22,7 +22,11 @@ This internal-test build restores the full Android Auto host used by the previou
 
 This build is intended for **Internal testing**. Before Production submission, re-check current Google Play / Android Auto policy because the private projection path is not the same as a conventional Play-approved media-only app.
 
-## 1.0.85 internal-test change
+## 1.0.86 internal-test change
+- Làm lại HUD #6/#7 bám sát 2 ảnh mẫu người dùng cung cấp.
+- #6: biển giới hạn lớn + tốc độ lớn + ô rẽ/đường/làn + nhiều cảnh báo xếp dọc + nút Báo cáo.
+- #7: thanh ngang thấp một hàng với giới hạn, tốc độ, rẽ, lane guidance, nhiều cảnh báo và nút Báo cáo nhỏ.
+- Bỏ nút khóa trực tiếp khỏi #6/#7 để đúng mẫu; khóa vị trí vẫn chỉnh được trong Cài đặt HUD.
 - Đồng bộ nhánh `feature/waze-hud-reference-layouts` vào Play build.
 - Thêm HUD #6 **Waze Panel Lớn**: biển giới hạn + tốc độ lớn + hướng rẽ + cảnh báo xếp bên phải.
 - Thêm HUD #7 **Waze Thanh Ngang**: thanh thấp một hàng cho màn hình Android Auto hẹp.
@@ -72,7 +76,7 @@ Use the published public policy URL:\n`https://github.com/ledinhtien219/T-Tube/b
 3. Production only after Play Console grants production access
 
 ## Release
-Upload the signed bundle `TTube_v1.0.85_build283_WazeHudLayouts_signed.aab`.
+Upload the signed bundle `TTube_v1.0.86_build284_WazePhotoMatch_signed.aab`.
 Do not upload the GitHub/full APK to Play Console.
 
 ### Không giữ bundle cũ trong cùng bản phát hành
