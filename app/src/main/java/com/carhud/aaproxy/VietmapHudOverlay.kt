@@ -135,16 +135,13 @@ class VietmapHudOverlay @JvmOverloads constructor(
                         viewportScale * (configuredScale / 120f)
                     }
                     7 -> {
-                        // On Android Auto the projection density can make a raw 430dp strip
-                        // look tiny. Treat 100% as a car-screen reference size: grow #7 until
-                        // the complete strip is about 65% of the AA viewport, but never shrink
-                        // below its native layout size. At 150% it still stays around one screen.
-                        val designWidthPx = 510f * density
-                        val referenceScale = if (projectionViewportWidthPx > 0) {
-                            maxOf(1f, projectionViewportWidthPx * 0.65f / designWidthPx)
-                                .coerceAtMost(3.0f)
-                        } else 1.55f
-                        referenceScale * (configuredScale / 100f)
+                        // Keep #7 independent from the phone/display density used by the
+                        // projection host. 100% is a stable car-screen size; visibility changes
+                        // only change the strip's width, never inflate a short no-alert strip.
+                        val viewportFactor = if (projectionViewportWidthPx > 0) {
+                            (projectionViewportWidthPx / 1280f).coerceIn(0.85f, 1.30f)
+                        } else 1f
+                        1.55f * viewportFactor * (configuredScale / 100f)
                     }
                     else -> configuredScale / 100f
                 }
@@ -990,8 +987,10 @@ class VietmapHudOverlay @JvmOverloads constructor(
     private fun buildStyle7WazeThanhNgang() {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(6), dp(3), dp(6), dp(3))
-        minimumWidth = dp(430)
+        setPadding(dp(5), dp(3), dp(5), dp(3))
+        minimumWidth = 0
+        clipChildren = false
+        clipToPadding = false
         applyStyleBackground(overSpeed = false)
 
         speedLimitBadge = FrameLayout(context).apply {
@@ -1013,10 +1012,10 @@ class VietmapHudOverlay @JvmOverloads constructor(
         currentSpeedContainer = LinearLayout(context).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LayoutParams(dp(72), dp(40)).apply { marginEnd = dp(5) }
+            layoutParams = LayoutParams(dp(68), dp(38)).apply { marginEnd = dp(4) }
             currentSpeedText = TextView(context).apply {
                 text = "0"
-                textSize = 29f
+                textSize = 27f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 includeFontPadding = false
@@ -1024,9 +1023,9 @@ class VietmapHudOverlay @JvmOverloads constructor(
             addView(currentSpeedText)
             currentSpeedUnit = TextView(context).apply {
                 text = " km/h"
-                textSize = 6.5f
+                textSize = 7f
                 setTextColor(Color.parseColor("#B9BEC5"))
-                setPadding(dp(1), dp(12), 0, 0)
+                setPadding(dp(1), dp(10), 0, 0)
                 includeFontPadding = false
             }
             addView(currentSpeedUnit)
@@ -1036,26 +1035,31 @@ class VietmapHudOverlay @JvmOverloads constructor(
         val turnBox = LinearLayout(context).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER
-            layoutParams = LayoutParams(dp(88), dp(38)).apply { marginEnd = dp(5) }
+            minimumWidth = dp(70)
+            setPadding(dp(3), 0, dp(4), 0)
+            layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, dp(38)).apply { marginEnd = dp(4) }
             background = rounded(Color.parseColor("#176AC8"), 8f, Color.parseColor("#4DFFFFFF"), 1)
             turnIcon = TextView(context).apply {
                 text = "↱"
-                textSize = 23f
+                textSize = 21f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
                 includeFontPadding = false
             }
-            addView(turnIcon, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+            addView(turnIcon, LayoutParams(dp(30), LayoutParams.MATCH_PARENT))
             turnDistanceText = TextView(context).apply {
                 text = ""
-                textSize = 7.5f
+                textSize = 8.5f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
                 includeFontPadding = false
+                maxLines = 1
+                minWidth = dp(34)
+                setPadding(dp(2), 0, dp(2), 0)
             }
-            addView(turnDistanceText, LayoutParams(0, LayoutParams.MATCH_PARENT, 1.25f))
+            addView(turnDistanceText, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         }
         turnContainer = turnBox
         addView(turnBox)
@@ -1073,26 +1077,33 @@ class VietmapHudOverlay @JvmOverloads constructor(
             setTextColor(Color.parseColor("#D4D8DE"))
             gravity = Gravity.CENTER
             background = rounded(Color.parseColor("#4D252A30"), 7f, Color.parseColor("#22FFFFFF"), 1)
-            setPadding(dp(2), 0, dp(2), 0)
+            setPadding(dp(5), 0, dp(5), 0)
+            minWidth = dp(48)
+            maxWidth = dp(76)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
             visibility = GONE
         }
         addView(
             laneGuidanceText,
-            LayoutParams(dp(64), dp(38)).apply { marginEnd = dp(5) }
+            LayoutParams(LayoutParams.WRAP_CONTENT, dp(38)).apply { marginEnd = dp(4) }
         )
 
         addView(
             createAlertBadge(isVertical = false).apply {
                 minimumWidth = 0
                 setPadding(dp(2), dp(1), dp(2), dp(1))
-                alertIconView?.layoutParams = LayoutParams(dp(29), dp(29)).apply { gravity = Gravity.CENTER_HORIZONTAL }
-                alertDistanceText?.textSize = 9f
+                alertIconView?.layoutParams = LayoutParams(dp(22), dp(22)).apply { gravity = Gravity.CENTER_HORIZONTAL }
+                alertDistanceText?.apply {
+                    textSize = 8f
+                    setPadding(0, 0, 0, 0)
+                }
             },
-            LayoutParams(dp(54), dp(38)).apply { marginEnd = dp(5) }
+            LayoutParams(dp(48), dp(40)).apply { marginEnd = dp(4) }
         )
 
-        addView(createReferenceAlertCell(dp(54), dp(38), compact = true))
-        addView(createReferenceAlertCell(dp(54), dp(38), compact = true))
+        addView(createReferenceAlertCell(dp(48), dp(40), compact = true))
+        addView(createReferenceAlertCell(dp(48), dp(40), compact = true))
 
         referenceReportButton = TextView(context).apply {
             text = "⚠"
@@ -1105,7 +1116,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
         }
         addView(
             referenceReportButton,
-            LayoutParams(dp(42), dp(38)).apply { marginStart = dp(3) }
+            LayoutParams(dp(34), dp(34)).apply { marginStart = dp(2) }
         )
 
         // Style #7 keeps a compact lock control visible at all times so the
@@ -1116,7 +1127,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
                 setPadding(0, 0, 0, 0)
             },
             LayoutParams(dp(34), dp(34)).apply {
-                marginStart = dp(4)
+                marginStart = dp(3)
             }
         )
     }
@@ -1134,14 +1145,14 @@ class VietmapHudOverlay @JvmOverloads constructor(
             }
         }
         val icon = WazeAlertIconView(context).apply {
-            layoutParams = LayoutParams(dp(if (compact) 29 else 24), dp(if (compact) 29 else 24)).apply {
+            layoutParams = LayoutParams(dp(if (compact) 22 else 24), dp(if (compact) 22 else 24)).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
             }
             setAlert(4, VietmapWarningType.HAZARD)
         }
         val distance = TextView(context).apply {
             text = ""
-            textSize = if (compact) 6.8f else 8f
+            textSize = if (compact) 8f else 8f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
@@ -1861,6 +1872,13 @@ class VietmapHudOverlay @JvmOverloads constructor(
             referenceReportButton?.alpha = 1f
         } else {
             referenceAlertContainers.forEach { it.visibility = GONE }
+        }
+
+        if (activeStyleId == 7) {
+            // GONE children must actually shrink the strip background. Request a fresh
+            // wrap-content pass after every navigation/alert visibility change.
+            minimumWidth = 0
+            requestLayout()
         }
     }
 
