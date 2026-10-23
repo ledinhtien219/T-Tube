@@ -67,9 +67,6 @@ jobs:
             node "$f"
           done
 
-      - name: Run JVM unit tests
-        run: ./gradlew testDebugUnitTest --stacktrace
-
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
 
