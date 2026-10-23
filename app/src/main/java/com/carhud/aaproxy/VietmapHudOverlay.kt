@@ -814,7 +814,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
             background = circle(Color.WHITE, Color.parseColor("#E31B23"), 5f)
             speedLimitText = TextView(context).apply {
                 text = "--"
-                textSize = 28f
+                textSize = 20f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.BLACK)
                 gravity = Gravity.CENTER
@@ -839,7 +839,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
             addView(currentSpeedText)
             currentSpeedUnit = TextView(context).apply {
                 text = "km/h"
-                textSize = 11f
+                textSize = 8f
                 setTextColor(Color.parseColor("#C6CBD2"))
                 gravity = Gravity.CENTER
                 includeFontPadding = false
@@ -864,7 +864,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
                 gravity = Gravity.CENTER
                 turnIcon = TextView(context).apply {
                     text = "↱"
-                    textSize = 25f
+                    textSize = 20f
                     typeface = Typeface.DEFAULT_BOLD
                     setTextColor(Color.WHITE)
                     gravity = Gravity.CENTER
@@ -873,7 +873,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
                 addView(turnIcon, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
                 turnDistanceText = TextView(context).apply {
                     text = ""
-                    textSize = 12f
+                    textSize = 9f
                     typeface = Typeface.DEFAULT_BOLD
                     setTextColor(Color.WHITE)
                     gravity = Gravity.CENTER
@@ -884,7 +884,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
             addView(top, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
             roadNameText = TextView(context).apply {
                 text = ""
-                textSize = 8.5f
+                textSize = 7f
                 setTextColor(Color.parseColor("#D4D8DE"))
                 gravity = Gravity.CENTER
                 maxLines = 1
@@ -930,11 +930,11 @@ class VietmapHudOverlay @JvmOverloads constructor(
         )
 
         alertsColumn.addView(createReferenceAlertCell(dp(50), dp(38), compact = false))
-        alertsColumn.addView(createReferenceAlertCell(dp(76), dp(46), compact = false))
+        alertsColumn.addView(createReferenceAlertCell(dp(50), dp(38), compact = false))
 
         referenceReportButton = TextView(context).apply {
             text = "⚠  Báo cáo"
-            textSize = 11f
+            textSize = 9f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
@@ -962,7 +962,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
 
         speedLimitBadge = FrameLayout(context).apply {
             val size = dp(25)
-            layoutParams = LayoutParams(size, size).apply { marginEnd = dp(6) }
+            layoutParams = LayoutParams(size, size).apply { marginEnd = dp(4) }
             background = circle(Color.WHITE, Color.parseColor("#E31B23"), 3.5f)
             speedLimitText = TextView(context).apply {
                 text = "--"
@@ -990,7 +990,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
             addView(currentSpeedText)
             currentSpeedUnit = TextView(context).apply {
                 text = " km/h"
-                textSize = 8f
+                textSize = 6.5f
                 setTextColor(Color.parseColor("#B9BEC5"))
                 setPadding(dp(1), dp(7), 0, 0)
                 includeFontPadding = false
@@ -1015,7 +1015,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
             addView(turnIcon, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
             turnDistanceText = TextView(context).apply {
                 text = ""
-                textSize = 10f
+                textSize = 7.5f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
@@ -1034,12 +1034,12 @@ class VietmapHudOverlay @JvmOverloads constructor(
 
         laneGuidanceText = TextView(context).apply {
             text = ""
-            textSize = 11f
+            textSize = 8.5f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.parseColor("#D4D8DE"))
             gravity = Gravity.CENTER
             background = rounded(Color.parseColor("#4D252A30"), 7f, Color.parseColor("#22FFFFFF"), 1)
-            setPadding(dp(4), 0, dp(4), 0)
+            setPadding(dp(2), 0, dp(2), 0)
             visibility = GONE
         }
         addView(
@@ -1058,11 +1058,11 @@ class VietmapHudOverlay @JvmOverloads constructor(
         )
 
         addView(createReferenceAlertCell(dp(40), dp(25), compact = true))
-        addView(createReferenceAlertCell(dp(54), dp(42), compact = true))
+        addView(createReferenceAlertCell(dp(40), dp(25), compact = true))
 
         referenceReportButton = TextView(context).apply {
             text = "⚠"
-            textSize = 16f
+            textSize = 11f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
