@@ -76,6 +76,8 @@ class HudStyle7SmokeActivity : Activity() {
                         turnAction = "right",
                         turnDescription = "Rẽ phải",
                         distanceToTurnMeters = 250,
+                        roadName = "Đ. Nguyễn Văn Linh",
+                        nextRoadName = "Đ. Nguyễn Hữu Thọ",
                         laneGuidance = "↑  ↑  ↗",
                         warningType = VietmapWarningType.SPEED_CAMERA,
                         alertTitle = "Camera tốc độ",
@@ -85,20 +87,26 @@ class HudStyle7SmokeActivity : Activity() {
                                 code = 2,
                                 warningType = VietmapWarningType.SPEED_CAMERA,
                                 title = "Camera tốc độ",
-                                distanceMeters = 400
+                                distanceMeters = 400,
+                                sourceIcon = "speed_camera",
+                                sourceSubtype = "camera_speed"
                             ),
                             WazeAlertItem(
                                 code = 4,
                                 warningType = VietmapWarningType.HAZARD,
-                                title = "Nguy hiểm",
-                                distanceMeters = 900
+                                title = "Cảnh sát",
+                                distanceMeters = 900,
+                                sourceIcon = "police",
+                                sourceSubtype = "police_hiding"
                             ),
                             WazeAlertItem(
                                 code = 8,
                                 warningType = VietmapWarningType.SPEED_LIMIT_ZONE,
                                 title = "Giới hạn tốc độ",
                                 distanceMeters = 1200,
-                                value = 80
+                                value = 80,
+                                sourceIcon = "speed_limit",
+                                sourceSubtype = "speed_limit_zone"
                             )
                         ),
                         alertSource = "WAZE_HLP",
@@ -114,6 +122,7 @@ class HudStyle7SmokeActivity : Activity() {
                         isConnected = true,
                         currentSpeed = 57,
                         speedLimit = 60,
+                        roadName = "Đ. Nguyễn Văn Linh",
                         source = "WAZE_HLP",
                         sourceUpdatedAt = System.currentTimeMillis(),
                         lastUpdated = System.currentTimeMillis()
