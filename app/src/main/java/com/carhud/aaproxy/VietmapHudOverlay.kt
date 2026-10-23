@@ -115,7 +115,15 @@ class VietmapHudOverlay @JvmOverloads constructor(
                 scaleY = 1.0f
                 alpha = 1.0f
             } else {
-                val scale = WazeHudManager.getScale(context) / 100f
+                val userScale = WazeHudManager.getScale(context) / 100f
+                val referenceScale = when (activeStyleId) {
+                    6 -> 0.46f
+                    7 -> 0.58f
+                    else -> 1.0f
+                }
+                val scale = userScale * referenceScale
+                pivotX = 0f
+                pivotY = 0f
                 scaleX = scale
                 scaleY = scale
                 val userOpacity = WazeHudManager.getOpacity(context) / 100f
@@ -1082,7 +1090,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
             minimumWidth = 0
             setPadding(dp(2), dp(1), dp(2), dp(1))
             background = rounded(Color.parseColor("#D9161B22"), if (compact) 8f else 9f, Color.parseColor("#38536A7A"), 1)
-            visibility = GONE
+            visibility = INVISIBLE
             layoutParams = LayoutParams(widthPx, heightPx).apply {
                 if (!compact) topMargin = dp(2) else marginEnd = dp(4)
             }
@@ -1665,7 +1673,11 @@ class VietmapHudOverlay @JvmOverloads constructor(
         val turnVis = if (turnManeuverEnabled && hasManeuver) VISIBLE else GONE
         turnIcon?.visibility = turnVis
         turnDistanceText?.visibility = if (turnVis == VISIBLE && dist.isNotBlank()) VISIBLE else GONE
-        turnContainer?.visibility = turnVis
+        turnContainer?.visibility = when {
+            turnVis == VISIBLE -> VISIBLE
+            activeStyleId == 6 || activeStyleId == 7 -> INVISIBLE
+            else -> GONE
+        }
 
         // 4. Road Name & Lane Guidance
         val road = when {
@@ -1698,7 +1710,11 @@ class VietmapHudOverlay @JvmOverloads constructor(
             ?.trim()
             ?.takeIf { it.isNotBlank() }
         laneGuidanceText?.text = compactLane.orEmpty()
-        laneGuidanceText?.visibility = if (compactLane.isNullOrBlank()) GONE else VISIBLE
+        laneGuidanceText?.visibility = when {
+            !compactLane.isNullOrBlank() -> VISIBLE
+            activeStyleId == 6 || activeStyleId == 7 -> INVISIBLE
+            else -> GONE
+        }
 
         // 5. ETA
         val etaStr = data.etaTime ?: "--:--"
@@ -1781,7 +1797,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
         } else {
             alertUpcomingText?.visibility = GONE
             alertTitleText?.visibility = GONE
-            alertContainer?.visibility = GONE
+            alertContainer?.visibility = if (activeStyleId == 6 || activeStyleId == 7) INVISIBLE else GONE
         }
 
         if (activeStyleId == 6 || activeStyleId == 7) {
@@ -1794,7 +1810,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
                         WazeAlertPolicy.formatDistance(item.distanceMeters).ifBlank { "•" }
                     cell.visibility = VISIBLE
                 } else {
-                    cell.visibility = GONE
+                    cell.visibility = INVISIBLE
                 }
             }
             referenceReportButton?.visibility = if (data.isConnected || isPreviewMode) VISIBLE else GONE
