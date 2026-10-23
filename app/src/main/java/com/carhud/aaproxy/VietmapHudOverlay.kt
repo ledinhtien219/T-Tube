@@ -134,15 +134,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
                         } else 0.68f
                         viewportScale * (configuredScale / 120f)
                     }
-                    7 -> {
-                        // Keep #7 independent from the phone/display density used by the
-                        // projection host. 100% is a stable car-screen size; visibility changes
-                        // only change the strip's width, never inflate a short no-alert strip.
-                        val viewportFactor = if (projectionViewportWidthPx > 0) {
-                            (projectionViewportWidthPx / 1280f).coerceIn(0.85f, 1.30f)
-                        } else 1f
-                        1.55f * viewportFactor * (configuredScale / 100f)
-                    }
+                    7 -> style7RequestedScale(configuredScale)
                     else -> configuredScale / 100f
                 }
                 pivotX = 0f
@@ -157,6 +149,27 @@ class VietmapHudOverlay @JvmOverloads constructor(
         } catch (e: Exception) {
             // fallback safe
         }
+    }
+
+    private fun style7RequestedScale(configuredScale: Int = WazeHudManager.getScale(context)): Float {
+        val viewportFactor = if (projectionViewportWidthPx > 0) {
+            (projectionViewportWidthPx / 1280f).coerceIn(0.85f, 1.30f)
+        } else 1f
+        return 1.55f * viewportFactor * (configuredScale / 100f)
+    }
+
+    private fun fitStyle7ScaleToViewport() {
+        if (activeStyleId != 7 || isPreviewMode || projectionViewportWidthPx <= 0 || width <= 0) return
+
+        val requested = style7RequestedScale()
+        // Reserve a small margin so a long road name + alerts + lock never clip
+        // against the Android Auto viewport, especially at the 150% setting.
+        val fitScale = (projectionViewportWidthPx * 0.96f / width.toFloat()).coerceAtLeast(0.75f)
+        val fitted = minOf(requested, fitScale)
+        pivotX = 0f
+        pivotY = 0f
+        scaleX = fitted
+        scaleY = fitted
     }
 
     private fun rebuildViewsForStyle(styleId: Int) {
@@ -1914,9 +1927,11 @@ class VietmapHudOverlay @JvmOverloads constructor(
 
         if (activeStyleId == 7) {
             // GONE children must actually shrink the strip background. Request a fresh
-            // wrap-content pass after every navigation/alert visibility change.
+            // wrap-content pass after every navigation/alert visibility change, then
+            // refit the requested scale so 150% cannot clip a long road/alert strip.
             minimumWidth = 0
             requestLayout()
+            post { fitStyle7ScaleToViewport() }
         }
     }
 
