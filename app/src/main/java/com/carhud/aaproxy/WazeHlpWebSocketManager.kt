@@ -751,9 +751,12 @@ object WazeHlpWebSocketManager {
             var secondaryLimit = firstInt(json, "secondarySpeedLimit", "secondary_speed_limit", "nextSpeedLimit", "next_speed_limit")
                 ?.takeIf { it > 0 }
 
-            // Navigation / maneuver
+            // Navigation / maneuver. HLP/1: nav=0 means there is no active route.
+            val navigationPresent = hasAny(json, "nav", "navigation", "navigating")
+            val navigationActive = firstInt(json, "nav", "navigation", "navigating")?.let { it != 0 }
             val turnCodePresent = hasAny(json, "trn", "turnCode", "turn_code")
-            val turnCode = firstInt(json, "trn", "turnCode", "turn_code") ?: 0
+            val parsedTurnCode = firstInt(json, "trn", "turnCode", "turn_code") ?: 0
+            val turnCode = if (navigationPresent && navigationActive == false) 0 else parsedTurnCode
             val rawTurnAction = firstString(
                 json,
                 "nextTurnAction", "turnAction", "turn_action", "maneuver", "nextManeuver",
@@ -829,8 +832,12 @@ object WazeHlpWebSocketManager {
                 ?: defaultTurnDesc
 
             val turnDistancePresent = hasAny(json, "distanceToTurnMeters", "distanceToTurn", "turnDistance", "turn_distance", "dst", "distance_meters", "dist_m", "dist")
-            val distanceToTurnMeters = firstDistanceMeters(json, "distanceToTurnMeters", "distanceToTurn", "turnDistance", "turn_distance", "dst", "distance_meters", "dist_m", "dist")
-                ?.takeIf { it >= 0 }
+            val parsedTurnDistance = firstDistanceMeters(json, "distanceToTurnMeters", "distanceToTurn", "turnDistance", "turn_distance", "dst", "distance_meters", "dist_m", "dist")
+            val distanceToTurnMeters = when {
+                navigationPresent && navigationActive == false -> 0
+                turnDistancePresent -> parsedTurnDistance?.takeIf { it >= 0 } ?: 0
+                else -> null
+            }
 
             val etaTime = firstString(json, "eta", "etaTime", "eta_time", "arrivalTime", "arrival_time")
             val remainingMinutes = firstInt(json, "rmin", "remainingMinutes", "remaining_minutes", "remainingMin")
@@ -844,10 +851,23 @@ object WazeHlpWebSocketManager {
             // Current/next road. WazeMod V11 specifically documents st2 as the next road.
             val rawRoad = firstString(json, "st", "road", "street", "road_name", "street_name", "currentRoad", "current_road")
             val roadName = rawRoad?.takeIf { !isIgnoredText(it) }
+            val nextRoadPresent = hasAny(json, "st2", "nextRoad", "next_road", "nextStreet", "next_street")
             val rawNextRoad = firstString(json, "st2", "nextRoad", "next_road", "nextStreet", "next_street")
-            val nextRoadName = rawNextRoad?.takeIf { !isIgnoredText(it) }
+            val nextRoadName = when {
+                navigationPresent && navigationActive == false -> ""
+                !rawNextRoad.isNullOrBlank() && !isIgnoredText(rawNextRoad) -> rawNextRoad
+                nextRoadPresent -> ""
+                else -> null
+            }
 
-            val laneGuidance = parseLaneGuidance(json)
+            val lanePresent = hasAny(json, "lan", "lanes", "laneGuidance", "lane_guidance")
+            val parsedLaneGuidance = parseLaneGuidance(json)
+            val laneGuidance = when {
+                navigationPresent && navigationActive == false -> ""
+                !parsedLaneGuidance.isNullOrBlank() -> parsedLaneGuidance
+                lanePresent -> ""
+                else -> null
+            }
             val trafficLevel = firstInt(json, "trafficLevel", "traffic_level", "jamLevel", "jam_level", "jam")
                 ?.takeIf { it >= 0 }
             val trafficDelayMinutes = firstInt(json, "trafficDelayMinutes", "traffic_delay_minutes", "delayMinutes", "delay_minutes", "delayMin", "jamDelay")
@@ -1032,10 +1052,10 @@ object WazeHlpWebSocketManager {
                 speed = speed,
                 limit = limit,
                 secondaryLimit = secondaryLimit,
-                turnCode = if (turnCodePresent) turnCode else null,
-                turnAction = if (turnCodePresent || !rawTurnAction.isNullOrBlank()) nextTurnAction else null,
-                turnDescription = if (turnCodePresent || !turnDescription.isNullOrBlank()) turnDescription else null,
-                distanceToTurnMeters = if (turnDistancePresent) distanceToTurnMeters else null,
+                turnCode = if (turnCodePresent || (navigationPresent && navigationActive == false)) turnCode else null,
+                turnAction = if (turnCodePresent || !rawTurnAction.isNullOrBlank() || (navigationPresent && navigationActive == false)) nextTurnAction else null,
+                turnDescription = if (turnCodePresent || !turnDescription.isNullOrBlank() || (navigationPresent && navigationActive == false)) turnDescription else null,
+                distanceToTurnMeters = if (turnDistancePresent || (navigationPresent && navigationActive == false)) distanceToTurnMeters else null,
                 etaTime = etaTime,
                 remainingMinutes = remainingMinutes,
                 remainingDistanceKm = remainingDistanceKm,

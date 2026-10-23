@@ -124,29 +124,22 @@ class VietmapHudOverlay @JvmOverloads constructor(
                 alpha = 1.0f
             } else {
                 val configuredScale = WazeHudManager.getScale(context)
-                val userScaleFactor = configuredScale / 120f
                 val density = context.resources.displayMetrics.density.coerceAtLeast(1f)
-                val viewportScale = when (activeStyleId) {
+                val scale = when (activeStyleId) {
                     6 -> {
-                        // Reference #1 occupies roughly one quarter of the AA viewport.
+                        // Keep the large panel adaptive to the car viewport.
                         val designWidthPx = 215f * density
-                        if (projectionViewportWidthPx > 0) {
+                        val viewportScale = if (projectionViewportWidthPx > 0) {
                             (projectionViewportWidthPx * 0.255f / designWidthPx).coerceIn(0.42f, 0.82f)
                         } else 0.68f
+                        viewportScale * (configuredScale / 120f)
                     }
                     7 -> {
-                        // Reference #2 is a low strip covering about 43% of the viewport.
-                        val designWidthPx = 350f * density
-                        if (projectionViewportWidthPx > 0) {
-                            (projectionViewportWidthPx * 0.43f / designWidthPx).coerceIn(0.42f, 0.80f)
-                        } else 0.68f
+                        // Style #7 uses the user's percentage literally:
+                        // 100% = the full reference strip size, never an extra auto-shrink.
+                        configuredScale / 100f
                     }
                     else -> configuredScale / 100f
-                }
-                val scale = if (activeStyleId == 6 || activeStyleId == 7) {
-                    viewportScale * userScaleFactor
-                } else {
-                    viewportScale
                 }
                 pivotX = 0f
                 pivotY = 0f
@@ -222,7 +215,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
         // 1. Red circle speed limit sign
         speedLimitBadge = FrameLayout(context).apply {
             val size = dp(44)
-            layoutParams = LayoutParams(size, size).apply { marginEnd = dp(4) }
+            layoutParams = LayoutParams(size, size).apply { marginEnd = dp(5) }
             background = circle(Color.WHITE, Color.parseColor("#DC2626"), 3f)
 
             speedLimitText = TextView(context).apply {
@@ -256,7 +249,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
 
             currentSpeedUnit = TextView(context).apply {
                 text = "KM/H"
-                textSize = 6.5f
+                textSize = 11f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.parseColor("#E2E8F0"))
                 gravity = Gravity.CENTER
@@ -379,7 +372,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
         currentSpeedContainer = LinearLayout(context).apply {
             orientation = VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(2), 0, dp(2), 0)
+            setPadding(dp(4), 0, dp(4), 0)
 
             currentSpeedText = TextView(context).apply {
                 text = "0"
@@ -633,7 +626,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
 
                 secondaryLimitText = TextView(context).apply {
                     text = "--"
-                    textSize = 7.5f
+                    textSize = 10.5f
                     typeface = Typeface.DEFAULT_BOLD
                     setTextColor(Color.WHITE)
                     gravity = Gravity.CENTER
@@ -990,17 +983,17 @@ class VietmapHudOverlay @JvmOverloads constructor(
     private fun buildStyle7WazeThanhNgang() {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(4), dp(1), dp(4), dp(1))
-        minimumWidth = 0
+        setPadding(dp(6), dp(3), dp(6), dp(3))
+        minimumWidth = dp(430)
         applyStyleBackground(overSpeed = false)
 
         speedLimitBadge = FrameLayout(context).apply {
-            val size = dp(25)
+            val size = dp(36)
             layoutParams = LayoutParams(size, size).apply { marginEnd = dp(4) }
             background = circle(Color.WHITE, Color.parseColor("#E31B23"), 3.5f)
             speedLimitText = TextView(context).apply {
                 text = "--"
-                textSize = 11.5f
+                textSize = 17f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.BLACK)
                 gravity = Gravity.CENTER
@@ -1013,10 +1006,10 @@ class VietmapHudOverlay @JvmOverloads constructor(
         currentSpeedContainer = LinearLayout(context).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LayoutParams(dp(52), dp(26)).apply { marginEnd = dp(3) }
+            layoutParams = LayoutParams(dp(72), dp(40)).apply { marginEnd = dp(5) }
             currentSpeedText = TextView(context).apply {
                 text = "0"
-                textSize = 19f
+                textSize = 29f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 includeFontPadding = false
@@ -1026,7 +1019,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
                 text = " km/h"
                 textSize = 6.5f
                 setTextColor(Color.parseColor("#B9BEC5"))
-                setPadding(dp(1), dp(7), 0, 0)
+                setPadding(dp(1), dp(12), 0, 0)
                 includeFontPadding = false
             }
             addView(currentSpeedUnit)
@@ -1036,11 +1029,11 @@ class VietmapHudOverlay @JvmOverloads constructor(
         val turnBox = LinearLayout(context).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER
-            layoutParams = LayoutParams(dp(58), dp(25)).apply { marginEnd = dp(3) }
+            layoutParams = LayoutParams(dp(88), dp(38)).apply { marginEnd = dp(5) }
             background = rounded(Color.parseColor("#176AC8"), 8f, Color.parseColor("#4DFFFFFF"), 1)
             turnIcon = TextView(context).apply {
                 text = "↱"
-                textSize = 15f
+                textSize = 23f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
@@ -1078,25 +1071,25 @@ class VietmapHudOverlay @JvmOverloads constructor(
         }
         addView(
             laneGuidanceText,
-            LayoutParams(dp(44), dp(25)).apply { marginEnd = dp(3) }
+            LayoutParams(dp(64), dp(38)).apply { marginEnd = dp(5) }
         )
 
         addView(
             createAlertBadge(isVertical = false).apply {
                 minimumWidth = 0
                 setPadding(dp(2), dp(1), dp(2), dp(1))
-                alertIconView?.layoutParams = LayoutParams(dp(20), dp(20)).apply { gravity = Gravity.CENTER_HORIZONTAL }
-                alertDistanceText?.textSize = 6.8f
+                alertIconView?.layoutParams = LayoutParams(dp(29), dp(29)).apply { gravity = Gravity.CENTER_HORIZONTAL }
+                alertDistanceText?.textSize = 9f
             },
-            LayoutParams(dp(40), dp(25)).apply { marginEnd = dp(3) }
+            LayoutParams(dp(54), dp(38)).apply { marginEnd = dp(5) }
         )
 
-        addView(createReferenceAlertCell(dp(40), dp(25), compact = true))
-        addView(createReferenceAlertCell(dp(40), dp(25), compact = true))
+        addView(createReferenceAlertCell(dp(54), dp(38), compact = true))
+        addView(createReferenceAlertCell(dp(54), dp(38), compact = true))
 
         referenceReportButton = TextView(context).apply {
             text = "⚠"
-            textSize = 11f
+            textSize = 15f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
@@ -1105,7 +1098,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
         }
         addView(
             referenceReportButton,
-            LayoutParams(dp(28), dp(25)).apply { marginStart = dp(2) }
+            LayoutParams(dp(42), dp(38)).apply { marginStart = dp(3) }
         )
     }
 
@@ -1116,13 +1109,13 @@ class VietmapHudOverlay @JvmOverloads constructor(
             minimumWidth = 0
             setPadding(dp(2), dp(1), dp(2), dp(1))
             background = rounded(Color.parseColor("#D9161B22"), if (compact) 8f else 9f, Color.parseColor("#38536A7A"), 1)
-            visibility = INVISIBLE
+            visibility = GONE
             layoutParams = LayoutParams(widthPx, heightPx).apply {
                 if (!compact) topMargin = dp(2) else marginEnd = dp(4)
             }
         }
         val icon = WazeAlertIconView(context).apply {
-            layoutParams = LayoutParams(dp(if (compact) 20 else 24), dp(if (compact) 20 else 24)).apply {
+            layoutParams = LayoutParams(dp(if (compact) 29 else 24), dp(if (compact) 29 else 24)).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
             }
             setAlert(4, VietmapWarningType.HAZARD)
@@ -1638,44 +1631,39 @@ class VietmapHudOverlay @JvmOverloads constructor(
             .joinToString(" ")
             .lowercase(Locale.ROOT)
             .replace('_', '-')
-        val arrowStr = when {
-            wazeManeuver.contains("sharp-left") || wazeManeuver.contains("rẽ gắt sang trái") -> "↶"
-            wazeManeuver.contains("sharp-right") || wazeManeuver.contains("rẽ gắt sang phải") -> "↷"
-            wazeManeuver.contains("exit-left") || wazeManeuver.contains("slight-left") ||
-                wazeManeuver.contains("keep-left") || wazeManeuver.contains("chếch sang trái") -> "↖"
-            wazeManeuver.contains("exit-right") || wazeManeuver.contains("slight-right") ||
-                wazeManeuver.contains("keep-right") || wazeManeuver.contains("chếch sang phải") -> "↗"
-            wazeManeuver.contains("u-turn") || wazeManeuver.contains("uturn") ||
-                wazeManeuver.contains("quay đầu") -> "↩"
-            wazeManeuver.contains("roundabout") || wazeManeuver.contains("traffic-circle") ||
-                wazeManeuver.contains("vòng xuyến") || wazeManeuver.contains("bùng binh") ->
-                when (data.turnCode) {
-                    11 -> "↶"
-                    12 -> "↷"
-                    19 -> "↑"
-                    20 -> "↩"
-                    else -> "⟳"
-                }
-            wazeManeuver.contains("destination") || wazeManeuver.contains("arrive") ||
-                wazeManeuver.contains("đến nơi") -> "🏁"
-            wazeManeuver.contains("turn-left") || wazeManeuver.contains("rẽ trái") ||
-                data.turnCode == 2 -> "↰"
-            wazeManeuver.contains("turn-right") || wazeManeuver.contains("rẽ phải") ||
-                data.turnCode == 3 -> "↱"
-            data.turnCode in listOf(4, 13, 15) -> "↖"
-            data.turnCode in listOf(5, 14, 16) -> "↗"
-            data.turnCode in listOf(6) -> "↶"
-            data.turnCode in listOf(7) -> "↷"
-            data.turnCode in listOf(8, 9) -> "↩"
-            data.turnCode in listOf(10, 11, 12, 19, 20) -> when (data.turnCode) {
-                11 -> "↶"
-                12 -> "↷"
-                19 -> "↑"
-                20 -> "↩"
-                else -> "⟳"
+        val arrowStr = when (data.turnCode) {
+            1 -> "↑"
+            2 -> "↰"
+            3 -> "↱"
+            4, 13, 15 -> "↖"
+            5, 14, 16 -> "↗"
+            6 -> "↶"
+            7 -> "↷"
+            8, 9 -> "↩"
+            10 -> "⟳"
+            11 -> "↶"
+            12 -> "↷"
+            17 -> "🏁"
+            19 -> "↑"
+            20 -> "↩"
+            else -> when {
+                wazeManeuver.contains("sharp-left") || wazeManeuver.contains("rẽ gắt sang trái") -> "↶"
+                wazeManeuver.contains("sharp-right") || wazeManeuver.contains("rẽ gắt sang phải") -> "↷"
+                wazeManeuver.contains("exit-left") || wazeManeuver.contains("slight-left") ||
+                    wazeManeuver.contains("keep-left") || wazeManeuver.contains("chếch sang trái") -> "↖"
+                wazeManeuver.contains("exit-right") || wazeManeuver.contains("slight-right") ||
+                    wazeManeuver.contains("keep-right") || wazeManeuver.contains("chếch sang phải") -> "↗"
+                wazeManeuver.contains("u-turn") || wazeManeuver.contains("uturn") ||
+                    wazeManeuver.contains("quay đầu") -> "↩"
+                wazeManeuver.contains("roundabout") || wazeManeuver.contains("traffic-circle") ||
+                    wazeManeuver.contains("vòng xuyến") || wazeManeuver.contains("bùng binh") -> "⟳"
+                wazeManeuver.contains("destination") || wazeManeuver.contains("arrive") ||
+                    wazeManeuver.contains("đến nơi") -> "🏁"
+                wazeManeuver.contains("turn-left") || wazeManeuver.contains("rẽ trái") -> "↰"
+                wazeManeuver.contains("turn-right") || wazeManeuver.contains("rẽ phải") -> "↱"
+                wazeManeuver.contains("straight") || wazeManeuver.contains("continue") -> "↑"
+                else -> ""
             }
-            data.turnCode == 17 -> "🏁"
-            else -> "↑"
         }
         turnIcon?.text = arrowStr
 
@@ -1691,17 +1679,18 @@ class VietmapHudOverlay @JvmOverloads constructor(
         // previous fallback used alert.distanceText as a turn distance, which could
         // display a camera's "250m" next to a straight-ahead arrow. Only show the
         // maneuver block when real navigation data is present.
-        val hasManeuver = data.turnCode > 0 ||
-            data.distanceToTurnMeters > 0 ||
-            (!data.turnAction.isBlank() && data.turnAction != "straight") ||
-            !data.turnDescription.isNullOrBlank() ||
-            !data.nextRoadName.isNullOrBlank()
+        val hasManeuver = arrowStr.isNotBlank() && (
+            data.turnCode > 0 ||
+                data.distanceToTurnMeters > 0 ||
+                (!data.turnAction.isBlank() && data.turnAction != "straight") ||
+                !data.turnDescription.isNullOrBlank()
+            )
         val turnVis = if (turnManeuverEnabled && hasManeuver) VISIBLE else GONE
         turnIcon?.visibility = turnVis
         turnDistanceText?.visibility = if (turnVis == VISIBLE && dist.isNotBlank()) VISIBLE else GONE
         turnContainer?.visibility = when {
             turnVis == VISIBLE -> VISIBLE
-            activeStyleId == 6 || activeStyleId == 7 -> INVISIBLE
+            activeStyleId == 6 -> INVISIBLE
             else -> GONE
         }
 
@@ -1738,7 +1727,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
         laneGuidanceText?.text = compactLane.orEmpty()
         laneGuidanceText?.visibility = when {
             !compactLane.isNullOrBlank() -> VISIBLE
-            activeStyleId == 6 || activeStyleId == 7 -> INVISIBLE
+            activeStyleId == 6 -> INVISIBLE
             else -> GONE
         }
 

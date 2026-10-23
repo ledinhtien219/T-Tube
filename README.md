@@ -35,6 +35,8 @@
 >
 > 1.0.86 tinh chỉnh #6/#7 theo đúng ảnh tham chiếu: lane guidance, nhiều cảnh báo, tỷ lệ panel và nút Báo cáo.
 >
+> 1.0.88 phóng lớn #7 ở mức 100% và sửa mapping/clear-state mũi tên Waze theo HLP/1.
+>
 > 1.0.88 chuẩn hóa kích thước HUD theo viewport Android Auto thật và reset vị trí cũ của #6/#7 để bám đúng ảnh mẫu.
 
 ---
