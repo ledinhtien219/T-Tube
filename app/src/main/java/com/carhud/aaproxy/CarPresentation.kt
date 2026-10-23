@@ -671,11 +671,9 @@ class CarPresentation(
                     return super.shouldInterceptRequest(view, request)
                 }
 
+                // Preserve YouTube's full request graph. Ad handling is player-level
+                // (DOM/player state + SponsorBlock), matching Fermata's smoother model.
                 YouTubeAdBlocker.shouldIntercept(request)?.let { return it }
-                if (url != null && YouTubePlayerHelper.isAdUrl(url)) {
-                    val origin = request.requestHeaders?.get("Origin") ?: request.requestHeaders?.get("origin")
-                    return YouTubePlayerHelper.createEmptyResponse(origin)
-                }
                 return super.shouldInterceptRequest(view, request)
             }
 
