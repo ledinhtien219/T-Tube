@@ -35,6 +35,15 @@ assert.match(
 );
 assert.match(
   overlay,
+  /private fun buildStyle7WazeThanhNgang\(\)[\s\S]*roadNameText = TextView\(context\)[\s\S]*maxWidth = dp\(150\)[\s\S]*LayoutParams\(LayoutParams\.WRAP_CONTENT, dp\(38\)\)/
+);
+assert.match(overlay, /val currentRoad = data\.roadName/);
+assert.match(overlay, /sourceIcon = primaryAlert\?\.sourceIcon/);
+assert.match(overlay, /sourceSubtype = primaryAlert\?\.sourceSubtype/);
+assert.match(overlay, /sourceIcon = item\.sourceIcon/);
+assert.match(overlay, /sourceSubtype = item\.sourceSubtype/);
+assert.match(
+  overlay,
   /7 -> background = rounded\([\s\S]*#800B0D10[\s\S]*#24FFFFFF/
 );
 assert.match(
@@ -67,7 +76,7 @@ assert.match(overlay, /activeStyleId == 6 -> INVISIBLE/);
 assert.match(settings, /val allStyles = WazeHudManager\.STYLES/);
 assert.match(settings, /WazeHudManager\.setActiveStyleId\(this@SettingsActivity, style\.id\)/);
 
-console.log('PASS Waze HUD #7: compact no-alert strip + lock + translucent background + non-overlapping alerts');
+console.log('PASS Waze HUD #7: current-road pill + Waze-driven icons + compact adaptive strip');
 
 assert.match(overlay, /fun applyProjectionViewport\(widthPx: Int, heightPx: Int\)/);
 assert.match(overlay, /projectionViewportWidthPx \* 0\.255f/);
