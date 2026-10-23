@@ -1,9 +1,10 @@
-name: Build v1.0.94 YouTube Play Test AAB Now
+name: Build v1.0.94 YouTube Play Test SIGNED AAB
 
 on:
   push:
     branches:
       - "release/play-v1.0.94-youtube-fermata-test"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,6 +13,11 @@ jobs:
   build-aab:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      PLAY_UPLOAD_KEYSTORE_PATH: /home/runner/.android/debug.keystore
+      PLAY_UPLOAD_STORE_PASSWORD: android
+      PLAY_UPLOAD_KEY_ALIAS: androiddebugkey
+      PLAY_UPLOAD_KEY_PASSWORD: android
 
     steps:
       - uses: actions/checkout@v4
@@ -22,6 +28,21 @@ jobs:
           java-version: '17'
 
       - uses: gradle/actions/setup-gradle@v4
+
+      - name: Restore stable signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: thtv-stable-debug-keystore-v1
+
+      - name: Verify stable signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$PLAY_UPLOAD_KEYSTORE_PATH"
+          CERT_SHA="$(keytool -exportcert -keystore "$PLAY_UPLOAD_KEYSTORE_PATH" -alias "$PLAY_UPLOAD_KEY_ALIAS" -storepass "$PLAY_UPLOAD_STORE_PASSWORD" 2>/dev/null | sha256sum | cut -d ' ' -f1)"
+          echo "Signing certificate SHA-256: $CERT_SHA"
+          test "$CERT_SHA" = "dbdb9e695d351e19899e17d9fd9258b11f9cc24ab6df386c21c138d5a70a3de2"
 
       - name: Verify exact Play test source
         shell: bash
@@ -39,23 +60,25 @@ jobs:
           set -euo pipefail
           node --test tests/youtube-*.test.cjs tests/v152-youtube-search-toolbar.test.cjs tests/v160-youtube-fast-search.test.cjs
 
-      - name: Build Play AAB
+      - name: Build signed Play AAB
         run: ./gradlew bundleRelease --stacktrace
 
-      - name: Stage AAB
+      - name: Verify signed AAB
         shell: bash
         run: |
           set -euo pipefail
           AAB="$(find app/build/outputs/bundle/release -name '*.aab' | head -n 1)"
           test -n "$AAB"
-          cp "$AAB" TTube_v1.0.94_build293_YouTube_Fermata_PlayTest_UNSIGNED.aab
-          unzip -t TTube_v1.0.94_build293_YouTube_Fermata_PlayTest_UNSIGNED.aab >/dev/null
-          sha256sum TTube_v1.0.94_build293_YouTube_Fermata_PlayTest_UNSIGNED.aab
+          jarsigner -verify -verbose -certs "$AAB" | tee /tmp/jarsigner.txt
+          ! grep -q "jar is unsigned" /tmp/jarsigner.txt
+          grep -q "jar verified" /tmp/jarsigner.txt
+          cp "$AAB" TTube_v1.0.94_build293_CHPlay_Tester_SIGNED.aab
+          sha256sum TTube_v1.0.94_build293_CHPlay_Tester_SIGNED.aab
 
-      - name: Upload AAB
+      - name: Upload signed AAB
         uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.0.94-build293-YouTube-Fermata-PlayTest-UNSIGNED-AAB
-          path: TTube_v1.0.94_build293_YouTube_Fermata_PlayTest_UNSIGNED.aab
+          name: TTube-v1.0.94-build293-CHPlay-Tester-SIGNED-AAB
+          path: TTube_v1.0.94_build293_CHPlay_Tester_SIGNED.aab
           if-no-files-found: error
           retention-days: 14
