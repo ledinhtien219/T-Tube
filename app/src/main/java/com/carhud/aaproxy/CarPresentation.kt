@@ -1169,7 +1169,16 @@ class CarPresentation(
                         leftMargin = dp((screenWdp - 95).coerceAtLeast(20))
                         topMargin = dp(60)
                     }
-                    else -> { // #1 & #2 Bubble Ngang default
+                    6 -> { // Photo reference: large panel at upper-right
+                        val screenWdp = (carWidth / resources.displayMetrics.density).roundToInt()
+                        leftMargin = dp((screenWdp - 225).coerceAtLeast(24))
+                        topMargin = dp(18)
+                    }
+                    7 -> { // Photo reference: low horizontal strip near upper-left
+                        leftMargin = dp(24)
+                        topMargin = dp(14)
+                    }
+                    else -> {
                         leftMargin = dp(24)
                         topMargin = dp(24)
                     }
