@@ -1171,7 +1171,7 @@ class CarPresentation(
                     }
                     6 -> { // Photo reference: large panel at upper-right
                         val screenWdp = (carWidth / resources.displayMetrics.density).roundToInt()
-                        leftMargin = dp((screenWdp - 225).coerceAtLeast(24))
+                        leftMargin = dp((screenWdp - 205).coerceAtLeast(24))
                         topMargin = dp(18)
                     }
                     7 -> { // Photo reference: low horizontal strip near upper-left
