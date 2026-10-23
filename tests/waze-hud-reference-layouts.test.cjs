@@ -9,7 +9,7 @@ assert.match(manager, /id = 6,[\s\S]*name = "#6 Waze Panel Lớn"/);
 assert.match(manager, /id = 7,[\s\S]*name = "#7 Waze Thanh Ngang"/);
 
 assert.match(overlay, /6 -> buildStyle6WazePanelLon\(\)/);
-assert.match(overlay, /7 -> buildStyle7WazeThanhNgang\(\)/);
+assert.match(overlay, /7 -> \{[\s\S]*designWidthPx = 510f \* density[\s\S]*projectionViewportWidthPx \* 0\.65f \/ designWidthPx[\s\S]*configuredScale \/ 100f[\s\S]*\}/);
 
 assert.match(overlay, /private fun buildStyle6WazePanelLon\(\)/);
 assert.match(overlay, /private fun buildStyle6WazePanelLon\(\)[\s\S]*?minimumWidth = 0/);
@@ -40,6 +40,6 @@ console.log('PASS Waze HUD photo-match layouts: large panel + compact strip + la
 
 assert.match(overlay, /fun applyProjectionViewport\(widthPx: Int, heightPx: Int\)/);
 assert.match(overlay, /projectionViewportWidthPx \* 0\.255f/);
-assert.match(overlay, /7 -> \{[\s\S]*configuredScale \/ 100f[\s\S]*\}/);
+assert.match(overlay, /7 -> \{[\s\S]*designWidthPx = 510f \* density[\s\S]*projectionViewportWidthPx \* 0\.65f \/ designWidthPx[\s\S]*configuredScale \/ 100f[\s\S]*\}/);
 assert.match(settings, /WazeHudManager\.STYLES/);
-console.log('PASS Waze HUD sizing: #6 stays viewport-adaptive while #7 uses literal user scale');
+console.log('PASS Waze HUD sizing: #6 stays viewport-adaptive while #7 grows to car-screen reference size');
