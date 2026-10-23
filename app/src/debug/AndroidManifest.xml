@@ -6,5 +6,12 @@
             android:exported="false"
             android:hardwareAccelerated="true"
             android:theme="@style/Theme.CarHud" />
+
+        <activity
+            android:name="com.carhud.aaproxy.HudStyle7SmokeActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:hardwareAccelerated="true"
+            android:theme="@style/Theme.CarHud" />
     </application>
 </manifest>
