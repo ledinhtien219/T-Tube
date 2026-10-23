@@ -1107,6 +1107,18 @@ class VietmapHudOverlay @JvmOverloads constructor(
             referenceReportButton,
             LayoutParams(dp(42), dp(38)).apply { marginStart = dp(3) }
         )
+
+        // Style #7 keeps a compact lock control visible at all times so the
+        // driver can freeze/unfreeze the HUD position directly on the car screen.
+        addView(
+            createLockButton().apply {
+                textSize = 12f
+                setPadding(0, 0, 0, 0)
+            },
+            LayoutParams(dp(34), dp(34)).apply {
+                marginStart = dp(4)
+            }
+        )
     }
 
     private fun createReferenceAlertCell(widthPx: Int, heightPx: Int, compact: Boolean): LinearLayout {
@@ -1153,9 +1165,11 @@ class VietmapHudOverlay @JvmOverloads constructor(
                 if (overSpeed) 2 else 1
             )
             7 -> background = rounded(
-                Color.parseColor(if (overSpeed) "#F2380C0C" else "#F20B0D10"),
+                // Keep the horizontal strip readable without covering the map.
+                // Normal state is roughly 50% opaque; overspeed is stronger.
+                Color.parseColor(if (overSpeed) "#B3380C0C" else "#800B0D10"),
                 11f,
-                Color.parseColor(if (overSpeed) "#EF4444" else "#3AFFFFFF"),
+                Color.parseColor(if (overSpeed) "#DDEF4444" else "#24FFFFFF"),
                 if (overSpeed) 2 else 1
             )
             else -> {
@@ -1819,7 +1833,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
         } else {
             alertUpcomingText?.visibility = GONE
             alertTitleText?.visibility = GONE
-            alertContainer?.visibility = if (activeStyleId == 6 || activeStyleId == 7) INVISIBLE else GONE
+            alertContainer?.visibility = if (activeStyleId == 6) INVISIBLE else GONE
         }
 
         if (activeStyleId == 6 || activeStyleId == 7) {
@@ -1832,10 +1846,18 @@ class VietmapHudOverlay @JvmOverloads constructor(
                         WazeAlertPolicy.formatDistance(item.distanceMeters).ifBlank { "•" }
                     cell.visibility = VISIBLE
                 } else {
-                    cell.visibility = INVISIBLE
+                    // #7 collapses unused alert cells completely; #6 keeps its
+                    // photo-matched grid stable by reserving their space.
+                    cell.visibility = if (activeStyleId == 6) INVISIBLE else GONE
                 }
             }
-            referenceReportButton?.visibility = if (data.isConnected || isPreviewMode) VISIBLE else GONE
+            val hasAnyVisibleAlert = hasActiveAlertBadge ||
+                extras.any { it.warningType != VietmapWarningType.NONE }
+            referenceReportButton?.visibility = when {
+                activeStyleId == 7 -> if (isPreviewMode || (data.isConnected && hasAnyVisibleAlert)) VISIBLE else GONE
+                data.isConnected || isPreviewMode -> VISIBLE
+                else -> GONE
+            }
             referenceReportButton?.alpha = 1f
         } else {
             referenceAlertContainers.forEach { it.visibility = GONE }
