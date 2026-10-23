@@ -53,7 +53,11 @@ data class WazeAlertItem(
     val value: Int? = null,
     val jamSeverity: Int? = null,
     val jamDelayMinutes: Int? = null,
-    val roadName: String? = null
+    val roadName: String? = null,
+    /** Raw icon identifier reported by Waze/Waze Mod (icon/iconName). */
+    val sourceIcon: String? = null,
+    /** Raw report subtype reported by Waze/Waze Mod. */
+    val sourceSubtype: String? = null
 )
 
 data class VietmapAlertData(
