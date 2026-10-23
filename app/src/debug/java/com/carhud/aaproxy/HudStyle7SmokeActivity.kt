@@ -92,6 +92,13 @@ class HudStyle7SmokeActivity : Activity() {
                                 warningType = VietmapWarningType.HAZARD,
                                 title = "Nguy hiểm",
                                 distanceMeters = 900
+                            ),
+                            WazeAlertItem(
+                                code = 8,
+                                warningType = VietmapWarningType.SPEED_LIMIT_ZONE,
+                                title = "Giới hạn tốc độ",
+                                distanceMeters = 1200,
+                                value = 80
                             )
                         ),
                         alertSource = "WAZE_HLP",
