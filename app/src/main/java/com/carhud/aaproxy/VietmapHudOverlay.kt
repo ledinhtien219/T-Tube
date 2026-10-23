@@ -53,6 +53,11 @@ class VietmapHudOverlay @JvmOverloads constructor(
     private var alertTitleText: TextView? = null
     private var alertDistanceText: TextView? = null
     private var alertUpcomingText: TextView? = null
+    private var laneGuidanceText: TextView? = null
+    private val referenceAlertContainers = mutableListOf<LinearLayout>()
+    private val referenceAlertIcons = mutableListOf<WazeAlertIconView>()
+    private val referenceAlertDistances = mutableListOf<TextView>()
+    private var referenceReportButton: TextView? = null
 
     private var activeStyleId = 1
     private var isPreviewMode = false
@@ -76,11 +81,10 @@ class VietmapHudOverlay @JvmOverloads constructor(
             if (isPulsingOverSpeed) {
                 pulseState = !pulseState
                 if (pulseState) {
-                    background = rounded(Color.parseColor("#E62A0808"), 18f, Color.parseColor("#EF4444"), 2)
+                    applyStyleBackground(overSpeed = true)
                     currentSpeedText?.setTextColor(Color.parseColor("#FF4D4F"))
                 } else {
-                    val defaultBorder = if (activeStyleId == 2 || activeStyleId == 4) Color.parseColor("#0284C7") else Color.parseColor("#1F374E")
-                    background = rounded(Color.parseColor("#E6090E17"), 18f, defaultBorder, 1)
+                    applyStyleBackground(overSpeed = false)
                     currentSpeedText?.setTextColor(Color.WHITE)
                 }
                 pulseHandler.postDelayed(this, 650)
@@ -145,6 +149,11 @@ class VietmapHudOverlay @JvmOverloads constructor(
         alertTitleText = null
         alertDistanceText = null
         alertUpcomingText = null
+        laneGuidanceText = null
+        referenceAlertContainers.clear()
+        referenceAlertIcons.clear()
+        referenceAlertDistances.clear()
+        referenceReportButton = null
         lockButton = null
 
         val defaultBorder = Color.parseColor("#00E5FF")
@@ -787,138 +796,348 @@ class VietmapHudOverlay @JvmOverloads constructor(
     }
 
 
-    // Waze reference layouts for Play test
+    // -------------------------------------------------------------
+    // STYLE 6: WAZE PANEL LỚN
+    // Closely follows the supplied reference: large limit/speed block,
+    // navigation/lane card, stacked road alerts, and a blue Report action.
+    // -------------------------------------------------------------
     private fun buildStyle6WazePanelLon() {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(10), dp(6), dp(8), dp(6))
-        minimumWidth = dp(330)
-        background = rounded(Color.parseColor("#F20B0D10"), 13f, Color.parseColor("#3AFFFFFF"), 1)
+        setPadding(dp(10), dp(7), dp(8), dp(7))
+        minimumWidth = dp(360)
+        applyStyleBackground(overSpeed = false)
 
         speedLimitBadge = FrameLayout(context).apply {
-            val size = dp(54)
+            val size = dp(66)
             layoutParams = LayoutParams(size, size).apply { marginEnd = dp(8) }
-            background = circle(Color.WHITE, Color.parseColor("#E31B23"), 4f)
+            background = circle(Color.WHITE, Color.parseColor("#E31B23"), 5f)
             speedLimitText = TextView(context).apply {
-                text = "--"; textSize = 23f; typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.BLACK); gravity = Gravity.CENTER; includeFontPadding = false
+                text = "--"
+                textSize = 28f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.BLACK)
+                gravity = Gravity.CENTER
+                includeFontPadding = false
             }
             addView(speedLimitText, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
         }
         addView(speedLimitBadge)
 
         currentSpeedContainer = LinearLayout(context).apply {
-            orientation = VERTICAL; gravity = Gravity.CENTER
-            layoutParams = LayoutParams(dp(62), LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(8) }
+            orientation = VERTICAL
+            gravity = Gravity.CENTER
+            layoutParams = LayoutParams(dp(76), LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(8) }
             currentSpeedText = TextView(context).apply {
-                text = "0"; textSize = 37f; typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.WHITE); gravity = Gravity.CENTER; includeFontPadding = false
+                text = "0"
+                textSize = 46f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                includeFontPadding = false
             }
             addView(currentSpeedText)
             currentSpeedUnit = TextView(context).apply {
-                text = "km/h"; textSize = 9f; setTextColor(Color.LTGRAY)
-                gravity = Gravity.CENTER; includeFontPadding = false
+                text = "km/h"
+                textSize = 11f
+                setTextColor(Color.parseColor("#C6CBD2"))
+                gravity = Gravity.CENTER
+                includeFontPadding = false
             }
             addView(currentSpeedUnit)
         }
         addView(currentSpeedContainer)
 
+        val navColumn = LinearLayout(context).apply {
+            orientation = VERTICAL
+            gravity = Gravity.CENTER
+            layoutParams = LayoutParams(dp(104), LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(7) }
+        }
+
         val turnBox = LinearLayout(context).apply {
-            orientation = VERTICAL; gravity = Gravity.CENTER
-            layoutParams = LayoutParams(dp(62), dp(58)).apply { marginEnd = dp(7) }
-            background = rounded(Color.parseColor("#1669C9"), 9f, Color.parseColor("#4DFFFFFF"), 1)
-            turnIcon = TextView(context).apply {
-                text = "↑"; textSize = 27f; typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.WHITE); gravity = Gravity.CENTER; includeFontPadding = false
+            orientation = VERTICAL
+            gravity = Gravity.CENTER
+            background = rounded(Color.parseColor("#176AC8"), 10f, Color.parseColor("#4DFFFFFF"), 1)
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, dp(58))
+            val top = LinearLayout(context).apply {
+                orientation = HORIZONTAL
+                gravity = Gravity.CENTER
+                turnIcon = TextView(context).apply {
+                    text = "↱"
+                    textSize = 25f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(Color.WHITE)
+                    gravity = Gravity.CENTER
+                    includeFontPadding = false
+                }
+                addView(turnIcon, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+                turnDistanceText = TextView(context).apply {
+                    text = ""
+                    textSize = 12f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(Color.WHITE)
+                    gravity = Gravity.CENTER
+                    includeFontPadding = false
+                }
+                addView(turnDistanceText, LayoutParams(0, LayoutParams.MATCH_PARENT, 1.35f))
             }
-            addView(turnIcon, LayoutParams(-1, 0, 1f))
-            turnDistanceText = TextView(context).apply {
-                text = ""; textSize = 10f; typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.WHITE); gravity = Gravity.CENTER; includeFontPadding = false
+            addView(top, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
+            roadNameText = TextView(context).apply {
+                text = ""
+                textSize = 8.5f
+                setTextColor(Color.parseColor("#D4D8DE"))
+                gravity = Gravity.CENTER
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+                includeFontPadding = false
             }
-            addView(turnDistanceText)
+            addView(roadNameText, LayoutParams(LayoutParams.MATCH_PARENT, dp(16)))
         }
         turnContainer = turnBox
-        addView(turnBox)
+        navColumn.addView(turnBox)
 
-        addView(createAlertBadge(isVertical = false).apply {
-            layoutParams = LayoutParams(dp(62), dp(58)).apply { marginEnd = dp(5) }
-            minimumWidth = 0; setPadding(dp(3), dp(2), dp(3), dp(2))
-            alertIconView?.layoutParams = LayoutParams(dp(35), dp(35)).apply { gravity = Gravity.CENTER_HORIZONTAL }
-            alertDistanceText?.textSize = 10f
-        })
-
-        roadNameText = TextView(context).apply {
-            text = ""; visibility = View.GONE
+        laneGuidanceText = TextView(context).apply {
+            text = ""
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor("#D6D9DE"))
+            gravity = Gravity.CENTER
+            background = rounded(Color.parseColor("#5A22282F"), 7f, Color.parseColor("#24FFFFFF"), 1)
+            setPadding(dp(4), dp(2), dp(4), dp(2))
+            visibility = GONE
         }
-        addView(roadNameText)
-        addView(createLockButton().apply { (layoutParams as LinearLayout.LayoutParams).marginStart = dp(1) })
+        navColumn.addView(
+            laneGuidanceText,
+            LayoutParams(LayoutParams.MATCH_PARENT, dp(22)).apply { topMargin = dp(3) }
+        )
+        addView(navColumn)
+
+        val alertsColumn = LinearLayout(context).apply {
+            orientation = VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = LayoutParams(dp(76), LayoutParams.WRAP_CONTENT)
+        }
+
+        alertsColumn.addView(
+            createAlertBadge(isVertical = false).apply {
+                minimumWidth = 0
+                setPadding(dp(3), dp(2), dp(3), dp(2))
+                background = rounded(Color.parseColor("#E6161B22"), 9f, Color.parseColor("#38536A7A"), 1)
+                alertIconView?.layoutParams = LayoutParams(dp(30), dp(30)).apply { gravity = Gravity.CENTER_HORIZONTAL }
+                alertDistanceText?.textSize = 9.5f
+            },
+            LayoutParams(LayoutParams.MATCH_PARENT, dp(49))
+        )
+
+        alertsColumn.addView(createReferenceAlertCell(dp(76), dp(46), compact = false))
+        alertsColumn.addView(createReferenceAlertCell(dp(76), dp(46), compact = false))
+
+        referenceReportButton = TextView(context).apply {
+            text = "⚠  Báo cáo"
+            textSize = 11f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            background = rounded(Color.parseColor("#176AC8"), 8f, Color.parseColor("#4DFFFFFF"), 1)
+            contentDescription = "Báo cáo Waze"
+        }
+        alertsColumn.addView(
+            referenceReportButton,
+            LayoutParams(LayoutParams.MATCH_PARENT, dp(34)).apply { topMargin = dp(3) }
+        )
+
+        addView(alertsColumn)
     }
 
-    // Reference layout #2: one low continuous Waze-like strip.
+    // -------------------------------------------------------------
+    // STYLE 7: WAZE THANH NGANG
+    // Low continuous strip matching the second supplied reference.
+    // -------------------------------------------------------------
     private fun buildStyle7WazeThanhNgang() {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         setPadding(dp(7), dp(4), dp(7), dp(4))
-        minimumWidth = dp(285)
-        background = rounded(Color.parseColor("#F20B0D10"), 11f, Color.parseColor("#3AFFFFFF"), 1)
+        minimumWidth = dp(410)
+        applyStyleBackground(overSpeed = false)
 
         speedLimitBadge = FrameLayout(context).apply {
-            val size = dp(39)
-            layoutParams = LayoutParams(size, size).apply { marginEnd = dp(7) }
-            background = circle(Color.WHITE, Color.parseColor("#E31B23"), 3f)
+            val size = dp(42)
+            layoutParams = LayoutParams(size, size).apply { marginEnd = dp(6) }
+            background = circle(Color.WHITE, Color.parseColor("#E31B23"), 3.5f)
             speedLimitText = TextView(context).apply {
-                text = "--"; textSize = 17f; typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.BLACK); gravity = Gravity.CENTER; includeFontPadding = false
+                text = "--"
+                textSize = 18f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.BLACK)
+                gravity = Gravity.CENTER
+                includeFontPadding = false
             }
             addView(speedLimitText, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
         }
         addView(speedLimitBadge)
 
         currentSpeedContainer = LinearLayout(context).apply {
-            orientation = HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LayoutParams(dp(66), dp(42)).apply { marginEnd = dp(6) }
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LayoutParams(dp(73), dp(44)).apply { marginEnd = dp(5) }
             currentSpeedText = TextView(context).apply {
-                text = "0"; textSize = 28f; typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.WHITE); includeFontPadding = false
+                text = "0"
+                textSize = 31f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.WHITE)
+                includeFontPadding = false
             }
             addView(currentSpeedText)
             currentSpeedUnit = TextView(context).apply {
-                text = " km/h"; textSize = 8f; setTextColor(Color.LTGRAY)
-                setPadding(dp(1), dp(12), 0, 0)
+                text = " km/h"
+                textSize = 8f
+                setTextColor(Color.parseColor("#B9BEC5"))
+                setPadding(dp(1), dp(13), 0, 0)
+                includeFontPadding = false
             }
             addView(currentSpeedUnit)
         }
         addView(currentSpeedContainer)
 
         val turnBox = LinearLayout(context).apply {
-            orientation = HORIZONTAL; gravity = Gravity.CENTER
-            layoutParams = LayoutParams(dp(70), dp(39)).apply { marginEnd = dp(6) }
-            background = rounded(Color.parseColor("#1669C9"), 8f, Color.parseColor("#4DFFFFFF"), 1)
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER
+            layoutParams = LayoutParams(dp(78), dp(40)).apply { marginEnd = dp(5) }
+            background = rounded(Color.parseColor("#176AC8"), 8f, Color.parseColor("#4DFFFFFF"), 1)
             turnIcon = TextView(context).apply {
-                text = "↑"; textSize = 21f; typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.WHITE); gravity = Gravity.CENTER; includeFontPadding = false
+                text = "↱"
+                textSize = 21f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                includeFontPadding = false
             }
-            addView(turnIcon)
+            addView(turnIcon, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
             turnDistanceText = TextView(context).apply {
-                text = ""; textSize = 9.5f; typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.WHITE); setPadding(dp(3), 0, 0, 0)
+                text = ""
+                textSize = 10f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                includeFontPadding = false
             }
-            addView(turnDistanceText)
+            addView(turnDistanceText, LayoutParams(0, LayoutParams.MATCH_PARENT, 1.25f))
         }
         turnContainer = turnBox
         addView(turnBox)
 
-        addView(createAlertBadge(isVertical = false).apply {
-            layoutParams = LayoutParams(dp(55), dp(42)).apply { marginEnd = dp(2) }
-            minimumWidth = 0; setPadding(dp(2), dp(1), dp(2), dp(1))
-            alertIconView?.layoutParams = LayoutParams(dp(29), dp(29)).apply { gravity = Gravity.CENTER_HORIZONTAL }
-            alertDistanceText?.textSize = 8.5f
-        })
+        roadNameText = TextView(context).apply {
+            visibility = GONE
+            text = ""
+        }
+        addView(roadNameText, LayoutParams(0, 0))
 
-        roadNameText = TextView(context).apply { text = ""; visibility = View.GONE }
-        addView(roadNameText)
-        addView(createLockButton().apply { (layoutParams as LinearLayout.LayoutParams).marginStart = 0 })
+        laneGuidanceText = TextView(context).apply {
+            text = ""
+            textSize = 11f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor("#D4D8DE"))
+            gravity = Gravity.CENTER
+            background = rounded(Color.parseColor("#4D252A30"), 7f, Color.parseColor("#22FFFFFF"), 1)
+            setPadding(dp(4), 0, dp(4), 0)
+            visibility = GONE
+        }
+        addView(
+            laneGuidanceText,
+            LayoutParams(dp(65), dp(38)).apply { marginEnd = dp(5) }
+        )
+
+        addView(
+            createAlertBadge(isVertical = false).apply {
+                minimumWidth = 0
+                setPadding(dp(2), dp(1), dp(2), dp(1))
+                alertIconView?.layoutParams = LayoutParams(dp(27), dp(27)).apply { gravity = Gravity.CENTER_HORIZONTAL }
+                alertDistanceText?.textSize = 8.5f
+            },
+            LayoutParams(dp(54), dp(42)).apply { marginEnd = dp(4) }
+        )
+
+        addView(createReferenceAlertCell(dp(54), dp(42), compact = true))
+        addView(createReferenceAlertCell(dp(54), dp(42), compact = true))
+
+        referenceReportButton = TextView(context).apply {
+            text = "⚠"
+            textSize = 16f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            background = rounded(Color.parseColor("#176AC8"), 8f, Color.parseColor("#4DFFFFFF"), 1)
+            contentDescription = "Báo cáo Waze"
+        }
+        addView(
+            referenceReportButton,
+            LayoutParams(dp(38), dp(38)).apply { marginStart = dp(3) }
+        )
+    }
+
+    private fun createReferenceAlertCell(widthPx: Int, heightPx: Int, compact: Boolean): LinearLayout {
+        val cell = LinearLayout(context).apply {
+            orientation = VERTICAL
+            gravity = Gravity.CENTER
+            minimumWidth = 0
+            setPadding(dp(2), dp(1), dp(2), dp(1))
+            background = rounded(Color.parseColor("#D9161B22"), if (compact) 8f else 9f, Color.parseColor("#38536A7A"), 1)
+            visibility = GONE
+            layoutParams = LayoutParams(widthPx, heightPx).apply {
+                if (!compact) topMargin = dp(2) else marginEnd = dp(4)
+            }
+        }
+        val icon = WazeAlertIconView(context).apply {
+            layoutParams = LayoutParams(dp(if (compact) 27 else 29), dp(if (compact) 27 else 29)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+            }
+            setAlert(4, VietmapWarningType.HAZARD)
+        }
+        val distance = TextView(context).apply {
+            text = ""
+            textSize = if (compact) 8.5f else 9.5f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            includeFontPadding = false
+            maxLines = 1
+        }
+        cell.addView(icon)
+        cell.addView(distance)
+        referenceAlertContainers += cell
+        referenceAlertIcons += icon
+        referenceAlertDistances += distance
+        return cell
+    }
+
+    private fun applyStyleBackground(overSpeed: Boolean) {
+        when (activeStyleId) {
+            6 -> background = rounded(
+                Color.parseColor(if (overSpeed) "#F2380C0C" else "#F20B0D10"),
+                13f,
+                Color.parseColor(if (overSpeed) "#EF4444" else "#3AFFFFFF"),
+                if (overSpeed) 2 else 1
+            )
+            7 -> background = rounded(
+                Color.parseColor(if (overSpeed) "#F2380C0C" else "#F20B0D10"),
+                11f,
+                Color.parseColor(if (overSpeed) "#EF4444" else "#3AFFFFFF"),
+                if (overSpeed) 2 else 1
+            )
+            else -> {
+                val defaultBorder = if (activeStyleId == 2 || activeStyleId == 4) {
+                    Color.parseColor("#0284C7")
+                } else {
+                    Color.parseColor("#1F374E")
+                }
+                background = rounded(
+                    Color.parseColor(if (overSpeed) "#E62A0808" else "#E6090E17"),
+                    18f,
+                    if (overSpeed) Color.parseColor("#EF4444") else defaultBorder,
+                    if (overSpeed) 2 else 1
+                )
+            }
+        }
     }
 
     private fun createAlertBadge(isVertical: Boolean = false): LinearLayout {
@@ -1368,8 +1587,7 @@ class VietmapHudOverlay @JvmOverloads constructor(
                 isPulsingOverSpeed = false
                 pulseHandler.removeCallbacks(pulseRunnable)
             }
-            val defaultBorder = if (activeStyleId == 2 || activeStyleId == 4) Color.parseColor("#0284C7") else Color.parseColor("#1F374E")
-            background = rounded(Color.parseColor("#E6090E17"), 18f, defaultBorder, 1)
+            applyStyleBackground(overSpeed = false)
 
             val spd = displaySpeed
             val lim = data.speedLimit ?: 999
@@ -1470,8 +1688,17 @@ class VietmapHudOverlay @JvmOverloads constructor(
             if (!laneGuidance.isNullOrBlank()) add("Làn: $laneGuidance")
         }.joinToString(" • ")
 
-        roadNameText?.text = roadAndLane
-        roadNameText?.visibility = if (roadAndLane.isBlank()) GONE else VISIBLE
+        roadNameText?.text = road
+        roadNameText?.visibility = if (road.isBlank() || activeStyleId == 7) GONE else VISIBLE
+
+        val compactLane = laneGuidance
+            ?.replace(",", "  ")
+            ?.replace("|", "  ")
+            ?.replace(";", "  ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        laneGuidanceText?.text = compactLane.orEmpty()
+        laneGuidanceText?.visibility = if (compactLane.isNullOrBlank()) GONE else VISIBLE
 
         // 5. ETA
         val etaStr = data.etaTime ?: "--:--"
@@ -1556,6 +1783,24 @@ class VietmapHudOverlay @JvmOverloads constructor(
             alertTitleText?.visibility = GONE
             alertContainer?.visibility = GONE
         }
+
+        if (activeStyleId == 6 || activeStyleId == 7) {
+            val extras = if (primaryAlert != null) data.upcomingAlerts.drop(1) else data.upcomingAlerts
+            referenceAlertContainers.forEachIndexed { index, cell ->
+                val item = extras.getOrNull(index)
+                if (item != null && item.warningType != VietmapWarningType.NONE) {
+                    referenceAlertIcons.getOrNull(index)?.setAlert(item.code, item.warningType, item.value)
+                    referenceAlertDistances.getOrNull(index)?.text =
+                        WazeAlertPolicy.formatDistance(item.distanceMeters).ifBlank { "•" }
+                    cell.visibility = VISIBLE
+                } else {
+                    cell.visibility = GONE
+                }
+            }
+            referenceReportButton?.alpha = if (data.isConnected || isPreviewMode) 1f else 0.68f
+        } else {
+            referenceAlertContainers.forEach { it.visibility = GONE }
+        }
     }
 
     fun setSamplePreview(styleId: Int) {
@@ -1577,14 +1822,28 @@ class VietmapHudOverlay @JvmOverloads constructor(
             alertTitle = "Camera đèn đỏ",
             upcomingAlerts = listOf(
                 WazeAlertItem(
-                    code = 3,
-                    warningType = VietmapWarningType.RED_LIGHT_CAMERA,
-                    title = "Camera đèn đỏ",
-                    distanceMeters = 430
+                    code = 2,
+                    warningType = VietmapWarningType.SPEED_CAMERA,
+                    title = "Camera tốc độ",
+                    distanceMeters = 400
+                ),
+                WazeAlertItem(
+                    code = 8,
+                    warningType = VietmapWarningType.SPEED_LIMIT_ZONE,
+                    title = "Giới hạn tốc độ",
+                    distanceMeters = 700,
+                    value = 80
+                ),
+                WazeAlertItem(
+                    code = 4,
+                    warningType = VietmapWarningType.HAZARD,
+                    title = "Nguy hiểm",
+                    distanceMeters = 950
                 )
             ),
             roadName = live.roadName,
-            nextRoadName = live.nextRoadName,
+            nextRoadName = live.nextRoadName ?: "Nguyễn Văn Linh",
+            laneGuidance = live.laneGuidance ?: "↑  ↑  ↗",
             etaTime = live.etaTime,
             remainingDistanceKm = live.remainingDistanceKm,
             isOverSpeed = live.speedLimit?.let { live.currentSpeed > it } ?: false
