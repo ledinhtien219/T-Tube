@@ -1,0 +1,46 @@
+name: Build Split Back Full Maps Test APK
+
+on:
+  push:
+    branches:
+      - "build/maps-youtube-split-back-fullmaps-apk"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v3
+      - name: Restore stable debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: thtv-stable-debug-keystore-v1
+      - name: Verify stable debug signing key
+        run: test -f ~/.android/debug.keystore
+      - name: Run regression tests
+        run: |
+          set -e
+          for f in tests/*.cjs; do
+            echo "RUN $f"
+            node "$f"
+          done
+      - name: Build debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest assembleDebug --stacktrace
+      - name: Upload test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TTube-Split-Back-Full-Maps-Test
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
