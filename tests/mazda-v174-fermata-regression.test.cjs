@@ -7,8 +7,8 @@ const host = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarHudProject
 const adblock = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/YouTubeAdBlocker.kt', 'utf8');
 
 assert.match(gradle, /applicationId = "com\.tcar\.auto"/);
-assert.match(gradle, /versionCode = 271/);
-assert.match(gradle, /versionName = "1\.0\.74-mazda-fermata"/);
+assert.match(gradle, /versionCode = 272/);
+assert.match(gradle, /versionName = "1\.0\.74-mazda-fermata2"/);
 
 assert.match(presentation, /handleMazdaPadKeyDown/);
 assert.match(presentation, /handleMazdaPadKeyUp/);
@@ -17,11 +17,20 @@ assert.match(presentation, /mazdaPadDetentAccel/);
 assert.match(host, /handleMazdaPadKeyDown/);
 assert.match(host, /handleMazdaPadKeyUp/);
 
-assert.match(adblock, /existing\.version === 4/);
-assert.match(adblock, /version: 4/);
+assert.match(adblock, /existing\.version === 5/);
+assert.match(adblock, /version: 5/);
 assert.match(adblock, /v\.currentTime = d;/);
 assert.doesNotMatch(adblock, /v\.playbackRate = 16\.0/);
 assert.doesNotMatch(adblock, /v\.muted = true/);
+
+assert.match(adblock, /adUiObserver/);
+assert.match(adblock, /suppressAdChrome/);
+assert.match(adblock, /carhud-ad-active/);
+assert.match(adblock, /ytp-ad-player-overlay-instream-info/);
+assert.match(adblock, /ytp-ad-player-overlay-skip-or-preview-container/);
+assert.match(adblock, /ytp-ad-preview-container/);
+assert.match(adblock, /childList: true/);
+assert.match(adblock, /subtree: true/);
 
 const intercept = adblock.slice(
   adblock.indexOf('fun shouldIntercept'),
