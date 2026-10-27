@@ -3074,7 +3074,11 @@ class CarPresentation(
         webKeyboardTargetPending = false
         searchInput.error = null
         searchInput.imeOptions = EditorInfo.IME_ACTION_GO
-        searchInput.hint = "Điểm đến · Điểm đi: Vị trí hiện tại"
+        searchInput.hint = if (GpsSpeedManager.lastLocation.value != null) {
+            "Điểm đến · Điểm đi: GPS hiện tại"
+        } else {
+            "Điểm đến · Maps sẽ lấy vị trí hiện tại"
+        }
         searchInput.setText(initialDestination)
         searchInput.setSelection(searchInput.text.length)
         searchOverlayVoiceButton?.visibility = View.GONE
@@ -5472,13 +5476,31 @@ class CarPresentation(
                 root.getLocationOnScreen(rootPosition)
                 val screenX = rootPosition[0] + event.x.toInt()
                 val screenY = rootPosition[1] + event.y.toInt()
-                val mapRect = android.graphics.Rect()
-                val youtubeRect = android.graphics.Rect()
-                when {
-                    splitMapWeb?.getGlobalVisibleRect(mapRect) == true &&
-                        mapRect.contains(screenX, screenY) -> splitLastTouchedPane = "maps"
-                    web.getGlobalVisibleRect(youtubeRect) &&
-                        youtubeRect.contains(screenX, screenY) -> splitLastTouchedPane = "youtube"
+
+                fun containsScreenPoint(view: View?): Boolean {
+                    if (view == null || view.visibility != View.VISIBLE) return false
+                    val rect = android.graphics.Rect()
+                    return view.getGlobalVisibleRect(rect) && rect.contains(screenX, screenY)
+                }
+
+                val onOverlayControl =
+                    (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) ||
+                    containsScreenPoint(splitControlsContainer) ||
+                    containsScreenPoint(splitMapSearchButton) ||
+                    containsScreenPoint(splitMapDirectionsButton)
+
+                // Do not let a tap on Back/Home/ratio/swap/search/route overwrite
+                // the last content pane. Otherwise pressing Back itself can change
+                // the target from YouTube to Maps just before the click fires.
+                if (!onOverlayControl) {
+                    val mapRect = android.graphics.Rect()
+                    val youtubeRect = android.graphics.Rect()
+                    when {
+                        splitMapWeb?.getGlobalVisibleRect(mapRect) == true &&
+                            mapRect.contains(screenX, screenY) -> splitLastTouchedPane = "maps"
+                        web.getGlobalVisibleRect(youtubeRect) &&
+                            youtubeRect.contains(screenX, screenY) -> splitLastTouchedPane = "youtube"
+                    }
                 }
                 showSplitControlsTemporarily()
             }
