@@ -224,6 +224,8 @@ object YouTubeAdBlocker {
                             if (!s) return;
                             if (s.timer) clearInterval(s.timer);
                             if (s.playerObserver) s.playerObserver.disconnect();
+                            if (s.adUiObserver) s.adUiObserver.disconnect();
+                            try { document.documentElement.classList.remove('carhud-ad-active'); } catch(e) {}
                             if (s.video && s.timeHandler) {
                                 try { s.video.removeEventListener('timeupdate', s.timeHandler, true); } catch(e) {}
                             }
@@ -296,7 +298,7 @@ object YouTubeAdBlocker {
 (function() {
     try {
         var existing = window.__carhudAdBlock;
-        if (existing && existing.version === 4) {
+        if (existing && existing.version === 5) {
             existing.sponsorEnabled = __ENABLE_SPONSOR_BLOCK__;
             if (typeof existing.tick === 'function') existing.tick();
             return;
@@ -305,6 +307,8 @@ object YouTubeAdBlocker {
         if (existing) {
             try { if (existing.timer) clearInterval(existing.timer); } catch(e) {}
             try { if (existing.playerObserver) existing.playerObserver.disconnect(); } catch(e) {}
+            try { if (existing.adUiObserver) existing.adUiObserver.disconnect(); } catch(e) {}
+            try { document.documentElement.classList.remove('carhud-ad-active'); } catch(e) {}
             try {
                 if (existing.video && existing.timeHandler) {
                     existing.video.removeEventListener('timeupdate', existing.timeHandler, true);
@@ -313,11 +317,13 @@ object YouTubeAdBlocker {
         }
 
         var state = {
-            version: 4,
+            version: 5,
             sponsorEnabled: __ENABLE_SPONSOR_BLOCK__,
             timer: null,
             playerObserver: null,
             playerObserverTarget: null,
+            adUiObserver: null,
+            adUiObserverTarget: null,
             video: null,
             timeHandler: null,
             inAd: false,
@@ -334,7 +340,7 @@ object YouTubeAdBlocker {
             style.id = 'carhud-adblock-style';
             (document.head || document.documentElement).appendChild(style);
         }
-        style.textContent = [
+        var adUiSelectors = [
             'ytm-promoted-sparkles-web-renderer',
             'ytm-promoted-video-renderer',
             'ytm-companion-ad-renderer',
@@ -348,12 +354,35 @@ object YouTubeAdBlocker {
             '.ytp-ad-overlay-slot',
             '.ytp-ad-message-container',
             '.video-ads',
+            '.ytp-ad-player-overlay',
             '.ytp-ad-player-overlay-layout',
-            '.ytp-ad-image-overlay',
+            '.ytp-ad-player-overlay-instream-info',
+            '.ytp-ad-player-overlay-skip-or-preview-container',
+            '.ytp-ad-preview-container',
+            '.ytp-ad-preview-text',
+            '.ytp-ad-text',
             '.ytp-ad-text-overlay',
+            '.ytp-ad-simple-ad-badge',
+            '.ytp-ad-survey',
+            '.ytp-ad-action-interstitial',
+            '#player-ads',
+            'ytd-player-legacy-desktop-watch-ads-renderer',
+            'ytm-player-legacy-desktop-watch-ads-renderer',
             'ytd-banner-promo-renderer',
             'ytd-in-feed-ad-layout-renderer'
-        ].join(',') + '{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;}';
+        ];
+
+        style.textContent =
+            adUiSelectors.join(',') +
+            '{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;background:transparent!important;box-shadow:none!important;}' +
+            'html.carhud-ad-active #movie_player [class*="ytp-ad-player-overlay"],' +
+            'html.carhud-ad-active #movie_player [class*="ytp-ad-overlay"],' +
+            'html.carhud-ad-active .html5-video-player [class*="ytp-ad-player-overlay"],' +
+            'html.carhud-ad-active .html5-video-player [class*="ytp-ad-overlay"]' +
+            '{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;background:transparent!important;box-shadow:none!important;}' +
+            '#movie_player.ad-showing::before,#movie_player.ad-showing::after,' +
+            '#movie_player.ad-interrupting::before,#movie_player.ad-interrupting::after' +
+            '{background:transparent!important;box-shadow:none!important;opacity:0!important;pointer-events:none!important;}';
 
         function getPlayer() {
             return document.getElementById('movie_player') ||
@@ -389,6 +418,38 @@ object YouTubeAdBlocker {
                 }
             } catch(e) {}
             return false;
+        }
+
+        function suppressAdChrome(forceActive) {
+            try {
+                var active = (typeof forceActive === 'boolean')
+                    ? forceActive
+                    : isShowingAd();
+
+                try {
+                    document.documentElement.classList.toggle('carhud-ad-active', !!active);
+                } catch(e) {}
+
+                if (!active) return;
+
+                var selector = adUiSelectors.concat([
+                    '#movie_player [class*="ytp-ad-player-overlay"]',
+                    '#movie_player [class*="ytp-ad-overlay"]',
+                    '.html5-video-player [class*="ytp-ad-player-overlay"]',
+                    '.html5-video-player [class*="ytp-ad-overlay"]'
+                ]).join(',');
+
+                var nodes = document.querySelectorAll(selector);
+                for (var i = 0; i < nodes.length; i++) {
+                    var el = nodes[i];
+                    try { el.style.setProperty('display', 'none', 'important'); } catch(e) {}
+                    try { el.style.setProperty('visibility', 'hidden', 'important'); } catch(e) {}
+                    try { el.style.setProperty('opacity', '0', 'important'); } catch(e) {}
+                    try { el.style.setProperty('pointer-events', 'none', 'important'); } catch(e) {}
+                    try { el.style.setProperty('background', 'transparent', 'important'); } catch(e) {}
+                    try { el.style.setProperty('box-shadow', 'none', 'important'); } catch(e) {}
+                }
+            } catch(e) {}
         }
 
         function visible(el) {
@@ -448,9 +509,12 @@ object YouTubeAdBlocker {
         function skipAd() {
             try {
                 if (!isShowingAd()) {
+                    suppressAdChrome(false);
                     restoreVideoState();
                     return;
                 }
+
+                suppressAdChrome(true);
 
                 var p = getPlayer();
                 var v = getVideo();
@@ -536,6 +600,33 @@ object YouTubeAdBlocker {
                     attributeFilter: ['class'],
                     childList: false,
                     subtree: false
+                });
+            } catch(e) {}
+        }
+
+        function observeAdUi() {
+            try {
+                var target = getPlayer();
+                if (!target) return;
+                if (state.adUiObserverTarget === target && state.adUiObserver) return;
+
+                if (state.adUiObserver) {
+                    try { state.adUiObserver.disconnect(); } catch(e) {}
+                }
+
+                state.adUiObserverTarget = target;
+                state.adUiObserver = new MutationObserver(function() {
+                    try {
+                        if (isShowingAd()) {
+                            suppressAdChrome(true);
+                            skipAd();
+                        }
+                    } catch(e) {}
+                });
+
+                state.adUiObserver.observe(target, {
+                    childList: true,
+                    subtree: true
                 });
             } catch(e) {}
         }
@@ -684,18 +775,28 @@ object YouTubeAdBlocker {
                     state.timeHandler,
                     true
                 );
-                v.addEventListener('playing', function() {
+                var immediateAdCheck = function() {
                     try {
-                        if (isShowingAd()) skipAd();
+                        if (isShowingAd()) {
+                            suppressAdChrome(true);
+                            skipAd();
+                        } else {
+                            suppressAdChrome(false);
+                        }
                     } catch(e) {}
-                }, true);
+                };
+                v.addEventListener('playing', immediateAdCheck, true);
+                v.addEventListener('loadedmetadata', immediateAdCheck, true);
+                v.addEventListener('durationchange', immediateAdCheck, true);
             } catch(e) {}
         }
 
         function tick() {
             try {
                 observePlayer();
+                observeAdUi();
                 attachVideo();
+                suppressAdChrome();
                 skipAd();
 
                 if (state.sponsorEnabled) {
