@@ -55,6 +55,15 @@ assert.match(
 );
 
 assert.match(presentation, /private fun requestSplitMapSearch\([\s\S]*?initialText: String = ""[\s\S]*?hint: String = "Tìm địa điểm trên Google Maps"/);
+assert.match(presentation, /searchOverlayMode = "maps"/);
+assert.match(presentation, /showKeyboardOverlayInternal\(requestNative = false, showKeys = true\)/);
+assert.match(presentation, /requestNative && !splitModeActive/);
+assert.match(presentation, /topSearchBand = touchY <= kotlin\.math\.max\(/);
+assert.match(presentation, /insideSearchWidth/);
+assert.match(presentation, /showKeyboardOverlayInternal\(requestNative = !splitModeActive\)/);
+assert.match(presentation, /if \(searchOverlayMode == "maps"\)[\s\S]*?www\.google\.com\/maps\/search\/\?api=1&query=/);
+assert.match(presentation, /if \(splitModeActive\) \{[\s\S]*?showSplitControlsTemporarily\(\)[\s\S]*?return/);
+
 assert.match(presentation, /setOnTouchListener \{ _, event ->[\s\S]*?MotionEvent\.ACTION_UP[\s\S]*?openSplitMapInput\(event\.x, event\.y\)[\s\S]*?false/);
 assert.match(presentation, /private fun openSplitMapInput\(touchX: Float, touchY: Float\)/);
 assert.match(presentation, /document\.elementFromPoint\([\s\S]*?document\.activeElement[\s\S]*?requestSplitMapSearch\(/);
