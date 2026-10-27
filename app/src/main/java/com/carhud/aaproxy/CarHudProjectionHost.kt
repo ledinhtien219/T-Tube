@@ -16,6 +16,7 @@ import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.Display
 import android.view.GestureDetector
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceHolder
@@ -190,6 +191,18 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
             }
             true
         }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        Log.i("MazdaPAD", "CarActivity DOWN key=$keyCode repeat=${event.repeatCount} source=${event.source} device=${event.deviceId}")
+        if (presentation?.handleMazdaPadKeyDown(keyCode, event) == true) return true
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        Log.i("MazdaPAD", "CarActivity UP key=$keyCode source=${event.source} device=${event.deviceId}")
+        if (presentation?.handleMazdaPadKeyUp(keyCode, event) == true) return true
+        return super.onKeyUp(keyCode, event)
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {

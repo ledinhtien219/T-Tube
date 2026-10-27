@@ -1,0 +1,64 @@
+name: Export T Tube v1.0.74 Mazda DPAD Fermata APK
+
+on:
+  push:
+    branches:
+      - "test/ttube-v1.0.74-mazda-dpad-fermata"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: thtv-stable-debug-keystore-v1
+
+      - name: Verify stable signing key
+        run: test -f ~/.android/debug.keystore
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify 0.74 + Mazda DPAD + Fermata patch
+        run: node --test tests/mazda-v174-fermata-regression.test.cjs
+
+      - name: JVM tests
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Build Mazda APK
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Verify APK exists and signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          cp "$APK" TTube_v1.0.74_Mazda_DPAD_Fermata_build271.apk
+          keytool -printcert -jarfile TTube_v1.0.74_Mazda_DPAD_Fermata_build271.apk >/tmp/apk-cert.txt
+          sha256sum TTube_v1.0.74_Mazda_DPAD_Fermata_build271.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TTube-v1.0.74-Mazda-DPAD-Fermata-build271
+          path: TTube_v1.0.74_Mazda_DPAD_Fermata_build271.apk
+          if-no-files-found: error
+          retention-days: 14
