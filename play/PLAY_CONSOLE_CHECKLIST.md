@@ -3,8 +3,8 @@
 ## Build identity
 - App name: T Tube
 - Package: `com.ledinhtien.ttube`
-- Version: `1.0.90`
-- Version code: `287`
+- Version: `1.0.96`
+- Version code: `294`
 - minSdk: 29
 - targetSdk / compileSdk: 36
 - Artifact: Android App Bundle (`.aab`)
@@ -22,7 +22,7 @@ This internal-test build restores the full Android Auto host used by the previou
 
 This build is intended for **Internal testing**. Before Production submission, re-check current Google Play / Android Auto policy because the private projection path is not the same as a conventional Play-approved media-only app.
 
-## 1.0.90 internal-test change
+## 1.0.96 internal-test change
 - Style #7: 100% giờ bám theo viewport Android Auto, thanh đầy đủ mục tiêu khoảng 65% chiều ngang màn xe; không còn bé do DPI/projection density.
 - Fix mũi tên Waze: dùng `trn` HLP/1 làm nguồn chính, không tự fallback `↑` khi maneuver đã hết/không xác định.
 - Khi HLP gửi `nav=0`, `dst=-1`, `st2=""` hoặc lane rỗng, app xóa state dẫn đường cũ thay vì giữ lại.
@@ -85,7 +85,7 @@ Use the published public policy URL:\n`https://github.com/ledinhtien219/T-Tube/b
 3. Production only after Play Console grants production access
 
 ## Release
-Upload the signed bundle `TTube_v1.0.90_build288_WazeStyle7ViewportFix_signed.aab`.
+Upload the signed bundle `TTube_v1.0.96_build294_WazeImproved_signed.aab`.
 Do not upload the GitHub/full APK to Play Console.
 
 ### Không giữ bundle cũ trong cùng bản phát hành
