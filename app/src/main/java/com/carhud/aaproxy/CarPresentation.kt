@@ -3230,6 +3230,7 @@ class CarPresentation(
             "&travelmode=driving"
 
         CarMediaManager.mapsYoutubeSplitUrl = target
+        CarMediaManager.mapsYoutubeSplitLastRouteUrl = target
         CarMediaManager.isMapsYoutubeSplitActive = true
         splitLastTouchedPane = "maps"
         splitMapWeb?.loadUrl(target)
