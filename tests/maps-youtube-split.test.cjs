@@ -9,6 +9,10 @@ const presentation = fs.readFileSync(
   'app/src/main/java/com/carhud/aaproxy/CarPresentation.kt',
   'utf8'
 );
+const media = fs.readFileSync(
+  'app/src/main/java/com/carhud/aaproxy/CarMediaManager.kt',
+  'utf8'
+);
 
 assert.match(
   model,
@@ -22,10 +26,24 @@ assert.match(presentation, /private var splitModeActive = false/);
 assert.match(presentation, /splitMapUrl = "https:\/\/www\.google\.com\/maps"/);
 assert.match(presentation, /fun showMapsYoutubeSplit\(\)/);
 assert.match(presentation, /orientation = LinearLayout\.HORIZONTAL/);
-assert.match(
-  presentation,
-  /addView\([\s\S]*?mapWeb,[\s\S]*?LinearLayout\.LayoutParams\(0, ViewGroup\.LayoutParams\.MATCH_PARENT, 1f\)[\s\S]*?addView\([\s\S]*?web,[\s\S]*?LinearLayout\.LayoutParams\(0, ViewGroup\.LayoutParams\.MATCH_PARENT, 1f\)/
-);
+assert.match(presentation, /private val splitRatioOptions = listOf\([\s\S]*?0\.5f to 0\.5f[\s\S]*?0\.3f to 0\.7f[\s\S]*?0\.7f to 0\.3f/);
+assert.match(presentation, /private fun applySplitLayout\(\)/);
+assert.match(presentation, /leftView: View = if \(CarMediaManager\.mapsYoutubeSplitSwapped\) web else map/);
+assert.match(presentation, /rightView: View = if \(CarMediaManager\.mapsYoutubeSplitSwapped\) map else web/);
+assert.match(presentation, /LinearLayout\.LayoutParams\(0, ViewGroup\.LayoutParams\.MATCH_PARENT, leftWeight\)/);
+assert.match(presentation, /LinearLayout\.LayoutParams\(0, ViewGroup\.LayoutParams\.MATCH_PARENT, rightWeight\)/);
+assert.match(media, /var mapsYoutubeSplitRatioIndex: Int = 0/);
+assert.match(media, /var mapsYoutubeSplitSwapped: Boolean = false/);
+
+assert.match(presentation, /splitControlsContainer = controls/);
+assert.match(presentation, /splitHomeButton = TextView\(context\)[\s\S]*?text = "⌂"[\s\S]*?LinearLayout\.LayoutParams\(dp\(70\), dp\(58\)\)/);
+assert.match(presentation, /splitRatioButton = TextView\(context\)[\s\S]*?text = splitRatioLabel\(\)/);
+assert.match(presentation, /splitSwapButton = TextView\(context\)[\s\S]*?text = "⇄"/);
+assert.match(presentation, /Gravity\.TOP or Gravity\.CENTER_HORIZONTAL/);
+assert.match(presentation, /postDelayed\(splitHideControlsRunnable, 10_000L\)/);
+assert.match(presentation, /if \(event\.actionMasked == MotionEvent\.ACTION_DOWN\) \{[\s\S]*?showSplitControlsTemporarily\(\)/);
+assert.match(presentation, /private fun cycleSplitRatio\(\)/);
+assert.match(presentation, /private fun swapSplitSides\(\)/);
 
 assert.match(
   presentation,
@@ -48,7 +66,8 @@ assert.match(presentation, /www\.google\.com\/maps\/search\/\?api=1&query=/);
 assert.match(presentation, /settings\.setGeolocationEnabled\(true\)/);
 
 assert.match(presentation, /private fun injectYouTubeForCurrentViewport/);
-assert.match(presentation, /viewportWidth = if \(splitModeActive\) \(carWidth \/ 2\)/);
+assert.match(presentation, /val youtubeWeight = if \(CarMediaManager\.mapsYoutubeSplitSwapped\) leftWeight else rightWeight/);
+assert.match(presentation, /\(usableWidth \* youtubeWeight\)\.roundToInt\(\)/);
 assert.match(presentation, /carWidth = viewportWidth/);
 assert.match(presentation, /carHeight = viewportHeight/);
 
