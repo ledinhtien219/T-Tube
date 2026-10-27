@@ -95,6 +95,7 @@ object CarMediaManager {
     // Android Auto native SearchTemplate keyboard.
     var isMapsYoutubeSplitActive = false
     var mapsYoutubeSplitUrl: String = "https://www.google.com/maps"
+    var mapsYoutubeSplitLastRouteUrl: String = ""
     // In-memory split UI state survives Android Auto SearchTemplate surface recreation.
     // Index order: 50/50, 30/70, 70/30. "Swapped" means YouTube is on the left.
     var mapsYoutubeSplitRatioIndex: Int = 0
