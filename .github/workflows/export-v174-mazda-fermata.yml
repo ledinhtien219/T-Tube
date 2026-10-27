@@ -53,7 +53,10 @@ jobs:
           APK="$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)"
           test -n "$APK"
           cp "$APK" TTube_v1.0.74_Mazda_DPAD_Fermata_build271.apk
-          keytool -printcert -jarfile TTube_v1.0.74_Mazda_DPAD_Fermata_build271.apk >/tmp/apk-cert.txt
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs TTube_v1.0.74_Mazda_DPAD_Fermata_build271.apk | tee /tmp/apksigner.txt
+          grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" /tmp/apksigner.txt
           sha256sum TTube_v1.0.74_Mazda_DPAD_Fermata_build271.apk
 
       - uses: actions/upload-artifact@v4
