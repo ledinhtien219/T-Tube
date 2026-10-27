@@ -361,6 +361,14 @@ class MainActivity : AppCompatActivity() {
                 .putString(CarDashboardView.PREF_WALLPAPER_TYPE, CarDashboardView.WALLPAPER_CUSTOM)
                 .putString(CarDashboardView.PREF_CUSTOM_WALLPAPER_PATH, file.absolutePath)
                 .putString(CarDashboardView.PREF_CUSTOM_WALLPAPER_KIND, kind)
+                // Path/kind are intentionally stable (custom_wallpaper.mp4, etc.).
+                // Bump a revision so the car-side SharedPreferences listener is
+                // notified even when the user replaces one custom file with another
+                // of the same type/path.
+                .putLong(
+                    CarDashboardView.PREF_CUSTOM_WALLPAPER_REVISION,
+                    prefs.getLong(CarDashboardView.PREF_CUSTOM_WALLPAPER_REVISION, 0L) + 1L
+                )
                 .apply()
 
             updateWallpaperDisplay()
