@@ -1,4 +1,4 @@
-name: Export T Tube v1.0.74 Mazda DPAD Fermata APK
+name: Export T Tube v1.0.74 Mazda DPAD Fermata2 APK
 
 on:
   push:
@@ -52,16 +52,16 @@ jobs:
           set -euo pipefail
           APK="$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)"
           test -n "$APK"
-          cp "$APK" TTube_v1.0.74_Mazda_DPAD_Fermata_build271.apk
+          cp "$APK" TTube_v1.0.74_Mazda_DPAD_Fermata_build272.apk
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           test -x "$APKSIGNER"
-          "$APKSIGNER" verify --verbose --print-certs TTube_v1.0.74_Mazda_DPAD_Fermata_build271.apk | tee /tmp/apksigner.txt
+          "$APKSIGNER" verify --verbose --print-certs TTube_v1.0.74_Mazda_DPAD_Fermata_build272.apk | tee /tmp/apksigner.txt
           grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" /tmp/apksigner.txt
-          sha256sum TTube_v1.0.74_Mazda_DPAD_Fermata_build271.apk
+          sha256sum TTube_v1.0.74_Mazda_DPAD_Fermata_build272.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.0.74-Mazda-DPAD-Fermata-build271
-          path: TTube_v1.0.74_Mazda_DPAD_Fermata_build271.apk
+          name: TTube-v1.0.74-Mazda-DPAD-Fermata2-build272
+          path: TTube_v1.0.74_Mazda_DPAD_Fermata_build272.apk
           if-no-files-found: error
           retention-days: 14
