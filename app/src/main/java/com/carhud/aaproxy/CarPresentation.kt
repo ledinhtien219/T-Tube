@@ -2664,10 +2664,10 @@ class CarPresentation(
             return
         }
 
-        val target = if (splitLastTouchedPane == "youtube") web else splitMapWeb
+        val target: WebView? = if (splitLastTouchedPane == "youtube") web else splitMapWeb
         if (target?.canGoBack() == true) {
             target.goBack()
-        } else if (target === splitMapWeb) {
+        } else if (target != null && target === splitMapWeb) {
             val current = target.url.orEmpty()
             if (current.isNotBlank() && current.trimEnd('/') != splitMapUrl.trimEnd('/')) {
                 CarMediaManager.mapsYoutubeSplitUrl = splitMapUrl
