@@ -2745,7 +2745,8 @@ class CarPresentation(
                 // wrapper/shadow DOM. If DOM capture misses it, a tap in the top
                 // search band still opens the split Maps keyboard.
                 val topSearchBand = touchY <= kotlin.math.max(dp(150).toFloat(), mapWeb.height * 0.24f)
-                val insideSearchWidth = touchX >= dp(42) && touchX <= mapWeb.width - dp(8)
+                val insideSearchWidth =
+                    touchX >= dp(42).toFloat() && touchX <= (mapWeb.width - dp(8)).toFloat()
                 if (topSearchBand && insideSearchWidth) {
                     requestSplitMapSearch()
                 }
