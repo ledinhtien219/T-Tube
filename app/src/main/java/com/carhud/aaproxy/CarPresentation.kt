@@ -2726,18 +2726,29 @@ class CarPresentation(
             """.trimIndent()
 
             mapWeb.evaluateJavascript(js) { result ->
-                if (!splitModeActive || activeCarInput?.closed == false) return@evaluateJavascript
-                if (result.isNullOrBlank() || result == "null") return@evaluateJavascript
-                val input = try {
-                    org.json.JSONObject(result)
-                } catch (_: Exception) {
+                if (!splitModeActive || searchOverlay.visibility == View.VISIBLE) return@evaluateJavascript
+                val input = if (!result.isNullOrBlank() && result != "null") {
+                    try { org.json.JSONObject(result) } catch (_: Exception) { null }
+                } else {
                     null
-                } ?: return@evaluateJavascript
+                }
 
-                requestSplitMapSearch(
-                    initialText = input.optString("value"),
-                    hint = input.optString("hint", "Tìm địa điểm trên Google Maps")
-                )
+                if (input != null) {
+                    requestSplitMapSearch(
+                        initialText = input.optString("value"),
+                        hint = input.optString("hint", "Tìm địa điểm trên Google Maps")
+                    )
+                    return@evaluateJavascript
+                }
+
+                // Google Maps periodically replaces the search box with a custom
+                // wrapper/shadow DOM. If DOM capture misses it, a tap in the top
+                // search band still opens the split Maps keyboard.
+                val topSearchBand = touchY <= kotlin.math.max(dp(150).toFloat(), mapWeb.height * 0.24f)
+                val insideSearchWidth = touchX >= dp(42) && touchX <= mapWeb.width - dp(8)
+                if (topSearchBand && insideSearchWidth) {
+                    requestSplitMapSearch()
+                }
             }
         }, 120L)
     }
@@ -2746,48 +2757,28 @@ class CarPresentation(
         initialText: String = "",
         hint: String = "Tìm địa điểm trên Google Maps"
     ) {
-        if (!splitModeActive || activeCarInput?.closed == false) return
+        if (!splitModeActive || searchOverlay.visibility == View.VISIBLE) return
 
-        lateinit var input: CarInputSession
-        input = CarInputSession(
-            initialText = initialText,
-            hint = hint.ifBlank { "Tìm địa điểm trên Google Maps" },
-            allowEmpty = false,
-            submitLabel = "Tìm",
-            onSubmit = { searchValue, done ->
-                val query = searchValue.trim()
-                if (query.isBlank()) {
-                    done(false)
-                } else {
-                    val target = "https://www.google.com/maps/search/?api=1&query=" +
-                        android.net.Uri.encode(query)
-
-                    // Save before the native SearchTemplate closes. Android Auto may
-                    // recreate the projection surface while returning to this Screen.
-                    CarMediaManager.mapsYoutubeSplitUrl = target
-                    CarMediaManager.isMapsYoutubeSplitActive = true
-
-                    mainHandler.post {
-                        splitMapWeb?.loadUrl(target)
-                        done(true)
-                    }
-                }
-            },
-            onCancel = { _ ->
-                if (activeCarInput === input) activeCarInput = null
-            }
-        )
-        activeCarInput = input
-
-        if (!CarMediaManager.requestCarNativeSearch(input)) {
-            activeCarInput = null
-            Toast.makeText(
-                context,
-                "Không mở được bàn phím Android Auto.",
-                Toast.LENGTH_SHORT
-            ).show()
-            splitMapWeb?.requestFocus()
+        // Split mode must work on both AndroidX SearchTemplate hosts and the
+        // Google Automotive projection host used by DHU/head units. Use T Tube's
+        // own projected keyboard here so the input path never depends on a native
+        // keyboard host being registered.
+        searchOverlayMode = "maps"
+        webKeyboardTargetPending = false
+        searchInput.error = null
+        searchInput.imeOptions = EditorInfo.IME_ACTION_SEARCH
+        searchInput.hint = hint.ifBlank { "Tìm địa điểm trên Google Maps" }
+        searchInput.setText(initialText)
+        searchInput.setSelection(searchInput.text.length)
+        searchOverlayVoiceButton?.visibility = View.GONE
+        searchOverlaySubmitButton?.apply {
+            visibility = View.VISIBLE
+            text = "🔍 Tìm"
         }
+        searchSuggestionStrip?.visibility = View.GONE
+        keyboardActionKey?.text = "🔍 TÌM"
+        splitControlHandler.removeCallbacks(splitHideControlsRunnable)
+        showKeyboardOverlayInternal(requestNative = false, showKeys = true)
     }
 
     private fun leaveMapsYoutubeSplit(
@@ -4100,6 +4091,18 @@ class CarPresentation(
     }
 
     private fun executeSearch(query: String, broadcast: Boolean = false) {
+        if (searchOverlayMode == "maps") {
+            val q = query.trim()
+            if (q.isBlank() || !splitModeActive) return
+            val target = "https://www.google.com/maps/search/?api=1&query=" +
+                android.net.Uri.encode(q)
+            CarMediaManager.mapsYoutubeSplitUrl = target
+            CarMediaManager.isMapsYoutubeSplitActive = true
+            splitMapWeb?.loadUrl(target)
+            hideSearchOverlay(notifyPhone = false)
+            showSplitControlsTemporarily()
+            return
+        }
         if (searchOverlayMode == "address") {
             if (isBrowserApp()) navigateBrowser(query)
             return
@@ -4708,7 +4711,7 @@ class CarPresentation(
         searchOverlaySubmitButton?.apply { visibility = View.VISIBLE; text = "🔍 Tìm" }
         searchSuggestionStrip?.visibility = View.VISIBLE
         keyboardActionKey?.text = "🔍 TÌM"
-        showKeyboardOverlayInternal()
+        showKeyboardOverlayInternal(requestNative = !splitModeActive)
     }
 
     private fun showWebKeyboardOverlay(
@@ -4745,7 +4748,7 @@ class CarPresentation(
         }
         searchSuggestionStrip?.visibility = View.GONE
         keyboardActionKey?.text = if (webKeyboardAction == "search") "🔍 TÌM / ĐI" else "↵ NHẬP"
-        showKeyboardOverlayInternal()
+        showKeyboardOverlayInternal(requestNative = !splitModeActive)
     }
 
     private fun showBrowserAddressOverlay() {
@@ -4889,7 +4892,7 @@ class CarPresentation(
         voiceManager.cancelListening()
         YouTubePlayerHelper.setDuckingVolume(web, 1.0f)
 
-        if (requestNative && prefs.getString("car_keyboard_input_mode", "native") != "thtv") {
+        if (requestNative && !splitModeActive && prefs.getString("car_keyboard_input_mode", "native") != "thtv") {
             val input = createEditorInput()
             activeCarInput = input
             if (CarMediaManager.requestCarNativeSearch(input)) return
@@ -4926,6 +4929,17 @@ class CarPresentation(
             imm?.hideSoftInputFromWindow(searchInput.windowToken, 0)
         } catch (e: Exception) {}
         searchOverlay.visibility = View.GONE
+
+        if (splitModeActive) {
+            hudOverlay?.visibility = View.GONE
+            sidebarContainer?.visibility = View.GONE
+            topToolbarContainer?.visibility = View.GONE
+            hideYouTubeSeekOverlayImmediately()
+            showSplitControlsTemporarily()
+            appSwitchShield?.bringToFront()
+            if (notifyPhone) CarMediaManager.dismissSearch()
+            return
+        }
 
         // Restore elements cleanly based on screen state
         if (isDashboardShowing) {
