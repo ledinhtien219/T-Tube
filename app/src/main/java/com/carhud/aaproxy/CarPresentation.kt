@@ -103,7 +103,18 @@ class CarPresentation(
     private var splitContainer: LinearLayout? = null
     private var splitMapWeb: WebView? = null
     private var splitMapSearchButton: TextView? = null
+    private var splitControlsContainer: LinearLayout? = null
     private var splitHomeButton: TextView? = null
+    private var splitRatioButton: TextView? = null
+    private var splitSwapButton: TextView? = null
+    private var splitDivider: View? = null
+    private val splitControlHandler = Handler(Looper.getMainLooper())
+    private val splitHideControlsRunnable = Runnable { hideSplitControls() }
+    private val splitRatioOptions = listOf(
+        0.5f to 0.5f,
+        0.3f to 0.7f,
+        0.7f to 0.3f
+    )
     private val splitMapUrl = "https://www.google.com/maps"
 
     // WebView restoreState/loadUrl is asynchronous; current URL may still belong to the previous app.
@@ -2329,7 +2340,7 @@ class CarPresentation(
             ?: WebAppManager.DEFAULT_APPS.first { it.id == "youtube" }
 
         // Reuse the live YouTube WebView whenever possible. If another app owns it,
-        // switch ownership once, then move that same WebView into the right pane.
+        // switch ownership once, then move that same WebView into the split container.
         if (currentActiveAppId != "youtube" || !isUrlForApp(youtubeApp, web.url)) {
             switchWebApp(youtubeApp, embedded = false)
         }
@@ -2359,23 +2370,15 @@ class CarPresentation(
             setBackgroundColor(Color.parseColor("#334155"))
             isClickable = false
         }
+        splitDivider = divider
+
         val container = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(Color.BLACK)
-            addView(
-                mapWeb,
-                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
-            )
-            addView(
-                divider,
-                LinearLayout.LayoutParams(dp(2), ViewGroup.LayoutParams.MATCH_PARENT)
-            )
-            addView(
-                web,
-                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
-            )
         }
         splitContainer = container
+        applySplitLayout()
+
         root.addView(
             container,
             0,
@@ -2404,41 +2407,196 @@ class CarPresentation(
             setTextColor(Color.WHITE)
             background = rounded(Color.parseColor("#E61E293B"), 14f, Color.parseColor("#6638BDF8"), 1)
             elevation = dp(40).toFloat()
-            setOnClickListener { requestSplitMapSearch() }
+            setOnClickListener {
+                showSplitControlsTemporarily()
+                requestSplitMapSearch()
+            }
         }.also { button ->
             root.addView(
                 button,
                 FrameLayout.LayoutParams(dp(50), dp(50), Gravity.TOP or Gravity.START).apply {
                     leftMargin = dp(10)
-                    topMargin = dp(10)
+                    topMargin = dp(8)
                 }
             )
+        }
+
+        val controls = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(3), dp(3), dp(3), dp(3))
+            background = rounded(
+                Color.parseColor("#EB111827"),
+                16f,
+                Color.parseColor("#805EEBFF"),
+                1
+            )
+            elevation = dp(44).toFloat()
+        }
+        splitControlsContainer = controls
+
+        fun splitButtonDivider(): View = View(context).apply {
+            setBackgroundColor(Color.parseColor("#406B7A90"))
+            layoutParams = LinearLayout.LayoutParams(dp(1), dp(38)).apply {
+                gravity = Gravity.CENTER_VERTICAL
+            }
         }
 
         splitHomeButton = TextView(context).apply {
             text = "⌂"
             contentDescription = "Về màn hình chính"
-            textSize = 25f
+            textSize = 31f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
-            background = rounded(Color.parseColor("#E6111827"), 14f, Color.parseColor("#665EEBFF"), 1)
-            elevation = dp(42).toFloat()
+            background = rounded(Color.parseColor("#26354A"), 12f, Color.TRANSPARENT, 0)
+            enableTouchBounce(0.93f)
             setOnClickListener { showDashboard() }
-        }.also { button ->
-            root.addView(
-                button,
-                FrameLayout.LayoutParams(dp(50), dp(50), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
-                    topMargin = dp(10)
-                }
-            )
+        }.also {
+            controls.addView(it, LinearLayout.LayoutParams(dp(70), dp(58)))
         }
+
+        controls.addView(splitButtonDivider())
+
+        splitRatioButton = TextView(context).apply {
+            text = splitRatioLabel()
+            contentDescription = "Đổi tỉ lệ chia màn hình"
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = rounded(Color.parseColor("#1E293B"), 10f, Color.TRANSPARENT, 0)
+            enableTouchBounce(0.93f)
+            setOnClickListener {
+                cycleSplitRatio()
+                showSplitControlsTemporarily()
+            }
+        }.also {
+            controls.addView(it, LinearLayout.LayoutParams(dp(88), dp(58)))
+        }
+
+        controls.addView(splitButtonDivider())
+
+        splitSwapButton = TextView(context).apply {
+            text = "⇄"
+            contentDescription = "Đổi vị trí Google Maps và YouTube"
+            textSize = 30f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = rounded(Color.parseColor("#1E293B"), 10f, Color.TRANSPARENT, 0)
+            enableTouchBounce(0.93f)
+            setOnClickListener {
+                swapSplitSides()
+                showSplitControlsTemporarily()
+            }
+        }.also {
+            controls.addView(it, LinearLayout.LayoutParams(dp(68), dp(58)))
+        }
+
+        root.addView(
+            controls,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            ).apply {
+                topMargin = dp(8)
+            }
+        )
 
         root.post {
             if (!splitModeActive) return@post
             injectYouTubeForCurrentViewport(web)
             splitMapSearchButton?.bringToFront()
-            splitHomeButton?.bringToFront()
+            splitControlsContainer?.bringToFront()
+            showSplitControlsTemporarily()
+        }
+    }
+
+    private fun normalizedSplitRatioIndex(): Int {
+        val size = splitRatioOptions.size
+        if (size == 0) return 0
+        val raw = CarMediaManager.mapsYoutubeSplitRatioIndex
+        return ((raw % size) + size) % size
+    }
+
+    private fun splitRatioLabel(): String {
+        val (left, right) = splitRatioOptions[normalizedSplitRatioIndex()]
+        return "${(left * 100).roundToInt()}/${(right * 100).roundToInt()}"
+    }
+
+    private fun currentSplitWeights(): Pair<Float, Float> =
+        splitRatioOptions[normalizedSplitRatioIndex()]
+
+    private fun applySplitLayout() {
+        val container = splitContainer ?: return
+        val map = splitMapWeb ?: return
+        val divider = splitDivider ?: return
+        val (leftWeight, rightWeight) = currentSplitWeights()
+
+        (map.parent as? ViewGroup)?.removeView(map)
+        (web.parent as? ViewGroup)?.removeView(web)
+        (divider.parent as? ViewGroup)?.removeView(divider)
+        container.removeAllViews()
+
+        val leftView: View = if (CarMediaManager.mapsYoutubeSplitSwapped) web else map
+        val rightView: View = if (CarMediaManager.mapsYoutubeSplitSwapped) map else web
+
+        container.addView(
+            leftView,
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, leftWeight)
+        )
+        container.addView(
+            divider,
+            LinearLayout.LayoutParams(dp(2), ViewGroup.LayoutParams.MATCH_PARENT)
+        )
+        container.addView(
+            rightView,
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, rightWeight)
+        )
+        splitRatioButton?.text = splitRatioLabel()
+        container.requestLayout()
+        container.post {
+            if (splitModeActive) injectYouTubeForCurrentViewport(web)
+        }
+    }
+
+    private fun cycleSplitRatio() {
+        CarMediaManager.mapsYoutubeSplitRatioIndex =
+            (normalizedSplitRatioIndex() + 1) % splitRatioOptions.size
+        applySplitLayout()
+    }
+
+    private fun swapSplitSides() {
+        CarMediaManager.mapsYoutubeSplitSwapped = !CarMediaManager.mapsYoutubeSplitSwapped
+        applySplitLayout()
+    }
+
+    private fun showSplitControlsTemporarily() {
+        if (!splitModeActive) return
+        splitControlHandler.removeCallbacks(splitHideControlsRunnable)
+        listOfNotNull<View>(splitMapSearchButton, splitControlsContainer).forEach { view ->
+            view.animate().cancel()
+            view.alpha = 1f
+            view.visibility = View.VISIBLE
+        }
+        splitMapSearchButton?.bringToFront()
+        splitControlsContainer?.bringToFront()
+        splitControlHandler.postDelayed(splitHideControlsRunnable, 10_000L)
+    }
+
+    private fun hideSplitControls() {
+        if (!splitModeActive) return
+        listOfNotNull<View>(splitMapSearchButton, splitControlsContainer).forEach { view ->
+            view.animate().cancel()
+            view.animate()
+                .alpha(0f)
+                .setDuration(220L)
+                .withEndAction {
+                    if (splitModeActive) view.visibility = View.INVISIBLE
+                }
+                .start()
         }
     }
 
@@ -2643,16 +2801,22 @@ class CarPresentation(
         splitModeActive = false
         if (!preservePersistentState) CarMediaManager.isMapsYoutubeSplitActive = false
 
+        splitControlHandler.removeCallbacks(splitHideControlsRunnable)
         splitMapSearchButton?.let { (it.parent as? ViewGroup)?.removeView(it) }
         splitMapSearchButton = null
-        splitHomeButton?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        splitControlsContainer?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        splitControlsContainer = null
         splitHomeButton = null
+        splitRatioButton = null
+        splitSwapButton = null
 
         (web.parent as? ViewGroup)?.removeView(web)
         splitMapWeb?.let { map ->
             (map.parent as? ViewGroup)?.removeView(map)
             try { map.onPause() } catch (_: Throwable) {}
         }
+        splitDivider?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        splitDivider = null
         splitContainer?.let { (it.parent as? ViewGroup)?.removeView(it) }
         splitContainer = null
 
@@ -2682,7 +2846,14 @@ class CarPresentation(
     }
 
     private fun injectYouTubeForCurrentViewport(targetWeb: WebView) {
-        val viewportWidth = if (splitModeActive) (carWidth / 2).coerceAtLeast(1) else carWidth
+        val viewportWidth = if (splitModeActive) {
+            val (leftWeight, rightWeight) = currentSplitWeights()
+            val youtubeWeight = if (CarMediaManager.mapsYoutubeSplitSwapped) leftWeight else rightWeight
+            val usableWidth = (carWidth - dp(2)).coerceAtLeast(1)
+            (usableWidth * youtubeWeight).roundToInt().coerceAtLeast(1)
+        } else {
+            carWidth
+        }
         val viewportHeight = carHeight.coerceAtLeast(1)
         val viewportAspect = viewportWidth.toFloat() / viewportHeight.toFloat()
         YouTubePlayerHelper.inject(
@@ -4943,6 +5114,9 @@ class CarPresentation(
     /** Keep the receiver chosen on DOWN until UP/CANCEL, even when a key closes the overlay. */
     fun dispatchProjectedTouch(event: MotionEvent): Boolean {
         if (splitModeActive) {
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                showSplitControlsTemporarily()
+            }
             val copy = MotionEvent.obtain(event)
             try {
                 (window?.decorView ?: root).dispatchTouchEvent(copy)
