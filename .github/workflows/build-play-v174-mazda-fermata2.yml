@@ -1,0 +1,103 @@
+name: Build Play v1.0.99 Stable074 Mazda Fermata2 AAB
+
+on:
+  push:
+    branches:
+      - "release/play-v1.0.74-mazda-fermata2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ttube-play-v174-mazda-fermata2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PLAY_UPLOAD_KEYSTORE_BASE64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+      PLAY_UPLOAD_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+      PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+      PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+      PLAY_UPLOAD_KEYSTORE_PATH: ${{ github.workspace }}/.play/ttube-play-upload.jks
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android 16 SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools" -type f -name sdkmanager | head -1)"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Prepare optional Play upload key
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${PLAY_UPLOAD_KEYSTORE_BASE64:-}" ]; then
+            mkdir -p "$(dirname "$PLAY_UPLOAD_KEYSTORE_PATH")"
+            printf '%s' "$PLAY_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$PLAY_UPLOAD_KEYSTORE_PATH"
+            chmod 600 "$PLAY_UPLOAD_KEYSTORE_PATH"
+          else
+            echo "No Play signing secrets in GitHub; build unsigned AAB then sign after download."
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify Play + stable074 + Mazda + Fermata2 source
+        run: node --test tests/play-v174-mazda-fermata2-regression.test.cjs
+
+      - name: JVM tests
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Release lint
+        run: ./gradlew lintRelease --stacktrace
+
+      - name: Build Play AAB
+        run: ./gradlew bundleRelease --stacktrace
+
+      - name: Verify merged manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="$(find app/build/intermediates/merged_manifests -name AndroidManifest.xml | head -1)"
+          test -n "$manifest"
+          grep -q 'CATEGORY_PROJECTION' "$manifest"
+          grep -q 'CarHudProjectionService' "$manifest"
+          ! grep -q 'androidx.car.app.ACCESS_SURFACE' "$manifest"
+          ! grep -q 'androidx.car.app.NAVIGATION_TEMPLATES' "$manifest"
+
+      - name: Verify signature when CI key exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          AAB="$(find app/build/outputs/bundle/release -name '*.aab' | head -1)"
+          test -n "$AAB"
+          if [ -f "$PLAY_UPLOAD_KEYSTORE_PATH" ]; then
+            jarsigner -verify -verbose -certs "$AAB" >/dev/null
+          fi
+          sha256sum "$AAB"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TTube-v1.0.99-build297-com.ledinhtien.ttube-Stable074-Mazda-Fermata2-AAB
+          path: app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 14

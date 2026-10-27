@@ -444,18 +444,21 @@ class MainActivity : AppCompatActivity() {
                 .apply()
         }
 
-        // Reset một lần ở bản 0.9.1 để người dùng kiểm duyệt luồng kích hoạt
-        val auditKey = "audit_activation_check_v171"
-        if (!prefs.getBoolean(auditKey, false)) {
-            LicenseManager.resetLicense(this)
-            prefs.edit().putBoolean(auditKey, true).apply()
-        }
+        // Google Play distribution is free/unlocked. Keep the legacy external
+        // activation flow only for sideload builds.
+        if (!BuildConfig.PLAY_DISTRIBUTION) {
+            val auditKey = "audit_activation_check_v171"
+            if (!prefs.getBoolean(auditKey, false)) {
+                LicenseManager.resetLicense(this)
+                prefs.edit().putBoolean(auditKey, true).apply()
+            }
 
-        if (!LicenseManager.isLicensed(this)) {
-            val intent = Intent(this, ActivationActivity::class.java)
-            startActivity(intent)
-            finish()
-            return
+            if (!LicenseManager.isLicensed(this)) {
+                val intent = Intent(this, ActivationActivity::class.java)
+                startActivity(intent)
+                finish()
+                return
+            }
         }
 
         setContentView(R.layout.activity_main)
@@ -2643,7 +2646,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!LicenseManager.isLicensed(this)) {
+        if (!BuildConfig.PLAY_DISTRIBUTION && !LicenseManager.isLicensed(this)) {
             val intent = Intent(this, ActivationActivity::class.java)
             startActivity(intent)
             finish()

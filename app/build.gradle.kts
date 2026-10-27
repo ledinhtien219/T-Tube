@@ -6,14 +6,14 @@ plugins {
 
 android {
     namespace = "com.carhud.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.tcar.auto"
+        applicationId = "com.ledinhtien.ttube"
         minSdk = 29
-        targetSdk = 35
-        versionCode = 272
-        versionName = "1.0.74-mazda-fermata2"
+        targetSdk = 36
+        versionCode = 297
+        versionName = "1.0.99"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -34,19 +34,44 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+
+        create("playUpload") {
+            val uploadStore = providers.environmentVariable("PLAY_UPLOAD_KEYSTORE_PATH").orNull
+            val uploadStorePassword = providers.environmentVariable("PLAY_UPLOAD_STORE_PASSWORD").orNull
+            val uploadAlias = providers.environmentVariable("PLAY_UPLOAD_KEY_ALIAS").orNull
+            val uploadKeyPassword = providers.environmentVariable("PLAY_UPLOAD_KEY_PASSWORD").orNull
+            if (!uploadStore.isNullOrBlank()) storeFile = file(uploadStore)
+            if (!uploadStorePassword.isNullOrBlank()) storePassword = uploadStorePassword
+            if (!uploadAlias.isNullOrBlank()) keyAlias = uploadAlias
+            if (!uploadKeyPassword.isNullOrBlank()) keyPassword = uploadKeyPassword
+        }
     }
 
     buildTypes {
         release {
-            isDebuggable = true
+            isDebuggable = false
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("stableCi")
+            buildConfigField("boolean", "PLAY_DISTRIBUTION", "true")
+
+            // Google Play uses a dedicated upload key. If CI secrets are not
+            // configured yet, bundleRelease still produces an unsigned AAB so
+            // the manifest/API gate can be validated before account approval.
+            val uploadKeyPath = providers.environmentVariable("PLAY_UPLOAD_KEYSTORE_PATH").orNull
+            val uploadKeyReady = !uploadKeyPath.isNullOrBlank() && file(uploadKeyPath).exists() &&
+                !providers.environmentVariable("PLAY_UPLOAD_STORE_PASSWORD").orNull.isNullOrBlank() &&
+                !providers.environmentVariable("PLAY_UPLOAD_KEY_ALIAS").orNull.isNullOrBlank() &&
+                !providers.environmentVariable("PLAY_UPLOAD_KEY_PASSWORD").orNull.isNullOrBlank()
+            if (uploadKeyReady) {
+                signingConfig = signingConfigs.getByName("playUpload")
+            }
+
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
         debug {
+            buildConfigField("boolean", "PLAY_DISTRIBUTION", "false")
             // Allow emulator checks alongside an installed APK signed by another key.
             if (providers.gradleProperty("isolatedRuntimeTest").orNull == "true") {
                 applicationIdSuffix = ".runtimetest"
