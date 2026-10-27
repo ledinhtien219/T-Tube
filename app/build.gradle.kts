@@ -12,8 +12,8 @@ android {
         applicationId = "com.tcar.auto"
         minSdk = 29
         targetSdk = 35
-        versionCode = 271
-        versionName = "1.0.74-mazda-fermata"
+        versionCode = 272
+        versionName = "1.0.74-mazda-fermata2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
