@@ -2695,6 +2695,11 @@ class CarPresentation(
         topToolbarContainer?.animate()?.cancel()
         CarMediaManager.isWebShowingFullscreen = false
         val isDay = isDayMode()
+        // On Mazda projection the dashboard TextureView may be recreated while
+        // leaving IPTV/Web. Make it visible before MediaPlayer restores a video
+        // wallpaper so it never binds to a stale SurfaceTexture and falls back.
+        dashboardView?.visibility = View.VISIBLE
+        dashboardView?.bringToFront()
         dashboardView?.applyDayNightMode(isDay)
         dashboardView?.updateWallpaper()
         
@@ -2715,8 +2720,6 @@ class CarPresentation(
         sidebarContainer?.visibility = View.GONE
         hideYouTubeSeekOverlayImmediately()
         videoTimePill?.visibility = View.GONE
-        dashboardView?.visibility = View.VISIBLE
-        dashboardView?.bringToFront()
         
         if (isHudOverlayEnabled()) {
             if (hudOverlay == null) setupHudOverlay()

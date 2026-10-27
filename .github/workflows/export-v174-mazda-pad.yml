@@ -1,4 +1,4 @@
-name: Export T Tube v1.0.74 Mazda PAD APK
+name: Export T Tube v1.0.75 Mazda PAD Wallpaper Fix APK
 on:
   push:
     branches: [ "test/ttube-v1.0.74-mazda-pad-smooth" ]
@@ -19,11 +19,15 @@ jobs:
           path: ~/.android/debug.keystore
           key: thtv-stable-debug-keystore-v1
       - run: test -f ~/.android/debug.keystore
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --test tests/wallpaper-iptv-home-regression.test.cjs
       - run: |
           chmod +x gradlew
           ./gradlew testDebugUnitTest assembleDebug --stacktrace
       - uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.0.74-build269-DPI-Mazda-PAD-smooth
+          name: TTube-v1.0.75-build270-Mazda-PAD-wallpaper-fix
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 7

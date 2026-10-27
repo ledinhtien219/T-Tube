@@ -89,6 +89,7 @@ class CarDashboardView(
         const val WALLPAPER_CUSTOM = "custom"
         const val PREF_CUSTOM_WALLPAPER_PATH = "pref_custom_wallpaper_path"
         const val PREF_CUSTOM_WALLPAPER_KIND = "pref_custom_wallpaper_kind"
+        const val PREF_CUSTOM_WALLPAPER_REVISION = "pref_custom_wallpaper_revision"
         const val WALLPAPER_KIND_IMAGE = "image"
         const val WALLPAPER_KIND_GIF = "gif"
         const val WALLPAPER_KIND_VIDEO = "video"
@@ -99,7 +100,7 @@ class CarDashboardView(
     }
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == PREF_WALLPAPER_TYPE || key == PREF_CUSTOM_WALLPAPER_PATH || key == PREF_CUSTOM_WALLPAPER_KIND || key == PREF_USER_NAME) {
+        if (key == PREF_WALLPAPER_TYPE || key == PREF_CUSTOM_WALLPAPER_PATH || key == PREF_CUSTOM_WALLPAPER_KIND || key == PREF_CUSTOM_WALLPAPER_REVISION || key == PREF_USER_NAME) {
             post {
                 updateWallpaper()
             }

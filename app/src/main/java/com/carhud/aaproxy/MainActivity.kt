@@ -361,6 +361,12 @@ class MainActivity : AppCompatActivity() {
                 .putString(CarDashboardView.PREF_WALLPAPER_TYPE, CarDashboardView.WALLPAPER_CUSTOM)
                 .putString(CarDashboardView.PREF_CUSTOM_WALLPAPER_PATH, file.absolutePath)
                 .putString(CarDashboardView.PREF_CUSTOM_WALLPAPER_KIND, kind)
+                // Force the car projection to reload even when another custom
+                // wallpaper uses the same stable path (custom_wallpaper.mp4, etc.).
+                .putLong(
+                    CarDashboardView.PREF_CUSTOM_WALLPAPER_REVISION,
+                    prefs.getLong(CarDashboardView.PREF_CUSTOM_WALLPAPER_REVISION, 0L) + 1L
+                )
                 .apply()
 
             updateWallpaperDisplay()
