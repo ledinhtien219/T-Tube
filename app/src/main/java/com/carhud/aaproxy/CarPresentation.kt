@@ -2142,25 +2142,44 @@ class CarPresentation(
                 }
             }
             is SystemVoiceCommand.Music -> {
-                val youtube = WebAppManager.getAllApps(context).find { it.id == "youtube" }
-                    ?: WebAppManager.DEFAULT_APPS.first { it.id == "youtube" }
                 val last = CarMediaManager.lastPlayedUrl.orEmpty()
                 val lastUri = android.net.Uri.parse(last)
                 val lastHost = lastUri.host.orEmpty()
                 val canResume = command.query.isBlank() && lastUri.scheme == "https" &&
                     (lastHost == "youtube.com" || lastHost.endsWith(".youtube.com")) && lastUri.path == "/watch"
                 val query = command.query.ifBlank { "nhạc Việt" }
-                val host = if (WebAppManager.isAppDesktop(context, "youtube")) "https://www.youtube.com" else "https://m.youtube.com"
-                val target = if (canResume) last else "$host/results?search_query=" + android.net.Uri.encode(query)
+
                 CarMediaManager.userWantsPlayback = true
                 CarMediaManager.ensureAudioFocus()
                 CarMediaManager.acquireWakeLock(context)
-                switchWebApp(youtube, startUrl = target)
-                CarMediaManager.userWantsPlayback = true
-                SystemVoiceModule.report(context, if (canResume) "Đang mở bài nhạc gần nhất." else "Đang tìm nhạc: $query")
-                if (!canResume) {
-                    systemVoiceSearchPending = true
-                    pollSystemVoiceMusic(query, systemVoiceGeneration, 0)
+
+                if (splitModeActive) {
+                    // Voice requests made inside Maps + YouTube are scoped to the
+                    // live YouTube pane. Never call switchWebApp() here because it
+                    // tears down split mode and forces the user to re-enter it.
+                    if (canResume) {
+                        web.loadUrl(last)
+                    } else {
+                        YouTubePlayerHelper.search(web, query, autoPlayFirst = true)
+                    }
+                    showSplitControlsTemporarily()
+                    SystemVoiceModule.report(
+                        context,
+                        if (canResume) "Đang mở bài nhạc gần nhất trong màn hình chia đôi."
+                        else "Đang phát trong màn hình chia đôi: $query"
+                    )
+                } else {
+                    val youtube = WebAppManager.getAllApps(context).find { it.id == "youtube" }
+                        ?: WebAppManager.DEFAULT_APPS.first { it.id == "youtube" }
+                    val host = if (WebAppManager.isAppDesktop(context, "youtube")) "https://www.youtube.com" else "https://m.youtube.com"
+                    val target = if (canResume) last else "$host/results?search_query=" + android.net.Uri.encode(query)
+                    switchWebApp(youtube, startUrl = target)
+                    CarMediaManager.userWantsPlayback = true
+                    SystemVoiceModule.report(context, if (canResume) "Đang mở bài nhạc gần nhất." else "Đang tìm nhạc: $query")
+                    if (!canResume) {
+                        systemVoiceSearchPending = true
+                        pollSystemVoiceMusic(query, systemVoiceGeneration, 0)
+                    }
                 }
             }
         }
@@ -2191,6 +2210,33 @@ class CarPresentation(
 
     private fun handleVoiceQuery(query: String) {
         cancelSystemVoiceRequest()
+
+        if (splitModeActive) {
+            // While the split launcher is active, voice input belongs to YouTube.
+            // Keep Maps, ratio and pane order untouched and run the result directly
+            // in the persistent YouTube WebView.
+            val mediaQuery = VoiceQueryResolver.cleanForMediaSearch(query).ifBlank { query.trim() }
+            if (mediaQuery.isNotBlank()) {
+                searchInput.setText(mediaQuery)
+                searchInput.setSelection(mediaQuery.length)
+                YouTubePlayerHelper.setDuckingVolume(web, 1.0f)
+                CarMediaManager.userWantsPlayback = true
+                CarMediaManager.ensureAudioFocus()
+                CarMediaManager.acquireWakeLock(context)
+                YouTubePlayerHelper.search(web, mediaQuery, autoPlayFirst = true)
+                CarMediaManager.notifyVoiceState(
+                    VoiceSearchManager.State.SUCCESS,
+                    "Đang phát trong màn hình chia đôi: $mediaQuery"
+                )
+                updateVoiceState(
+                    VoiceSearchManager.State.SUCCESS,
+                    "Đang phát trong màn hình chia đôi: $mediaQuery"
+                )
+                hideSearchOverlay(notifyPhone = false)
+                showSplitControlsTemporarily()
+            }
+            return
+        }
 
         if (currentActiveAppId == "tiktok" && !isDashboardShowing) {
             YouTubePlayerHelper.setDuckingVolume(web, 1.0f)
