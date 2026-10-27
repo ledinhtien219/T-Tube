@@ -120,7 +120,7 @@ object WebAppManager {
     private const val KEY_DELETED_APPS = "deleted_apps_set"
     private const val KEY_APP_DESKTOP_PREFIX = "app_desktop_override_"
 
-    private val DEFAULT_DASHBOARD_PINNED_IDS = setOf("youtube", "iptv", "web")
+    private val DEFAULT_DASHBOARD_PINNED_IDS = setOf("maps_youtube_split", "youtube", "iptv", "web")
 
     fun getDashboardPinnedIds(context: Context): Set<String> {
         val prefs = context.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
@@ -157,6 +157,15 @@ object WebAppManager {
             isDesktop = false,
             isBuiltIn = true,
             colorHex = "#E50914"
+        ),
+        WebAppItem(
+            id = "maps_youtube_split",
+            name = "Maps + YouTube",
+            url = "ttube://maps-youtube-split",
+            iconRes = R.drawable.ic_app_split,
+            isDesktop = false,
+            isBuiltIn = true,
+            colorHex = "#2563EB"
         ),
         WebAppItem(
             id = "iptv",
@@ -208,6 +217,7 @@ object WebAppManager {
     fun getCategoryName(appId: String): String {
         return when (appId) {
             "youtube" -> "Video & Nhạc"
+            "maps_youtube_split" -> "Bản đồ + Video"
             "iptv" -> "Truyền hình HD"
             "web" -> "Tra cứu mạng"
             "maps" -> "Bản đồ dẫn đường"

@@ -91,6 +91,10 @@ object CarMediaManager {
     var carScreenDpi = 0
     var isWebShowingFullscreen = false
     var isEmbeddedAppShowing = true
+    // Split mode must survive the temporary surface recreation caused by the
+    // Android Auto native SearchTemplate keyboard.
+    var isMapsYoutubeSplitActive = false
+    var mapsYoutubeSplitUrl: String = "https://www.google.com/maps"
     var activeAppId: String = "youtube"
     private var mediaOwnerGeneration: Long = 0L
 
