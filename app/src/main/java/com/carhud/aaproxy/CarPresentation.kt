@@ -2119,7 +2119,21 @@ class CarPresentation(
                 SystemVoiceModule.report(context, "Đã yêu cầu tiếp tục nội dung đang phát.")
             }
             is SystemVoiceCommand.Tv -> {
-                if (command.channel.isBlank()) {
+                if (splitModeActive) {
+                    // Split mode is a locked Maps + YouTube workspace. Even if the
+                    // parser recognizes a TV/channel phrase, keep the workspace and
+                    // search that channel in the YouTube pane instead of launching IPTV.
+                    val query = command.channel.trim().ifBlank { "truyền hình trực tiếp" }
+                    CarMediaManager.userWantsPlayback = true
+                    CarMediaManager.ensureAudioFocus()
+                    CarMediaManager.acquireWakeLock(context)
+                    YouTubePlayerHelper.search(web, query, autoPlayFirst = true)
+                    showSplitControlsTemporarily()
+                    SystemVoiceModule.report(
+                        context,
+                        "Đang mở $query trên YouTube trong màn hình chia đôi."
+                    )
+                } else if (command.channel.isBlank()) {
                     CarMediaManager.userWantsPlayback = true
                     playTvChannel("")
                     SystemVoiceModule.report(context, "Đã mở Truyền hình.")
