@@ -99,6 +99,7 @@ object CarMediaManager {
     // Index order: 50/50, 30/70, 70/30. "Swapped" means YouTube is on the left.
     var mapsYoutubeSplitRatioIndex: Int = 0
     var mapsYoutubeSplitSwapped: Boolean = false
+    val mapsYoutubeSplitYoutubeHistory: MutableList<String> = mutableListOf()
     var activeAppId: String = "youtube"
     private var mediaOwnerGeneration: Long = 0L
 
