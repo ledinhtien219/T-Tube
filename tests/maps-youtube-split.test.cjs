@@ -34,11 +34,15 @@ assert.match(presentation, /LinearLayout\.LayoutParams\(0, ViewGroup\.LayoutPara
 assert.match(presentation, /LinearLayout\.LayoutParams\(0, ViewGroup\.LayoutParams\.MATCH_PARENT, rightWeight\)/);
 assert.match(media, /var mapsYoutubeSplitRatioIndex: Int = 0/);
 assert.match(media, /var mapsYoutubeSplitSwapped: Boolean = false/);
+assert.match(media, /mapsYoutubeSplitYoutubeHistory: MutableList<String> = mutableListOf\(\)/);
 
 assert.match(presentation, /splitControlsContainer = controls/);
 assert.match(presentation, /splitBackButton = TextView\(context\)[\s\S]*?text = "←"[\s\S]*?goBackWithinSplit\(\)/);
 assert.match(presentation, /splitHomeButton = TextView\(context\)[\s\S]*?text = "⌂"[\s\S]*?LinearLayout\.LayoutParams\(dp\(70\), dp\(58\)\)/);
-assert.match(presentation, /private fun goBackWithinSplit\(\)[\s\S]*?splitLastTouchedPane == "youtube"[\s\S]*?target\.goBack\(\)/);
+assert.match(presentation, /private fun goBackWithinSplit\(\)[\s\S]*?splitLastTouchedPane == "youtube"[\s\S]*?goBackWithinSplitYouTube\(\)/);
+assert.match(presentation, /private fun goBackWithinSplitYouTube\(\)[\s\S]*?mapsYoutubeSplitYoutubeHistory[\s\S]*?web\.loadUrl\(previous\)/);
+assert.match(presentation, /private fun recordSplitYouTubeHistory\(raw: String\?\)/);
+assert.match(presentation, /doUpdateVisitedHistory[\s\S]*?recordSplitYouTubeHistory\(url\)/);
 assert.match(presentation, /fun goBack\(\)[\s\S]*?if \(splitModeActive\) \{[\s\S]*?goBackWithinSplit\(\)[\s\S]*?return/);
 assert.match(presentation, /splitRatioButton = TextView\(context\)[\s\S]*?text = splitRatioLabel\(\)/);
 assert.match(presentation, /splitSwapButton = TextView\(context\)[\s\S]*?text = "⇄"/);
@@ -56,6 +60,8 @@ assert.match(
   presentation,
   /fun dispatchProjectedTouch\(event: MotionEvent\): Boolean \{[\s\S]*?if \(splitModeActive\) \{[\s\S]*?dispatchTouchEvent\(copy\)[\s\S]*?return true/
 );
+assert.match(presentation, /val onOverlayControl =[\s\S]*?containsScreenPoint\(splitControlsContainer\)[\s\S]*?containsScreenPoint\(splitMapDirectionsButton\)/);
+assert.match(presentation, /if \(!onOverlayControl\) \{[\s\S]*?splitLastTouchedPane = "maps"[\s\S]*?splitLastTouchedPane = "youtube"/);
 
 assert.match(presentation, /private fun requestSplitMapSearch\([\s\S]*?initialText: String = ""[\s\S]*?hint: String = "Tìm địa điểm trên Google Maps"/);
 assert.match(presentation, /searchOverlayMode = "maps"/);
@@ -83,7 +89,15 @@ assert.match(presentation, /CarMediaManager\.isMapsYoutubeSplitActive = true/);
 assert.match(presentation, /mapWeb\.loadUrl\(CarMediaManager\.mapsYoutubeSplitUrl\.ifBlank \{ splitMapUrl \}\)/);
 assert.match(presentation, /www\.google\.com\/maps\/search\/\?api=1&query=/);
 assert.match(presentation, /settings\.setGeolocationEnabled\(true\)/);
-assert.match(presentation, /settings\.userAgentString = splitMapDesktopUserAgent/);
+assert.match(presentation, /splitMapDirectionsButton = TextView\(context\)[\s\S]*?text = "➤"[\s\S]*?requestSplitMapDirections\(\)/);
+assert.match(presentation, /private fun requestSplitMapDirections\(initialDestination: String = ""\)/);
+assert.match(presentation, /searchOverlayMode = "maps_directions"/);
+assert.match(presentation, /private fun openSplitDirections\(destination: String\)/);
+assert.match(presentation, /GpsSpeedManager\.lastLocation\.value/);
+assert.match(presentation, /&origin=" \+ android\.net\.Uri\.encode\("\$\{current\.latitude\},\$\{current\.longitude\}"\)/);
+assert.match(presentation, /&travelmode=driving/);
+assert.match(presentation, /if \(searchOverlayMode == "maps_directions"\)/);
+assert.match(presentation, /settings\.userAgentString = mobileUserAgent/);
 assert.match(presentation, /private fun handleSplitMapNavigation\(view: WebView\?, rawTarget: String\)/);
 assert.match(presentation, /https:\/\/www\.google\.com\/maps\/dir\/\?api=1&destination=/);
 assert.match(presentation, /scheme == "geo"/);
