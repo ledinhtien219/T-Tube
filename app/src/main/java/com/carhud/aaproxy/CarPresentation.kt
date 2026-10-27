@@ -2867,8 +2867,16 @@ class CarPresentation(
                     } catch (_: Throwable) {
                         ""
                     }
-                    if (host == "google.com" || host.endsWith(".google.com")) {
+                    if (isSplitMapsWebUrl(value)) {
                         CarMediaManager.mapsYoutubeSplitUrl = value
+                        if (isSplitMapsRouteUrl(value)) {
+                            CarMediaManager.mapsYoutubeSplitLastRouteUrl = value
+                        }
+                    } else if (host == "play.google.com" || host == "market.android.com") {
+                        view?.post {
+                            val currentView = view
+                            if (currentView != null) restoreSplitMapsRoute(currentView)
+                        }
                     }
                 }
             }
@@ -2886,8 +2894,60 @@ class CarPresentation(
             }
         }
         splitMapWeb = mapWeb
-        mapWeb.loadUrl(CarMediaManager.mapsYoutubeSplitUrl.ifBlank { splitMapUrl })
+        val savedMapUrl = CarMediaManager.mapsYoutubeSplitUrl
+        val startUrl = when {
+            isSplitMapsWebUrl(savedMapUrl) -> savedMapUrl
+            isSplitMapsWebUrl(CarMediaManager.mapsYoutubeSplitLastRouteUrl) ->
+                CarMediaManager.mapsYoutubeSplitLastRouteUrl
+            else -> splitMapUrl
+        }
+        CarMediaManager.mapsYoutubeSplitUrl = startUrl
+        mapWeb.loadUrl(startUrl)
         return mapWeb
+    }
+
+    private fun isSplitMapsWebUrl(raw: String?): Boolean {
+        val value = raw.orEmpty().trim()
+        if (value.isBlank()) return false
+        val uri = try { android.net.Uri.parse(value) } catch (_: Throwable) { return false }
+        val scheme = uri.scheme.orEmpty().lowercase()
+        if (scheme != "https" && scheme != "http") return false
+
+        val host = uri.host.orEmpty().lowercase()
+        val path = uri.path.orEmpty()
+        if (host == "play.google.com" || host == "market.android.com") return false
+        if (host == "maps.google.com") return true
+        if (host == "www.google.com" || host == "google.com") {
+            return path == "/maps" || path.startsWith("/maps/")
+        }
+        return false
+    }
+
+    private fun isSplitMapsRouteUrl(raw: String?): Boolean {
+        if (!isSplitMapsWebUrl(raw)) return false
+        val uri = try { android.net.Uri.parse(raw) } catch (_: Throwable) { return false }
+        val path = uri.path.orEmpty()
+        return path.startsWith("/maps/dir") ||
+            path.startsWith("/maps/preview/directions") ||
+            uri.getQueryParameter("destination") != null
+    }
+
+    private fun restoreSplitMapsRoute(map: WebView): Boolean {
+        val route = CarMediaManager.mapsYoutubeSplitLastRouteUrl
+        val target = when {
+            isSplitMapsRouteUrl(route) -> route
+            isSplitMapsWebUrl(CarMediaManager.mapsYoutubeSplitUrl) ->
+                CarMediaManager.mapsYoutubeSplitUrl
+            else -> splitMapUrl
+        }
+        CarMediaManager.mapsYoutubeSplitUrl = target
+        if (map.url != target) map.loadUrl(target)
+        Toast.makeText(
+            context,
+            "Giữ chỉ đường trong T-Tube. Đã chặn mở Google Maps/Play Store.",
+            Toast.LENGTH_SHORT
+        ).show()
+        return true
     }
 
     private fun handleSplitMapNavigation(view: WebView?, rawTarget: String): Boolean {
