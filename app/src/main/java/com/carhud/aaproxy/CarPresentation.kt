@@ -2955,84 +2955,146 @@ class CarPresentation(
         val target = rawTarget.trim()
         if (target.isBlank()) return false
 
-        val uri = try { android.net.Uri.parse(target) } catch (_: Throwable) { null }
-        val scheme = uri?.scheme.orEmpty().lowercase()
-
-        // Normal web navigation stays inside this WebView. Google Maps route URLs
-        // (/dir/...) therefore keep the split workspace intact.
-        if (scheme == "http" || scheme == "https") return false
-
-        if (scheme == "market") return true
-
-        fun loadMapsQuery(query: String, directions: Boolean = false): Boolean {
-            val clean = query.trim()
-            if (clean.isBlank()) return true
-            val encoded = android.net.Uri.encode(clean)
-            val webTarget = if (directions) {
-                "https://www.google.com/maps/dir/?api=1&destination=$encoded"
-            } else {
-                "https://www.google.com/maps/search/?api=1&query=$encoded"
-            }
+        fun loadWebTarget(webTarget: String): Boolean {
+            if (!isSplitMapsWebUrl(webTarget)) return restoreSplitMapsRoute(map)
             CarMediaManager.mapsYoutubeSplitUrl = webTarget
+            if (isSplitMapsRouteUrl(webTarget)) {
+                CarMediaManager.mapsYoutubeSplitLastRouteUrl = webTarget
+            }
             map.loadUrl(webTarget)
             return true
         }
 
+        fun loadMapsQuery(query: String, directions: Boolean = false): Boolean {
+            val clean = android.net.Uri.decode(query).trim()
+            if (clean.isBlank()) return restoreSplitMapsRoute(map)
+
+            if (directions) {
+                val current = GpsSpeedManager.lastLocation.value
+                val originPart = if (current != null) {
+                    "&origin=" + android.net.Uri.encode("${current.latitude},${current.longitude}")
+                } else {
+                    ""
+                }
+                val webTarget = "https://www.google.com/maps/dir/?api=1" +
+                    originPart +
+                    "&destination=" + android.net.Uri.encode(clean) +
+                    "&travelmode=driving"
+                return loadWebTarget(webTarget)
+            }
+
+            return loadWebTarget(
+                "https://www.google.com/maps/search/?api=1&query=" +
+                    android.net.Uri.encode(clean)
+            )
+        }
+
+        fun extractQuery(uri: android.net.Uri?): String? {
+            if (uri == null) return null
+            val keys = arrayOf("destination", "daddr", "q", "query")
+            for (key in keys) {
+                val value = uri.getQueryParameter(key)
+                if (!value.isNullOrBlank()) return value
+            }
+            return null
+        }
+
+        val uri = try { android.net.Uri.parse(target) } catch (_: Throwable) { null }
+        val scheme = uri?.scheme.orEmpty().lowercase()
+
+        if (scheme == "http" || scheme == "https") {
+            val host = uri?.host.orEmpty().lowercase()
+            if (host == "play.google.com" || host == "market.android.com") {
+                return restoreSplitMapsRoute(map)
+            }
+            if (isSplitMapsWebUrl(target)) return false
+            return restoreSplitMapsRoute(map)
+        }
+
+        if (scheme == "market") {
+            return restoreSplitMapsRoute(map)
+        }
+
         if (scheme == "geo") {
-            val query = uri?.getQueryParameter("q").orEmpty()
-            if (query.isNotBlank()) return loadMapsQuery(query)
+            val query = extractQuery(uri)
+            if (!query.isNullOrBlank()) return loadMapsQuery(query)
             val coords = uri?.schemeSpecificPart.orEmpty()
                 .substringBefore('?')
                 .takeIf { it.isNotBlank() && it != "0,0" }
                 .orEmpty()
-            return loadMapsQuery(coords)
+            return if (coords.isNotBlank()) loadMapsQuery(coords) else restoreSplitMapsRoute(map)
         }
 
         if (scheme == "google.navigation") {
-            val query = uri?.getQueryParameter("q").orEmpty().ifBlank {
+            val query = extractQuery(uri).orEmpty().ifBlank {
                 target.substringAfter("q=", "").substringBefore('&')
             }
-            return loadMapsQuery(android.net.Uri.decode(query), directions = true)
+            return if (query.isNotBlank()) {
+                loadMapsQuery(query, directions = true)
+            } else {
+                restoreSplitMapsRoute(map)
+            }
         }
 
         if (scheme == "intent") {
             try {
                 val intent = Intent.parseUri(target, Intent.URI_INTENT_SCHEME)
-                val fallback = intent.getStringExtra("browser_fallback_url")
-                if (!fallback.isNullOrBlank() &&
-                    (fallback.startsWith("https://", true) || fallback.startsWith("http://", true))
-                ) {
-                    map.loadUrl(fallback)
-                    return true
+                val data = intent.data
+                val dataString = intent.dataString.orEmpty()
+
+                if (dataString.startsWith("google.navigation:", true)) {
+                    val navUri = try {
+                        android.net.Uri.parse(dataString)
+                    } catch (_: Throwable) {
+                        null
+                    }
+                    val query = extractQuery(navUri)
+                    if (!query.isNullOrBlank()) return loadMapsQuery(query, directions = true)
                 }
 
-                val data = intent.dataString.orEmpty()
-                if (data.startsWith("https://", true) || data.startsWith("http://", true)) {
-                    map.loadUrl(data)
-                    return true
+                if (isSplitMapsWebUrl(dataString)) {
+                    return loadWebTarget(dataString)
                 }
 
-                val query = intent.data?.getQueryParameter("q")
-                    ?: intent.getStringExtra("query")
+                val query = extractQuery(data)
                     ?: intent.getStringExtra("destination")
+                    ?: intent.getStringExtra("daddr")
+                    ?: intent.getStringExtra("query")
+                    ?: intent.getStringExtra("q")
                 if (!query.isNullOrBlank()) {
-                    return loadMapsQuery(query, directions = target.contains("/dir", true))
+                    return loadMapsQuery(query, directions = true)
+                }
+
+                val rawWeb = target
+                    .substringAfter("intent://", "")
+                    .substringBefore("#Intent", "")
+                    .takeIf {
+                        it.startsWith("maps.google.com", true) ||
+                            it.startsWith("www.google.com/maps", true)
+                    }
+                    ?.let { "https://$it" }
+                if (!rawWeb.isNullOrBlank() && isSplitMapsWebUrl(rawWeb)) {
+                    return loadWebTarget(rawWeb)
+                }
+
+                val fallback = intent.getStringExtra("browser_fallback_url")
+                if (!fallback.isNullOrBlank() && isSplitMapsWebUrl(fallback)) {
+                    return loadWebTarget(fallback)
+                }
+
+                val mapsPackage = target.contains(
+                    "package=com.google.android.apps.maps",
+                    ignoreCase = true
+                )
+                if (mapsPackage) {
+                    return restoreSplitMapsRoute(map)
                 }
             } catch (_: Throwable) {}
 
-            // Best-effort fallback for intent://maps.google.com/maps/dir/... links.
-            val fallbackPath = target
-                .substringAfter("intent://", "")
-                .substringBefore("#Intent", "")
-            if (fallbackPath.isNotBlank() && fallbackPath.contains("maps", true)) {
-                val webTarget = "https://$fallbackPath"
-                map.loadUrl(webTarget)
-            }
-            return true
+            return restoreSplitMapsRoute(map)
         }
 
-        // Never let an unknown non-http scheme steal the projected pane.
-        return true
+        return restoreSplitMapsRoute(map)
     }
 
     private fun openSplitMapInput(touchX: Float, touchY: Float) {
