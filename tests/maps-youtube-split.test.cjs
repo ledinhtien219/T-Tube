@@ -36,7 +36,10 @@ assert.match(media, /var mapsYoutubeSplitRatioIndex: Int = 0/);
 assert.match(media, /var mapsYoutubeSplitSwapped: Boolean = false/);
 
 assert.match(presentation, /splitControlsContainer = controls/);
+assert.match(presentation, /splitBackButton = TextView\(context\)[\s\S]*?text = "←"[\s\S]*?goBackWithinSplit\(\)/);
 assert.match(presentation, /splitHomeButton = TextView\(context\)[\s\S]*?text = "⌂"[\s\S]*?LinearLayout\.LayoutParams\(dp\(70\), dp\(58\)\)/);
+assert.match(presentation, /private fun goBackWithinSplit\(\)[\s\S]*?splitLastTouchedPane == "youtube"[\s\S]*?target\.goBack\(\)/);
+assert.match(presentation, /fun goBack\(\)[\s\S]*?if \(splitModeActive\) \{[\s\S]*?goBackWithinSplit\(\)[\s\S]*?return/);
 assert.match(presentation, /splitRatioButton = TextView\(context\)[\s\S]*?text = splitRatioLabel\(\)/);
 assert.match(presentation, /splitSwapButton = TextView\(context\)[\s\S]*?text = "⇄"/);
 assert.match(presentation, /Gravity\.TOP or Gravity\.CENTER_HORIZONTAL/);
@@ -80,6 +83,15 @@ assert.match(presentation, /CarMediaManager\.isMapsYoutubeSplitActive = true/);
 assert.match(presentation, /mapWeb\.loadUrl\(CarMediaManager\.mapsYoutubeSplitUrl\.ifBlank \{ splitMapUrl \}\)/);
 assert.match(presentation, /www\.google\.com\/maps\/search\/\?api=1&query=/);
 assert.match(presentation, /settings\.setGeolocationEnabled\(true\)/);
+assert.match(presentation, /settings\.userAgentString = splitMapDesktopUserAgent/);
+assert.match(presentation, /private fun handleSplitMapNavigation\(view: WebView\?, rawTarget: String\)/);
+assert.match(presentation, /https:\/\/www\.google\.com\/maps\/dir\/\?api=1&destination=/);
+assert.match(presentation, /scheme == "geo"/);
+assert.match(presentation, /scheme == "google\.navigation"/);
+assert.match(presentation, /scheme == "intent"/);
+assert.match(presentation, /Intent\.parseUri\(target, Intent\.URI_INTENT_SCHEME\)/);
+assert.match(presentation, /splitLastTouchedPane = "maps"/);
+assert.match(presentation, /splitLastTouchedPane = "youtube"/);
 
 assert.match(presentation, /private fun injectYouTubeForCurrentViewport/);
 assert.match(presentation, /val youtubeWeight = if \(CarMediaManager\.mapsYoutubeSplitSwapped\) leftWeight else rightWeight/);
