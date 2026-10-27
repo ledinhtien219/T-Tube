@@ -64,6 +64,7 @@ assert.match(presentation, /showKeyboardOverlayInternal\(requestNative = !splitM
 assert.match(presentation, /if \(searchOverlayMode == "maps"\)[\s\S]*?www\.google\.com\/maps\/search\/\?api=1&query=/);
 assert.match(presentation, /if \(splitModeActive\) \{[\s\S]*?showSplitControlsTemporarily\(\)[\s\S]*?return/);
 assert.match(presentation, /is SystemVoiceCommand\.Music ->[\s\S]*?if \(splitModeActive\)[\s\S]*?YouTubePlayerHelper\.search\(web, query, autoPlayFirst = true\)[\s\S]*?else \{[\s\S]*?switchWebApp\(youtube, startUrl = target\)/);
+assert.match(presentation, /is SystemVoiceCommand\.Tv ->[\s\S]*?if \(splitModeActive\)[\s\S]*?YouTubePlayerHelper\.search\(web, query, autoPlayFirst = true\)[\s\S]*?else if \(command\.channel\.isBlank\(\)\)/);
 assert.match(presentation, /private fun handleVoiceQuery\(query: String\)[\s\S]*?if \(splitModeActive\)[\s\S]*?YouTubePlayerHelper\.search\(web, mediaQuery, autoPlayFirst = true\)[\s\S]*?return/);
 assert.doesNotMatch(
   presentation.match(/private fun handleVoiceQuery\(query: String\)[\s\S]*?if \(currentActiveAppId == "tiktok"/)?.[0] || '',
