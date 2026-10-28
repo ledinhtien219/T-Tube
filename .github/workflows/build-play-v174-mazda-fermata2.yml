@@ -1,16 +1,16 @@
-name: Build Play v1.1.5 MiniPiP Touch Scroll Fix AAB
+name: Build Play v1.1.6 MiniPiP Native Scroll Fix AAB
 
 on:
   push:
     branches:
-      - "release/play-v1.1.5-minipip-touch-scroll"
+      - "release/play-v1.1.6-minipip-scroll-pane"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ttube-play-v115-minipip-touch-${{ github.ref }}
+  group: ttube-play-v116-minipip-scroll-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -65,6 +65,7 @@ jobs:
           node --test tests/youtube-screen-settings.test.cjs
           node --test tests/youtube-browse-mode.test.cjs
           node --test tests/youtube-mini-pip.test.cjs
+          node --test tests/youtube-mini-pip-scroll.test.cjs
 
       - name: JVM tests
         run: |
@@ -101,7 +102,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.1.5-build303-com.ledinhtien.ttube-MiniPiP-Touch-Scroll-AAB
+          name: TTube-v1.1.6-build304-com.ledinhtien.ttube-MiniPiP-Native-Scroll-AAB
           path: app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 14
