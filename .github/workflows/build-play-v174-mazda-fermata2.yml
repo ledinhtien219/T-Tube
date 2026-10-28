@@ -1,16 +1,16 @@
-name: Build Play v1.1.3 YouTube Browse Mode AAB
+name: Build Play v1.1.4 YouTube Swipe MiniPiP AAB
 
 on:
   push:
     branches:
-      - "release/play-v1.1.3-youtube-browse-mode"
+      - "release/play-v1.1.4-youtube-swipe-minipip"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ttube-play-v113-browse-${{ github.ref }}
+  group: ttube-play-v114-minipip-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -64,6 +64,7 @@ jobs:
           node --test tests/play-v174-mazda-fermata2-regression.test.cjs
           node --test tests/youtube-screen-settings.test.cjs
           node --test tests/youtube-browse-mode.test.cjs
+          node --test tests/youtube-mini-pip.test.cjs
 
       - name: JVM tests
         run: |
@@ -100,7 +101,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.1.3-build301-com.ledinhtien.ttube-YouTube-Browse-Mode-AAB
+          name: TTube-v1.1.4-build302-com.ledinhtien.ttube-YouTube-Swipe-MiniPiP-AAB
           path: app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 14
