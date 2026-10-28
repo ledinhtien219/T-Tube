@@ -28,6 +28,7 @@ object CarDisconnectWatchdog {
     private const val TAG = "CarDisconnectWatchdog"
     private const val POLL_MS = 500L
     private const val POWER_LOSS_CONFIRM_MS = 900L
+    private const val USB_DETACH_CONFIRM_MS = 1_500L
     private const val PROJECTION_EXIT_CONFIRM_MS = 6_000L
     const val PREF_AUTO_EXIT_ON_AA_DISCONNECT = "pref_auto_exit_on_aa_disconnect"
 
@@ -65,8 +66,7 @@ object CarDisconnectWatchdog {
     private val projectionExitRunnable = Runnable {
         val context = appContext ?: return@Runnable
         if (!projectionSessionSeen || shutdownTriggered) return@Runnable
-        if (!context.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
-                .getBoolean(PREF_AUTO_EXIT_ON_AA_DISCONNECT, true)) return@Runnable
+        if (!autoExitEnabled(context)) return@Runnable
         if (connectionExitGate.shouldExit(SystemClock.uptimeMillis())) {
             triggerShutdown(context, "Android Auto projection disconnected (confirmed 6 seconds)")
         }
@@ -100,18 +100,23 @@ object CarDisconnectWatchdog {
         connectionExitGate.reset()
     }
 
+    // Charger power is NOT evidence of Android Auto disconnect. When AndroidX
+    // cannot provide state, only an explicit USB accessory/device detach is a
+    // fallback. Never poll battery power to terminate a wireless session.
     private val pollRunnable = object : Runnable {
-        override fun run() {
-            val context = appContext ?: return
-            if (!projectionSessionSeen || shutdownTriggered) return
-
-            checkPowerState(context, "watchdog poll")
-
-            if (projectionSessionSeen && !shutdownTriggered) {
-                handler.postDelayed(this, POLL_MS)
-            }
-        }
+        override fun run() = Unit
     }
+
+    private val usbDetachFallback = Runnable {
+        val context = appContext ?: return@Runnable
+        if (!projectionSessionSeen || shutdownTriggered || !autoExitEnabled(context)) return@Runnable
+        if (connectionLiveData != null || connectionExitGate.isProjectionActive()) return@Runnable
+        triggerShutdown(context, "explicit USB accessory/device detached (no state provider)")
+    }
+
+    private fun autoExitEnabled(context: Context): Boolean =
+        context.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
+            .getBoolean(PREF_AUTO_EXIT_ON_AA_DISCONNECT, true)
 
     fun onProjectionServiceCreated(context: Context) {
         appContext = context.applicationContext
@@ -124,6 +129,7 @@ object CarDisconnectWatchdog {
         projectionServiceAlive = true
         shutdownTriggered = false
         powerLossStartedAt = 0L
+        handler.removeCallbacks(usbDetachFallback)
         connectionExitGate.cancelPending()
         handler.removeCallbacks(projectionExitRunnable)
         beginCarConnectionObservation(context.applicationContext)
@@ -137,8 +143,7 @@ object CarDisconnectWatchdog {
         }
 
         handler.removeCallbacks(pollRunnable)
-        handler.post(pollRunnable)
-        Log.i(TAG, "Projection session active; externalPowerSeen=$externalPowerSeen")
+        Log.i(TAG, "Projection session active; awaiting Android Auto connection state")
     }
 
     /**
@@ -148,8 +153,8 @@ object CarDisconnectWatchdog {
      */
     fun onProjectionLifecycleEnded(context: Context, reason: String) {
         appContext = context.applicationContext
-        if (!projectionSessionSeen || shutdownTriggered) return
-        checkPowerState(context.applicationContext, reason)
+        // Surface loss can be a normal app switch or projection resize.
+        Log.d(TAG, "Projection surface ended; waiting for connection state: $reason")
     }
 
     /**
@@ -158,89 +163,36 @@ object CarDisconnectWatchdog {
      * have cleared it. Use the sticky projectionSessionSeen state instead.
      */
     fun onProjectionServiceDestroyed(context: Context) {
-        val app = context.applicationContext
-        appContext = app
+        appContext = context.applicationContext
         projectionServiceAlive = false
-
-        if (!projectionSessionSeen || shutdownTriggered) return
-
-        val powered = isProjectionPowerConnected(app)
-        if (externalPowerSeen && !powered) {
-            triggerShutdown(app, "projection service destroyed after cable power loss")
-            return
-        }
-
-        // IMPORTANT: do NOT forget a real projection session just because the
-        // CarActivityService is destroyed/recreated while the cable is still
-        // plugged in. Some Android Auto hosts tear this service down when the
-        // projection app loses foreground. The media service can remain alive,
-        // then a later physical unplug would otherwise be missed completely.
-        //
-        // Keep the sticky session armed and continue the independent power poll
-        // until cable loss is confirmed or the process itself is shut down.
-        if (powered) {
-            externalPowerSeen = true
-            powerLossStartedAt = 0L
-            handler.removeCallbacks(pollRunnable)
-            handler.post(pollRunnable)
-            Log.i(TAG, "Projection service destroyed while cable is still powered; keeping session armed")
-        } else if (!externalPowerSeen) {
-            // No reliable power sample was ever observed. Keep polling rather
-            // than clearing the session so a later detach/power signal can win.
-            handler.removeCallbacks(pollRunnable)
-            handler.post(pollRunnable)
-        }
+        // Android Auto may recreate this service even while connected.
+        // Keep the CarConnection observer until confirmed disconnect.
+        Log.d(TAG, "Projection service destroyed; waiting for connection state")
     }
 
     fun shouldHandleCableDetach(): Boolean =
         projectionSessionSeen || CarMediaManager.isCarConnected
 
     fun onCableDetachBroadcast(context: Context, action: String) {
-        if (!shouldHandleCableDetach() || shutdownTriggered) return
-        triggerShutdown(
-            context.applicationContext,
-            "Android Auto cable disconnected ($action)"
-        )
+        if (!shouldHandleCableDetach() || shutdownTriggered || !autoExitEnabled(context)) return
+        // A phone can be charging over USB while Android Auto runs wirelessly.
+        if (action == Intent.ACTION_POWER_DISCONNECTED) return
+        if (action != android.hardware.usb.UsbManager.ACTION_USB_DEVICE_DETACHED &&
+            action != android.hardware.usb.UsbManager.ACTION_USB_ACCESSORY_DETACHED) return
+        if (connectionLiveData != null || connectionExitGate.isProjectionActive()) return
+        appContext = context.applicationContext
+        handler.removeCallbacks(usbDetachFallback)
+        handler.postDelayed(usbDetachFallback, USB_DETACH_CONFIRM_MS)
     }
 
     fun hasSeenProjectionSession(): Boolean = projectionSessionSeen
-
-    private fun checkPowerState(context: Context, source: String) {
-        val plugged = getPluggedType(context)
-        val usbPowered = (plugged and BatteryManager.BATTERY_PLUGGED_USB) != 0
-        if (usbPowered) {
-            usbPowerSeen = true
-        }
-        val powered = if (usbPowerSeen) usbPowered else plugged != 0
-        if (powered) {
-            externalPowerSeen = true
-            powerLossStartedAt = 0L
-            return
-        }
-
-        if (!externalPowerSeen) return
-
-        val now = SystemClock.uptimeMillis()
-        if (powerLossStartedAt == 0L) {
-            powerLossStartedAt = now
-            Log.i(TAG, "External power lost; confirming disconnect. source=$source")
-            handler.removeCallbacks(pollRunnable)
-            handler.postDelayed(pollRunnable, POWER_LOSS_CONFIRM_MS)
-            return
-        }
-
-        if (now - powerLossStartedAt >= POWER_LOSS_CONFIRM_MS) {
-            triggerShutdown(
-                context,
-                "Android Auto external power lost while projection active ($source)"
-            )
-        }
-    }
 
     private fun triggerShutdown(context: Context, reason: String) {
         if (shutdownTriggered) return
         shutdownTriggered = true
         handler.removeCallbacks(pollRunnable)
+        handler.removeCallbacks(usbDetachFallback)
+        handler.removeCallbacks(projectionExitRunnable)
         Log.i(TAG, "Confirmed projection disconnect: $reason")
 
         val override = shutdownOverrideForTests
@@ -281,6 +233,7 @@ object CarDisconnectWatchdog {
 
     fun resetAfterShutdown() {
         handler.removeCallbacks(pollRunnable)
+        handler.removeCallbacks(usbDetachFallback)
         stopCarConnectionObservation()
         resetSession()
         shutdownTriggered = true
@@ -288,6 +241,7 @@ object CarDisconnectWatchdog {
 
     internal fun resetForTests() {
         handler.removeCallbacks(pollRunnable)
+        handler.removeCallbacks(usbDetachFallback)
         stopCarConnectionObservation()
         projectionSessionSeen = false
         projectionServiceAlive = false
