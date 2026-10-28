@@ -35,14 +35,14 @@ jobs:
       - name: Upload test APK
         uses: actions/upload-artifact@v4
         with:
-          name: T-Mirror-v0.3.0-test-APK
+          name: T-Mirror-v0.4.0-test-APK
           path: tmirror/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
       - name: Upload unsigned release AAB
         uses: actions/upload-artifact@v4
         with:
-          name: T-Mirror-v0.3.0-unsigned-AAB
+          name: T-Mirror-v0.4.0-unsigned-AAB
           path: tmirror/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 14
