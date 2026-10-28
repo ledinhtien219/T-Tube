@@ -19,10 +19,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
       - name: Install Android 16 SDK
         run: |
-          yes | sdkmanager "platforms;android-36" || true
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" || yes | sdkmanager "platforms;android-36"
           test -f "$ANDROID_HOME/platforms/android-36/android.jar"
       - uses: gradle/actions/setup-gradle@v3
       - name: Build Android APK and AAB
