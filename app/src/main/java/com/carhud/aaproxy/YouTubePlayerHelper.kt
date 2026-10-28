@@ -385,6 +385,15 @@ object YouTubePlayerHelper {
         'html.carhud-youtube-pip [data-carhud-pip-host="1"] { position:fixed!important;top:auto!important;left:auto!important;right:14px!important;bottom:14px!important;width:clamp(168px,32vw,320px)!important;max-width:calc(100vw - 28px)!important;height:auto!important;min-height:0!important;aspect-ratio:16/9!important;margin:0!important;padding:0!important;border-radius:11px!important;overflow:hidden!important;background:#000!important;z-index:9900!important;box-shadow:0 5px 22px #0009!important;pointer-events:auto!important; } ' +
         'html.carhud-youtube-pip [data-carhud-pip-host="1"] ytm-player, html.carhud-youtube-pip [data-carhud-pip-host="1"] #movie_player, html.carhud-youtube-pip [data-carhud-pip-host="1"] .html5-video-player, html.carhud-youtube-pip [data-carhud-pip-host="1"] .html5-video-container { position:relative!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;overflow:hidden!important; } ' +
         'html.carhud-youtube-pip [data-carhud-pip-host="1"] video { position:absolute!important;inset:0!important;left:0!important;top:0!important;right:0!important;bottom:0!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;margin:0!important;object-fit:contain!important;z-index:2!important;pointer-events:auto!important; } ' +
+        // The watch page may use a separate fixed-height desktop "secondary"
+        // column or a mobile below-fold container. In Mini PiP, turn the
+        // ORIGINAL related-video section into a viewport-sized scroll pane.
+        // Otherwise the page's own watch-layout scroll cap leaves just 2-3
+        // video cards visible and no way to swipe for additional results.
+        'html.carhud-youtube-pip [data-carhud-rec-scroll="1"] { position:fixed!important;inset:0!important;top:0!important;left:0!important;right:0!important;bottom:0!important;width:100vw!important;max-width:100vw!important;height:100dvh!important;max-height:100dvh!important;min-height:0!important;box-sizing:border-box!important;padding:18px 16px 108px max(110px,8vw)!important;margin:0!important;overflow-x:hidden!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;overscroll-behavior-y:contain!important;touch-action:pan-y!important;background:#101018!important;z-index:2200!important;pointer-events:auto!important;contain:none!important;transform:none!important;-webkit-transform:none!important; } ' +
+        'html.carhud-youtube-pip [data-carhud-rec-scroll="1"] a, html.carhud-youtube-pip [data-carhud-rec-scroll="1"] ytd-compact-video-renderer, html.carhud-youtube-pip [data-carhud-rec-scroll="1"] ytm-compact-video-renderer, html.carhud-youtube-pip [data-carhud-rec-scroll="1"] ytm-video-with-context-renderer { pointer-events:auto!important;touch-action:manipulation!important; } ' +
+        'html.carhud-youtube-pip [data-carhud-rec-scroll="1"]::-webkit-scrollbar { width:7px!important; } ' +
+        'html.carhud-youtube-pip [data-carhud-rec-scroll="1"]::-webkit-scrollbar-thumb { background:#607086!important;border-radius:8px!important; } ' +
         '.video-ads, .ytp-ad-module, .ytp-ad-player-overlay-layout, .ytp-ad-image-overlay, .ytp-ad-text-overlay, ytm-promoted-sparkles-web-renderer, ytm-companion-ad-renderer, ytm-promoted-video-renderer, ytd-banner-promo-renderer, ytd-in-feed-ad-layout-renderer { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; } ' +
         '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, [class*="ytp-ad-skip"], .videoAdUiSkipButton { z-index: 2147483647 !important; pointer-events: auto !important; } ' +
         '*, html, body { -webkit-tap-highlight-color: transparent !important; touch-action: pan-y !important; } ' +
@@ -986,6 +995,98 @@ object YouTubePlayerHelper {
             }
         }
 
+        // The screenshot from Mazda shows YouTube's DESKTOP watch layout:
+        // suggestions are in #secondary on the right, not the mobile
+        // .watch-below-the-fold section. Scrolling html/body alone cannot
+        // reach more results when YouTube owns that separate scrolling column.
+        var carhudRecommendationRoot = null;
+        function findRecommendationRoot() {
+            var selectors = [
+                'ytd-watch-flexy #secondary',
+                'ytd-watch-grid #secondary',
+                'ytd-watch-next-secondary-results-renderer',
+                'ytd-watch-flexy #related',
+                'ytm-watch .watch-below-the-fold',
+                'ytm-watch ytm-item-section-renderer',
+                '.watch-below-the-fold'
+            ];
+            for (var i = 0; i < selectors.length; i++) {
+                var node = document.querySelector(selectors[i]);
+                if (!node || !node.getBoundingClientRect) continue;
+                // Skip empty shells; use the real DOM holding native links.
+                var hasCards = node.querySelector(
+                    'a[href*="/watch"], ytd-compact-video-renderer, ' +
+                    'ytm-compact-video-renderer, ytm-video-with-context-renderer, ' +
+                    '.yt-lockup-view-model, .compact-media-item'
+                );
+                if (hasCards) return node;
+            }
+            return null;
+        }
+
+        function syncRecommendationPane(enabled) {
+            if (!enabled) {
+                if (carhudRecommendationRoot)
+                    carhudRecommendationRoot.removeAttribute('data-carhud-rec-scroll');
+                carhudRecommendationRoot = null;
+                return;
+            }
+            var node = findRecommendationRoot();
+            if (!node) return;
+            if (carhudRecommendationRoot !== node) {
+                if (carhudRecommendationRoot)
+                    carhudRecommendationRoot.removeAttribute('data-carhud-rec-scroll');
+                carhudRecommendationRoot = node;
+                node.setAttribute('data-carhud-rec-scroll', '1');
+            }
+        }
+
+        // In some car touch stacks the native WebView scroll lands on the
+        // old player/blank space instead of the suggested-video section.
+        // Redirect ONLY vertical swipes started outside both the real pane
+        // and Mini PiP, while preserving normal taps and card clicks.
+        var carhudRecommendationSwipe = null;
+        document.addEventListener('touchstart', function(e) {
+            carhudRecommendationSwipe = null;
+            var pane = carhudRecommendationRoot;
+            if (!window.__carhudPipMode || !pane || !e.touches ||
+                e.touches.length !== 1) return;
+            var target = e.target;
+            if (!target || pane.contains(target) ||
+                (window.__carhudMiniPlayerHost &&
+                 window.__carhudMiniPlayerHost.contains(target)) ||
+                (target.closest && target.closest(
+                    'input,textarea,button,a,[role="slider"],[contenteditable="true"]'
+                ))) return;
+            carhudRecommendationSwipe = {
+                y:e.touches[0].clientY, x:e.touches[0].clientX,
+                lastY:e.touches[0].clientY, active:false
+            };
+        }, {capture:true,passive:true});
+
+        document.addEventListener('touchmove', function(e) {
+            var swipe = carhudRecommendationSwipe;
+            var pane = carhudRecommendationRoot;
+            if (!swipe || !pane || !pane.isConnected || !e.touches ||
+                e.touches.length !== 1 || !window.__carhudPipMode) return;
+            var y = e.touches[0].clientY, x = e.touches[0].clientX;
+            if (!swipe.active &&
+                Math.abs(y - swipe.y) > 9 &&
+                Math.abs(y - swipe.y) > Math.abs(x - swipe.x) * 1.2)
+                swipe.active = true;
+            if (!swipe.active) return;
+            var before = pane.scrollTop;
+            pane.scrollTop += swipe.lastY - y;
+            swipe.lastY = y;
+            if (pane.scrollTop !== before && e.cancelable) e.preventDefault();
+        }, {capture:true,passive:false});
+        document.addEventListener('touchend', function() {
+            carhudRecommendationSwipe = null;
+        }, {capture:true,passive:true});
+        document.addEventListener('touchcancel', function() {
+            carhudRecommendationSwipe = null;
+        }, {capture:true,passive:true});
+
         function updateWatchLayout() {
             try {
                 var watch = window.location.pathname.indexOf('/watch') === 0;
@@ -1017,6 +1118,9 @@ object YouTubePlayerHelper {
                 html.classList.toggle('carhud-youtube-pip', pip);
                 if (body) body.classList.toggle('carhud-youtube-pip', pip);
                 if (pip) pinMiniPlayerHost();
+                // Native suggestion content owns the scroll; leave the
+                // original YouTube card links and click handlers untouched.
+                syncRecommendationPane(pip);
             } catch(e) {}
         }
 
