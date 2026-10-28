@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "CARHUD"
 include(":app")
+include(":tmirror")
