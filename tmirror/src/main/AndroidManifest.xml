@@ -13,7 +13,7 @@
     </queries>
     <application
         android:label="T-Mirror"
-        android:icon="@android:drawable/ic_menu_slideshow"
+        android:icon="@drawable/ic_tmirror"
         android:allowBackup="false"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:usesCleartextTraffic="false"
@@ -57,7 +57,7 @@
         <service
             android:name=".LegacyCarService"
             android:label="T-Mirror (Legacy)"
-            android:icon="@android:drawable/ic_menu_slideshow"
+            android:icon="@drawable/ic_tmirror"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
@@ -67,7 +67,7 @@
         <service
             android:name=".FullCarService"
             android:label="T-Mirror"
-            android:icon="@android:drawable/ic_menu_slideshow"
+            android:icon="@drawable/ic_tmirror"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
