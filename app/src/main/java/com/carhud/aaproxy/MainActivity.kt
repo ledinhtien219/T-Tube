@@ -39,6 +39,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -283,101 +286,123 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val pickWallpaperLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            handlePickedWallpaper(uri)
+        ActivityResultContracts.GetConten    private data class PreparedWallpaper(val file: File, val kind: String)
+
+    private fun handlePickedWallpaper(uri: Uri) {
+        // Scan file metadata and copy large media on the IO dispatcher instead
+        // of blocking the phone/Android Auto UI thread.
+        lifecycleScope.launch {
+            try {
+                val picked = withContext(Dispatchers.IO) { preparePickedWallpaper(uri) }
+                prefs.edit()
+                    .putString(CarDashboardView.PREF_WALLPAPER_TYPE, CarDashboardView.WALLPAPER_CUSTOM)
+                    .putString(CarDashboardView.PREF_CUSTOM_WALLPAPER_PATH, picked.file.absolutePath)
+                    .putString(CarDashboardView.PREF_CUSTOM_WALLPAPER_KIND, picked.kind)
+                    .putLong(
+                        CarDashboardView.PREF_CUSTOM_WALLPAPER_REVISION,
+                        prefs.getLong(CarDashboardView.PREF_CUSTOM_WALLPAPER_REVISION, 0L) + 1L
+                    )
+                    .apply()
+                updateWallpaperDisplay()
+                updateWallpaperSettingsText()
+                Toast.makeText(this@MainActivity, "✅ Đã chọn hình nền mới.", Toast.LENGTH_LONG).show()
+
+                // Keep the old file briefly so a car-side player can release its
+                // descriptor before we prune older selections.
+                lifecycleScope.launch {
+                    delay(30_000L)
+                    withContext(Dispatchers.IO) {
+                        val current = prefs.getString(CarDashboardView.PREF_CUSTOM_WALLPAPER_PATH, null)
+                        filesDir.listFiles()?.filter {
+                            it.name.startsWith("custom_wallpaper.") &&
+                            it.absolutePath != current && !it.name.endsWith(".pending")
+                        }?.forEach { try { it.delete() } catch (_: Throwable) {} }
+                    }
+                }
+            } catch (e: Exception) {
+                Toast.makeText(
+                    this@MainActivity, "Lỗi khi chọn hình nền: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 
-    private fun handlePickedWallpaper(uri: Uri) {
+    private fun preparePickedWallpaper(uri: Uri): PreparedWallpaper {
+        val mime = contentResolver.getType(uri)?.lowercase(Locale.US).orEmpty()
+        val name = queryDisplayName(uri).lowercase(Locale.US)
+        val kind = when {
+            mime.startsWith("video/") || listOf(".mp4", ".webm", ".mkv").any(name::endsWith) ->
+                CarDashboardView.WALLPAPER_KIND_VIDEO
+            mime == "image/gif" || name.endsWith(".gif") ->
+                CarDashboardView.WALLPAPER_KIND_GIF
+            mime.startsWith("image/") || listOf(".jpg", ".jpeg", ".png", ".webp").any(name::endsWith) ->
+                CarDashboardView.WALLPAPER_KIND_IMAGE
+            else -> throw IllegalArgumentException("Chỉ hỗ trợ JPG/PNG/WEBP, GIF hoặc MP4/WebM.")
+        }
+        val maxBytes = if (kind == CarDashboardView.WALLPAPER_KIND_VIDEO)
+            80L * 1024L * 1024L else 30L * 1024L * 1024L
+        if (queryContentSize(uri) > maxBytes) {
+            throw IllegalArgumentException("File quá lớn. Giới hạn ${maxBytes / (1024L * 1024L)} MB.")
+        }
+        if (kind == CarDashboardView.WALLPAPER_KIND_VIDEO) {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(this, uri)
+                val duration = retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_DURATION
+                )?.toLongOrNull() ?: 0L
+                if (duration > 60_000L) throw IllegalArgumentException(
+                    "Video hình nền tối đa 60 giây."
+                )
+            } finally {
+                try { retriever.release() } catch (_: Throwable) {}
+            }
+        }
+
+        val ext = when (kind) {
+            CarDashboardView.WALLPAPER_KIND_VIDEO ->
+                if (name.endsWith(".webm")) "webm" else "mp4"
+            CarDashboardView.WALLPAPER_KIND_GIF -> "gif"
+            else -> when {
+                name.endsWith(".webp") -> "webp"
+                name.endsWith(".jpg") || name.endsWith(".jpeg") -> "jpg"
+                else -> "png"
+            }
+        }
+        // Unique destination and atomic commit avoid clobbering a file that
+        // MediaPlayer on the car is still reading.
+        val dest = File(filesDir, "custom_wallpaper.${System.nanoTime()}.$ext")
+        val pending = File(filesDir, "${dest.name}.pending")
         try {
-            val mime = contentResolver.getType(uri)?.lowercase(java.util.Locale.US).orEmpty()
-            val displayName = queryDisplayName(uri).lowercase(java.util.Locale.US)
-            val kind = when {
-                mime.startsWith("video/") ||
-                    displayName.endsWith(".mp4") ||
-                    displayName.endsWith(".webm") ||
-                    displayName.endsWith(".mkv") ->
-                    CarDashboardView.WALLPAPER_KIND_VIDEO
-
-                mime == "image/gif" || displayName.endsWith(".gif") ->
-                    CarDashboardView.WALLPAPER_KIND_GIF
-
-                mime.startsWith("image/") ||
-                    displayName.endsWith(".jpg") ||
-                    displayName.endsWith(".jpeg") ||
-                    displayName.endsWith(".png") ||
-                    displayName.endsWith(".webp") ->
-                    CarDashboardView.WALLPAPER_KIND_IMAGE
-
-                else -> {
-                    Toast.makeText(this, "Chỉ hỗ trợ JPG/PNG/WEBP, GIF hoặc video MP4/WebM.", Toast.LENGTH_LONG).show()
-                    return
-                }
-            }
-
-            val sizeBytes = queryContentSize(uri)
-            val maxBytes = if (kind == CarDashboardView.WALLPAPER_KIND_VIDEO) 80L * 1024L * 1024L else 30L * 1024L * 1024L
-            if (sizeBytes > maxBytes) {
-                val limitMb = maxBytes / (1024L * 1024L)
-                Toast.makeText(this, "File quá lớn. Giới hạn $limitMb MB để chạy ổn định trên Android Auto.", Toast.LENGTH_LONG).show()
-                return
-            }
-
-            if (kind == CarDashboardView.WALLPAPER_KIND_VIDEO) {
-                val retriever = MediaMetadataRetriever()
-                try {
-                    retriever.setDataSource(this, uri)
-                    val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-                    if (durationMs > 60_000L) {
-                        Toast.makeText(this, "Video hình nền tối đa 60 giây. Hãy chọn clip ngắn hơn.", Toast.LENGTH_LONG).show()
-                        return
+            val stream = contentResolver.openInputStream(uri)
+                ?: throw IllegalStateException("Không đọc được file đã chọn")
+            stream.use { input ->
+                pending.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var copied = 0L
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        copied += n
+                        if (copied > maxBytes) throw IllegalArgumentException(
+                            "File vượt giới hạn cho phép."
+                        )
+                        output.write(buffer, 0, n)
                     }
-                } finally {
-                    try { retriever.release() } catch (_: Throwable) {}
+                    if (copied == 0L) throw IllegalArgumentException("File hình nền rỗng.")
                 }
             }
+            if (!pending.renameTo(dest)) throw IllegalStateException(
+                "Không thể lưu hình nền."
+            )
+            return PreparedWallpaper(dest, kind)
+        } finally {
+            if (pending.exists()) pending.delete()
+        }
+    }
 
-            filesDir.listFiles()?.filter { it.name.startsWith("custom_wallpaper.") }?.forEach {
-                try { it.delete() } catch (_: Throwable) {}
-            }
-
-            val ext = when (kind) {
-                CarDashboardView.WALLPAPER_KIND_VIDEO -> if (displayName.endsWith(".webm")) "webm" else "mp4"
-                CarDashboardView.WALLPAPER_KIND_GIF -> "gif"
-                else -> when {
-                    displayName.endsWith(".webp") -> "webp"
-                    displayName.endsWith(".jpg") || displayName.endsWith(".jpeg") -> "jpg"
-                    else -> "png"
-                }
-            }
-            val file = File(filesDir, "custom_wallpaper.$ext")
-            contentResolver.openInputStream(uri)?.use { input ->
-                file.outputStream().use { output -> input.copyTo(output) }
-            } ?: throw IllegalStateException("Không đọc được file đã chọn")
-
-            prefs.edit()
-                .putString(CarDashboardView.PREF_WALLPAPER_TYPE, CarDashboardView.WALLPAPER_CUSTOM)
-                .putString(CarDashboardView.PREF_CUSTOM_WALLPAPER_PATH, file.absolutePath)
-                .putString(CarDashboardView.PREF_CUSTOM_WALLPAPER_KIND, kind)
-                // New file may reuse the same type/path: force the projected
-                // dashboard to reload it rather than retain the old MediaPlayer.
-                .putLong(CarDashboardView.PREF_CUSTOM_WALLPAPER_REVISION,
-                    prefs.getLong(CarDashboardView.PREF_CUSTOM_WALLPAPER_REVISION, 0L) + 1L)
-                .apply()
-
-            updateWallpaperDisplay()
-            updateWallpaperSettingsText()
-
-            val label = when (kind) {
-                CarDashboardView.WALLPAPER_KIND_VIDEO -> "video động (loop, tắt tiếng)"
-                CarDashboardView.WALLPAPER_KIND_GIF -> "GIF động"
-                else -> "ảnh"
-            }
-            Toast.makeText(this, "✅ Đã chọn $label làm hình nền buồng lái.", Toast.LENGTH_LONG).show()
-        } catch (e: Exception) {
-            Toast.makeText(this, "Lỗi khi chọn hình nền: ${e.message}", Toast.LENGTH_LONG).show()
+     Toast.makeText(this, "Lỗi khi chọn hình nền: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
