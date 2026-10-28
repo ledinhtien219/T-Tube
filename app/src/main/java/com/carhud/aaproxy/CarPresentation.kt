@@ -2801,6 +2801,28 @@ class CarPresentation(
         val direct = try { uri?.getQueryParameter("destination") } catch (_: Throwable) { null }
         if (!direct.isNullOrBlank()) return direct
 
+        // Google route URLs often embed destination coordinates even when the
+        // displayed place name is not present in OpenStreetMap geocoders.
+        val encoded = route
+        val latLon = Regex("!3d(-?[0-9.]+)!4d(-?[0-9.]+)")
+            .findAll(encoded).lastOrNull()
+        if (latLon != null) {
+            val lat = latLon.groupValues[1].toDoubleOrNull()
+            val lng = latLon.groupValues[2].toDoubleOrNull()
+            if (lat != null && lng != null && lat in -90.0..90.0 && lng in -180.0..180.0) {
+                return "$lat,$lng"
+            }
+        }
+        val lonLat = Regex("!1d(-?[0-9.]+)!2d(-?[0-9.]+)")
+            .findAll(encoded).lastOrNull()
+        if (lonLat != null) {
+            val lng = lonLat.groupValues[1].toDoubleOrNull()
+            val lat = lonLat.groupValues[2].toDoubleOrNull()
+            if (lat != null && lng != null && lat in -90.0..90.0 && lng in -180.0..180.0) {
+                return "$lat,$lng"
+            }
+        }
+
         val segments = uri?.pathSegments.orEmpty()
         if (segments.size >= 4 && segments[0] == "maps" && segments[1] == "dir") {
             val segment = segments.drop(3)
@@ -2866,7 +2888,7 @@ class CarPresentation(
                         event.target.closest('button,a,[role="button"]') : null;
                     if (!button || !location.href.includes('/maps/dir')) return;
                     var label = (button.getAttribute('aria-label') || button.innerText || button.textContent || '').trim();
-                    if (!/^(bắt đầu|start|start navigation|navigate)(\\s|$)/i.test(label)) return;
+                    if (!/^(bắt đầu|start|start navigation|navigate)(\s|$)/i.test(label)) return;
                     event.preventDefault();
                     event.stopPropagation();
                     event.stopImmediatePropagation();
@@ -3146,7 +3168,15 @@ class CarPresentation(
                 }
                 return restoreSplitMapsRoute(map)
             }
-            if (isSplitMapsWebUrl(target)) return false
+            if (isSplitMapsWebUrl(target)) {
+                if (isSplitMapsRouteUrl(target) &&
+                    uri?.getQueryParameter("dir_action") == "navigate"
+                ) {
+                    startSplitNavigation(target)
+                    return true
+                }
+                return false
+            }
             return restoreSplitMapsRoute(map)
         }
 
@@ -3180,6 +3210,14 @@ class CarPresentation(
         }
 
         if (scheme == "intent") {
+            // Google Maps "Bắt đầu" hands control to the Android app via intent://.
+            // Route it into our in-pane navigator before considering any fallback.
+            if (target.contains("package=com.google.android.apps.maps", ignoreCase = true) &&
+                isSplitMapsRouteUrl(CarMediaManager.mapsYoutubeSplitLastRouteUrl)
+            ) {
+                startSplitNavigation(CarMediaManager.mapsYoutubeSplitLastRouteUrl)
+                return true
+            }
             try {
                 val intent = Intent.parseUri(target, Intent.URI_INTENT_SCHEME)
                 val data = intent.data
