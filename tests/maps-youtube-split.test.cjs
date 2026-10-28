@@ -139,7 +139,11 @@ assert.match(
 
 
 // In-pane navigation must not hand Google's Start button to Play Store.
-assert.match(presentation, /splitNavigationUrl = "file:\/\/\/android_asset\/car_split_navigation\.html"/);
+assert.match(presentation, /splitNavigationUrl = "https:\/\/appassets\.androidplatform\.net\/assets\/car_split_navigation\.html"/);
+assert.match(presentation, /uri\.host == "appassets\.androidplatform\.net"/);
+assert.match(presentation, /"car_split_navigation\.html" -> "text\/html"/);
+assert.match(presentation, /"leaflet\.js" -> "text\/javascript"/);
+assert.match(presentation, /"leaflet\.css" -> "text\/css"/);
 assert.match(presentation, /@android\.webkit\.JavascriptInterface[\s\S]*?fun startNavigation\(currentUrl: String, destination: String\)/);
 assert.match(presentation, /injectSplitMapsStartButtonListener\(view\)/);
 assert.match(presentation, /document\.addEventListener\('click'[\s\S]*?event\.stopImmediatePropagation\(\)/);
