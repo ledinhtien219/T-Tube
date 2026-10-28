@@ -1251,6 +1251,12 @@ class CarPresentation(
         val browsing = !prefs.getBoolean(youtubeBrowsePref, false)
         prefs.edit().putBoolean(youtubeBrowsePref, browsing).apply()
         YouTubePlayerHelper.setBrowseMode(web, browsing)
+        if (!browsing) {
+            // Returning to fullscreen must restore the chosen 4:3/21:9
+            // aspect ratio as well as ordinary fill/contain/cover.
+            val aspect = prefs.getString("car_video_aspect_mode", "fill") ?: "fill"
+            YouTubePlayerHelper.setVideoAspectRatio(web, aspect)
+        }
         youtubeBrowseIcon?.setImageResource(
             if (browsing) R.drawable.ic_bar_expand else R.drawable.ic_bar_minimize
         )
