@@ -1,16 +1,16 @@
-name: Build Play v1.1.0 Stable074 Mazda Performance AutoExit AAB
+name: Build Play v1.1.1 YouTube Screen Settings AAB
 
 on:
   push:
     branches:
-      - "release/play-v1.1.0-performance-auto-exit"
+      - "release/play-v1.1.1-youtube-screen-settings"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ttube-play-v110-perf-autoexit-${{ github.ref }}
+  group: ttube-play-v111-youtube-screen-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -60,7 +60,9 @@ jobs:
           node-version: '20'
 
       - name: Verify Play + stable074 + Mazda + Fermata2 source
-        run: node --test tests/play-v174-mazda-fermata2-regression.test.cjs
+        run: |
+          node --test tests/play-v174-mazda-fermata2-regression.test.cjs
+          node --test tests/youtube-screen-settings.test.cjs
 
       - name: JVM tests
         run: |
@@ -97,7 +99,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.1.0-build298-com.ledinhtien.ttube-Mazda-Perf-AutoExit-AAB
+          name: TTube-v1.1.1-build299-com.ledinhtien.ttube-YouTube-Screen-Settings-AAB
           path: app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 14
