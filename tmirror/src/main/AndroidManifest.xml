@@ -37,6 +37,21 @@
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
 
+        <!-- Optional: the user MUST enable this service manually in Android
+             Accessibility settings. Only dispatches user touch gestures. -->
+        <service
+            android:name=".MirrorTouchService"
+            android:label="T-Mirror Touch"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/touch_service" />
+        </service>
+
         <!-- EXPERIMENTAL: AA host decides whether it will give this entry a
              side-by-side Legacy pane. Neither service overrides Maps. -->
         <service
