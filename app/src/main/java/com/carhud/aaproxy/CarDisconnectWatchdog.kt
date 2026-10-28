@@ -8,6 +8,9 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import androidx.car.app.connection.CarConnection
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.Observer
 
 /**
  * Watches a real wired Android Auto session for cable/power loss.
@@ -25,6 +28,8 @@ object CarDisconnectWatchdog {
     private const val TAG = "CarDisconnectWatchdog"
     private const val POLL_MS = 500L
     private const val POWER_LOSS_CONFIRM_MS = 900L
+    private const val PROJECTION_EXIT_CONFIRM_MS = 6_000L
+    const val PREF_AUTO_EXIT_ON_AA_DISCONNECT = "pref_auto_exit_on_aa_disconnect"
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -52,6 +57,49 @@ object CarDisconnectWatchdog {
     @Volatile
     internal var shutdownOverrideForTests: ((Context, String) -> Unit)? = null
 
+    // CarConnection is transport-agnostic; do not infer USB vs Wi-Fi from power.
+    // Never close on the initial NOT_CONNECTED provider value.
+    private val connectionExitGate = ProjectionDisconnectGate(PROJECTION_EXIT_CONFIRM_MS)
+    private var connectionLiveData: LiveData<Int>? = null
+
+    private val projectionExitRunnable = Runnable {
+        val context = appContext ?: return@Runnable
+        if (!projectionSessionSeen || shutdownTriggered) return@Runnable
+        if (!context.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
+                .getBoolean(PREF_AUTO_EXIT_ON_AA_DISCONNECT, true)) return@Runnable
+        if (connectionExitGate.shouldExit(SystemClock.uptimeMillis())) {
+            triggerShutdown(context, "Android Auto projection disconnected (confirmed 6 seconds)")
+        }
+    }
+
+    private val connectionObserver = Observer<Int> { type ->
+        if (type == null) return@Observer
+        connectionExitGate.onConnectionType(type, SystemClock.uptimeMillis())
+        handler.removeCallbacks(projectionExitRunnable)
+        if (connectionExitGate.isPending()) {
+            handler.postDelayed(projectionExitRunnable, PROJECTION_EXIT_CONFIRM_MS)
+        }
+    }
+
+    private fun beginCarConnectionObservation(context: Context) {
+        if (connectionLiveData != null) return
+        try {
+            val live = CarConnection(context.applicationContext).type
+            connectionLiveData = live
+            live.observeForever(connectionObserver)
+        } catch (e: Exception) {
+            connectionLiveData = null
+            Log.w(TAG, "CarConnection monitor unavailable; retaining USB watchdog", e)
+        }
+    }
+
+    private fun stopCarConnectionObservation() {
+        handler.removeCallbacks(projectionExitRunnable)
+        connectionLiveData?.removeObserver(connectionObserver)
+        connectionLiveData = null
+        connectionExitGate.reset()
+    }
+
     private val pollRunnable = object : Runnable {
         override fun run() {
             val context = appContext ?: return
@@ -76,6 +124,9 @@ object CarDisconnectWatchdog {
         projectionServiceAlive = true
         shutdownTriggered = false
         powerLossStartedAt = 0L
+        connectionExitGate.cancelPending()
+        handler.removeCallbacks(projectionExitRunnable)
+        beginCarConnectionObservation(context.applicationContext)
 
         val plugged = getPluggedType(context)
         if (plugged != 0) {
@@ -230,12 +281,14 @@ object CarDisconnectWatchdog {
 
     fun resetAfterShutdown() {
         handler.removeCallbacks(pollRunnable)
+        stopCarConnectionObservation()
         resetSession()
         shutdownTriggered = true
     }
 
     internal fun resetForTests() {
         handler.removeCallbacks(pollRunnable)
+        stopCarConnectionObservation()
         projectionSessionSeen = false
         projectionServiceAlive = false
         externalPowerSeen = false
