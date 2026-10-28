@@ -337,6 +337,7 @@ class SettingsActivity : AppCompatActivity() {
             finish()
             return
         }
+        if (BuildConfig.PLAY_DISTRIBUTION) playUpdater // register launcher before STARTED
         WazeHlpWebSocketManager.start()
         updateThemeColors()
         window.statusBarColor = colorBg
