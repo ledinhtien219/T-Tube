@@ -222,6 +222,13 @@ object YouTubePlayerHelper {
     if (window.__carhudInjected) return;
     window.__carhudInjected = true;
     try {
+        // Preserve the browse/fullscreen choice through YouTube SPA updates.
+        window.__carhudBrowseMode = false;
+        try {
+            window.__carhudBrowseMode =
+                window.sessionStorage.getItem('carhud_youtube_browse_mode') === '1';
+        } catch(e) {}
+
         // 1. Spoof Page Visibility & Focus so YouTube NEVER pauses background playback
         try {
             Object.defineProperty(document, 'hidden', { get: function() { return false; }, configurable: true });
@@ -360,6 +367,8 @@ object YouTubePlayerHelper {
         '.carhud-force-fullscreen video { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; margin: auto !important; object-fit: contain !important; display: block !important; visibility: visible !important; opacity: 1 !important; background: #000000 !important; z-index: 10000 !important; pointer-events: auto !important; } ' +
         '.carhud-force-fullscreen .ytp-chrome-bottom, .carhud-force-fullscreen .ytp-chrome-top, .carhud-force-fullscreen .ytp-large-play-button, .carhud-force-fullscreen .player-control-play-pause-icon, .carhud-force-fullscreen .ytp-cued-thumbnail-overlay, .carhud-force-fullscreen .ytp-ad-player-overlay, .carhud-force-fullscreen .ytp-ad-skip-button-container, .carhud-force-fullscreen .ytp-ad-skip-button, .carhud-force-fullscreen .videoAdUiSkipButton, .carhud-force-fullscreen ytm-play-button { z-index: 20000 !important; pointer-events: auto !important; } ' +
         '.carhud-force-fullscreen .watch-below-the-fold, .carhud-force-fullscreen ytm-item-section-renderer, .carhud-force-fullscreen ytm-watch-metadata, .carhud-force-fullscreen ytm-mobile-topbar-renderer { display: none !important; } ' +
+        'html.carhud-youtube-browse, html.carhud-youtube-browse body { height: auto !important; overflow-y: auto !important; touch-action: pan-y !important; } ' +
+        'html.carhud-youtube-browse .watch-below-the-fold, html.carhud-youtube-browse ytm-watch-metadata, html.carhud-youtube-browse ytm-item-section-renderer { display: block !important; visibility: visible !important; height: auto !important; opacity: 1 !important; pointer-events: auto !important; } ' +
         '.video-ads, .ytp-ad-module, .ytp-ad-player-overlay-layout, .ytp-ad-image-overlay, .ytp-ad-text-overlay, ytm-promoted-sparkles-web-renderer, ytm-companion-ad-renderer, ytm-promoted-video-renderer, ytd-banner-promo-renderer, ytd-in-feed-ad-layout-renderer { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; } ' +
         '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, [class*="ytp-ad-skip"], .videoAdUiSkipButton { z-index: 2147483647 !important; pointer-events: auto !important; } ' +
         '*, html, body { -webkit-tap-highlight-color: transparent !important; touch-action: pan-y !important; } ' +
@@ -924,6 +933,56 @@ object YouTubePlayerHelper {
             } catch(e) {}
         }
 
+        function releaseInlineVideoStyle() {
+            try {
+                var video = getMainVideo();
+                if (!video) return;
+                video.removeAttribute('data-carhud-styled');
+                [
+                    'position','top','left','right','bottom','width',
+                    'height','max-width','max-height','margin',
+                    'object-fit','aspect-ratio','z-index'
+                ].forEach(function(p) { video.style.removeProperty(p); });
+            } catch(e) {}
+        }
+
+        function updateWatchLayout() {
+            try {
+                var watch = window.location.pathname.indexOf('/watch') === 0;
+                var browsing = watch && !!window.__carhudBrowseMode;
+                var html = document.documentElement, body = document.body;
+                var wasBrowsing = html.classList.contains('carhud-youtube-browse');
+
+                if (browsing || !watch) {
+                    html.classList.remove('carhud-force-fullscreen');
+                    if (body) body.classList.remove('carhud-force-fullscreen');
+                    if (!wasBrowsing || !browsing) {
+                        releaseVideoFill();
+                        if (browsing) releaseInlineVideoStyle();
+                    }
+                } else {
+                    if (!html.classList.contains('carhud-force-fullscreen'))
+                        html.classList.add('carhud-force-fullscreen');
+                    if (body && !body.classList.contains('carhud-force-fullscreen'))
+                        body.classList.add('carhud-force-fullscreen');
+                    enforceVideoFill();
+                }
+
+                html.classList.toggle('carhud-youtube-browse', browsing);
+                if (body) body.classList.toggle('carhud-youtube-browse', browsing);
+            } catch(e) {}
+        }
+
+        window.__carhudUpdateWatchLayout = updateWatchLayout;
+        window.__carhudSetBrowseMode = function(enabled) {
+            window.__carhudBrowseMode = !!enabled;
+            try {
+                window.sessionStorage.setItem(
+                    'carhud_youtube_browse_mode', enabled ? '1' : '0');
+            } catch(e) {}
+            updateWatchLayout();
+        };
+
         function handleWatchPage() {
             try {
                 var currentHref = window.location.href.split('&')[0];
@@ -932,16 +991,10 @@ object YouTubePlayerHelper {
                     cleanExtraPanels();
                 }
                 var isWatch = window.location.pathname.indexOf('/watch') === 0;
+                updateWatchLayout();
 
                 if (isWatch) {
-                    if (!document.documentElement.classList.contains('carhud-force-fullscreen')) {
-                        document.documentElement.classList.add('carhud-force-fullscreen');
-                    }
-                    if (!document.body.classList.contains('carhud-force-fullscreen')) {
-                        document.body.classList.add('carhud-force-fullscreen');
-                    }
-                    enforceVideoFill();
-
+                    // Browse keeps the original video player and Youtube cards.
                     var currentUrl = currentHref;
                     if (window.__carhudLastWatchUrl !== currentUrl) {
                         window.__carhudPlayAttempts = 0;
@@ -971,25 +1024,7 @@ object YouTubePlayerHelper {
                         }
                     }
                 } else {
-                    document.documentElement.classList.remove('carhud-force-fullscreen');
-                    document.body.classList.remove('carhud-force-fullscreen');
-                    releaseVideoFill();
-                    try {
-                        var v = document.querySelector('video');
-                        if (v) {
-                            v.removeAttribute('data-carhud-styled');
-                            v.style.removeProperty('position');
-                            v.style.removeProperty('top');
-                            v.style.removeProperty('left');
-                            v.style.removeProperty('right');
-                            v.style.removeProperty('bottom');
-                            v.style.removeProperty('width');
-                            v.style.removeProperty('height');
-                            v.style.removeProperty('margin');
-                            v.style.removeProperty('object-fit');
-                            v.style.removeProperty('z-index');
-                        }
-                    } catch(e) {}
+                    releaseInlineVideoStyle();
                     window.__carhudLastWatchUrl = '';
                     window.__carhudPlayAttempts = 0;
                 }
@@ -2151,6 +2186,22 @@ object YouTubePlayerHelper {
         } catch (e: Exception) {}
     }
 
+    /**
+     * Switch between vehicle fullscreen and the ordinary YouTube watch page.
+     * No reload, no duplicate WebView or player.
+     */
+    fun setBrowseMode(view: WebView?, enabled: Boolean) {
+        val js = if (enabled) "true" else "false"
+        try {
+            view?.evaluateJavascript(
+                "(function(){if(window.__carhudSetBrowseMode){window.__carhudSetBrowseMode($js);" +
+                    "}else{window.__carhudBrowseMode=$js;try{sessionStorage.setItem(" +
+                    "'carhud_youtube_browse_mode',window.__carhudBrowseMode?'1':'0');}catch(e){}}})();",
+                null
+            )
+        } catch (_: Exception) {}
+    }
+
     fun toggleFullscreen(view: WebView?) {
         try {
             view?.evaluateJavascript(
@@ -2462,6 +2513,8 @@ object YouTubePlayerHelper {
             (function() {
                 var m = '$mode';
                 window.__carhud_aspect_mode = m;
+                // Native Youtube watch layout must own the inline video box.
+                if (window.__carhudBrowseMode) return;
                 var v = document.querySelector('video');
                 if (!v) return;
 
