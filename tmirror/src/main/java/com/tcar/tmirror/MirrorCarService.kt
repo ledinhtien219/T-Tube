@@ -23,6 +23,8 @@ class FullCarService : CarActivityService() {
 class MirrorCarActivity : CarActivity(), SurfaceHolder.Callback {
     private lateinit var surface: SurfaceView
     private var isReady = false
+    private var touchStart: Pair<Float, Float>? = null
+    private var touchStartedAt: Long = 0L
     private val frameListener: () -> Unit = { surface.post { drawFrame() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
