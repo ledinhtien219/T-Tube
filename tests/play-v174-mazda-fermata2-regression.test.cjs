@@ -11,8 +11,8 @@ const adblock = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/YouTubeAdB
 assert.match(gradle, /applicationId = "com\.ledinhtien\.ttube"/);
 assert.match(gradle, /compileSdk = 36/);
 assert.match(gradle, /targetSdk = 36/);
-assert.match(gradle, /versionCode = 303/);
-assert.match(gradle, /versionName = "1\.1\.5"/);
+assert.match(gradle, /versionCode = 304/);
+assert.match(gradle, /versionName = "1\.1\.6"/);
 assert.match(gradle, /PLAY_DISTRIBUTION/);
 assert.match(gradle, /isDebuggable = false/);
 
