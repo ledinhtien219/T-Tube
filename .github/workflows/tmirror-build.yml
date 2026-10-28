@@ -23,6 +23,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Restore shared stable debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: thtv-stable-debug-keystore-v1
+      - name: Verify stable APK signing key
+        run: |
+          test -f ~/.android/debug.keystore || {
+            echo "Stable debug signing key not present; refusing to rotate the signing certificate."
+            exit 1
+          }
       - name: Install Android 16 SDK
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" || yes | sdkmanager "platforms;android-36"
