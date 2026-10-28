@@ -383,8 +383,11 @@ object YouTubePlayerHelper {
         // recommendation cards. The tagged Mini PiP host retains touch input.
         'html.carhud-youtube-pip ytm-player:not([data-carhud-pip-host="1"]), html.carhud-youtube-pip .player-container:not([data-carhud-pip-host="1"]), html.carhud-youtube-pip .player-size:not([data-carhud-pip-host="1"]) { pointer-events:none!important; } ' +
         'html.carhud-youtube-pip [data-carhud-pip-host="1"] { position:fixed!important;top:auto!important;left:auto!important;right:14px!important;bottom:14px!important;width:clamp(168px,32vw,320px)!important;max-width:calc(100vw - 28px)!important;height:auto!important;min-height:0!important;aspect-ratio:16/9!important;margin:0!important;padding:0!important;border-radius:11px!important;overflow:hidden!important;background:#000!important;z-index:9900!important;box-shadow:0 5px 22px #0009!important;pointer-events:auto!important; } ' +
-        'html.carhud-youtube-pip [data-carhud-pip-host="1"] ytm-player, html.carhud-youtube-pip [data-carhud-pip-host="1"] #movie_player, html.carhud-youtube-pip [data-carhud-pip-host="1"] .html5-video-player, html.carhud-youtube-pip [data-carhud-pip-host="1"] .html5-video-container { position:relative!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;overflow:hidden!important; } ' +
-        'html.carhud-youtube-pip [data-carhud-pip-host="1"] video { position:absolute!important;inset:0!important;left:0!important;top:0!important;right:0!important;bottom:0!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;margin:0!important;object-fit:contain!important;z-index:2!important;pointer-events:auto!important; } ' +
+        // Preserve native YouTube video compositor/surface layout. Forcing
+        // position:absolute on the actual <video> can give a black GPU plane
+        // in Android Auto DHU even though the audio keeps playing.
+        'html.carhud-youtube-pip [data-carhud-pip-host="1"] ytd-player, html.carhud-youtube-pip [data-carhud-pip-host="1"] ytm-player, html.carhud-youtube-pip [data-carhud-pip-host="1"] #player, html.carhud-youtube-pip [data-carhud-pip-host="1"] #movie_player, html.carhud-youtube-pip [data-carhud-pip-host="1"] .html5-video-player, html.carhud-youtube-pip [data-carhud-pip-host="1"] .html5-video-container { width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;min-height:0!important;overflow:hidden!important; } ' +
+        'html.carhud-youtube-pip [data-carhud-pip-host="1"] video { width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important; } ' +
         // The watch page may use a separate fixed-height desktop "secondary"
         // column or a mobile below-fold container. In Mini PiP, turn the
         // ORIGINAL related-video section into a viewport-sized scroll pane.
@@ -395,6 +398,13 @@ object YouTubePlayerHelper {
         // Permit YouTube's related item list to extend beyond the old
         // right-rail size; the tagged parent is the only scroll container.
         'html.carhud-youtube-pip [data-carhud-rec-scroll="1"] #related, html.carhud-youtube-pip [data-carhud-rec-scroll="1"] #items, html.carhud-youtube-pip [data-carhud-rec-scroll="1"] ytd-watch-next-secondary-results-renderer, html.carhud-youtube-pip [data-carhud-rec-scroll="1"] lazy-list { max-height:none!important;height:auto!important;overflow:visible!important;contain:none!important;pointer-events:auto!important; } ' +
+        // Cinema card grid only during Mini PiP: 2–4 comfortable cards per row
+        // instead of giant YouTube desktop thumbnails overflowing the rail.
+        'html.carhud-youtube-pip [data-carhud-rec-scroll="1"] ytd-watch-next-secondary-results-renderer #items, html.carhud-youtube-pip [data-carhud-rec-scroll="1"] #related #items, html.carhud-youtube-pip [data-carhud-rec-scroll="1"] ytm-item-section-renderer lazy-list { display:grid!important;grid-template-columns:repeat(auto-fill,minmax(205px,1fr))!important;column-gap:12px!important;row-gap:16px!important;align-items:start!important; } ' +
+        'html.carhud-youtube-pip [data-carhud-rec-scroll="1"] ytd-compact-video-renderer, html.carhud-youtube-pip [data-carhud-rec-scroll="1"] ytm-compact-video-renderer, html.carhud-youtube-pip [data-carhud-rec-scroll="1"] ytm-video-with-context-renderer { display:flex!important;flex-direction:column!important;min-width:0!important;max-width:100%!important;margin:0!important;padding:0!important;overflow:visible!important;contain:none!important;transform:none!important;border-radius:10px!important;background:#161e2a!important; } ' +
+        'html.carhud-youtube-pip [data-carhud-rec-scroll="1"] ytd-thumbnail, html.carhud-youtube-pip [data-carhud-rec-scroll="1"] a#thumbnail, html.carhud-youtube-pip [data-carhud-rec-scroll="1"] .media-item-thumbnail-container { display:block!important;position:relative!important;width:100%!important;max-width:100%!important;aspect-ratio:16/9!important;overflow:hidden!important;border-radius:10px 10px 4px 4px!important; } ' +
+        'html.carhud-youtube-pip [data-carhud-rec-scroll="1"] h3, html.carhud-youtube-pip [data-carhud-rec-scroll="1"] .video-title { font-size:13px!important;line-height:1.35!important;max-height:2.8em!important;overflow:hidden!important;margin:5px 6px 2px!important; } ' +
+        'html.carhud-youtube-pip [data-carhud-rec-scroll="1"] { background:#0c1018!important;padding:14px 14px 86px max(94px,8vw)!important; } ' +
 
         'html.carhud-youtube-pip [data-carhud-rec-scroll="1"]::-webkit-scrollbar { width:7px!important; } ' +
         'html.carhud-youtube-pip [data-carhud-rec-scroll="1"]::-webkit-scrollbar-thumb { background:#607086!important;border-radius:8px!important; } ' +
@@ -986,9 +996,17 @@ object YouTubePlayerHelper {
         function pinMiniPlayerHost() {
             var video = getMainVideo();
             if (!video || !video.closest) return;
-            var host = video.closest('#player-container-id') ||
-                       video.closest('.player-container') ||
+            // Prefer the complete, original YouTube player wrapper. The old
+            // code often pinned only #movie_player, leaving its desktop
+            // #player/ytd-player ancestor fullscreen and painting black above
+            // the PiP. Do not move or clone video nodes.
+            var host = video.closest('ytd-player') ||
+                       video.closest('#player-container-outer') ||
+                       video.closest('#player-container-id') ||
+                       video.closest('#player-container') ||
                        video.closest('ytm-player') ||
+                       video.closest('#player') ||
+                       video.closest('.player-container') ||
                        video.closest('#movie_player') ||
                        video.parentElement;
             if (!host || host === document.body || host === document.documentElement) return;
@@ -1139,6 +1157,23 @@ object YouTubePlayerHelper {
             updateWatchLayout();
         };
 
+        // WebView/DHU occasionally reports an audio-playing video that has
+        // no decoded dimensions yet. Do not leave an empty black PiP forever;
+        // fall back to the ordinary watch-page layout while preserving audio.
+        var carhudPipVideoCheck = null;
+        function scheduleMiniPlayerVideoCheck() {
+            if (carhudPipVideoCheck) clearTimeout(carhudPipVideoCheck);
+            carhudPipVideoCheck = setTimeout(function() {
+                carhudPipVideoCheck = null;
+                if (!window.__carhudPipMode) return;
+                var video = getMainVideo();
+                if (video && video.readyState >= 2 &&
+                    video.videoWidth > 0 && video.videoHeight > 0) return;
+                window.__carhudSetPipMode(false);
+                try { console.warn('TTube: Mini PiP image unavailable, restored full player'); } catch(e) {}
+            }, 3500);
+        }
+
         window.__carhudSetPipMode = function(enabled) {
             // A YouTube watch page is required; don't create a floating video
             // on search/home or any other web app.
@@ -1152,6 +1187,11 @@ object YouTubePlayerHelper {
                 window.sessionStorage.setItem('carhud_youtube_browse_mode', newMode ? '1' : '0');
             } catch(e) {}
             updateWatchLayout();
+            if (newMode) scheduleMiniPlayerVideoCheck();
+            else if (carhudPipVideoCheck) {
+                clearTimeout(carhudPipVideoCheck);
+                carhudPipVideoCheck = null;
+            }
             if (changed) {
                 try {
                     if (window.AndroidVoice && window.AndroidVoice.onYouTubeMiniPlayerChanged)
