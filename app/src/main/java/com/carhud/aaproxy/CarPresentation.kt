@@ -1264,6 +1264,19 @@ class CarPresentation(
         )
         youtubeBrowseButton?.contentDescription =
             if (enabled) "Phóng to video YouTube" else "Thu nhỏ video YouTube"
+        youtubeBrowseButton?.background = rounded(
+            if (enabled) Color.parseColor("#CC103B4A")
+            else if (isDayMode()) Color.parseColor("#F7F8FA")
+            else Color.parseColor("#D91A2430"),
+            12f,
+            if (enabled) Color.parseColor("#22D3EE") else Color.parseColor("#33485C"),
+            1
+        )
+        youtubeBrowseIcon?.setColorFilter(
+            if (enabled) Color.parseColor("#67E8F9")
+            else if (isDayMode()) Color.parseColor("#0F172A") else Color.WHITE
+        )
+        if (enabled) hideYouTubeSeekOverlayImmediately()
         if (!enabled && currentActiveAppId == "youtube" && isYouTubeVideoPage()) {
             // Reapply the selected fullscreen fit (including 4:3 and 21:9)
             // after a swipe/tap or toolbar-initiated expansion.
@@ -1300,6 +1313,10 @@ class CarPresentation(
     }
 
     private fun shouldShowYouTubeSeekOverlay(): Boolean {
+        // In Mini PiP the wide seek bar covers recommendation cards and
+        // competes with vertical swipe gestures; playback controls remain in
+        // the compact side rail.
+        if (prefs.getBoolean(youtubeBrowsePref, false)) return false
         return !isDashboardShowing &&
             dashboardView?.visibility != View.VISIBLE &&
             web.visibility == View.VISIBLE &&
@@ -1661,10 +1678,11 @@ class CarPresentation(
 
     private fun buildYouTubeMediaToolbar(scale: Int) {
         val isDay = isDayMode()
-        val btnWidth = ((64 * scale) / 100).coerceIn(52, 82)
-        val btnHeight = ((52 * scale) / 100).coerceIn(46, 68)
-        val iconSize = ((23 * scale) / 100).coerceIn(19, 30)
-        val textSizeSp = (9.2f * scale / 100f).coerceIn(8f, 12f)
+        // Cinema controls: readable icon-only rail rather than seven large
+        // text-labeled cards covering YouTube thumbnails on the Mazda screen.
+        val btnWidth = ((48 * scale) / 100).coerceIn(43, 56)
+        val btnHeight = ((45 * scale) / 100).coerceIn(40, 52)
+        val iconSize = ((22 * scale) / 100).coerceIn(20, 27)
 
         fun toolButton(iconRes: Int, label: String?, onClick: (LinearLayout) -> Unit): LinearLayout {
             return LinearLayout(context).apply {
@@ -1676,7 +1694,9 @@ class CarPresentation(
                     if (isDay) Color.parseColor("#CBD5E1") else Color.parseColor("#33485C70"),
                     1
                 )
-                setPadding(dp(3), dp(4), dp(3), dp(3))
+                setPadding(dp(3), dp(3), dp(3), dp(3))
+                contentDescription = label ?: "Chế độ xem YouTube"
+                isFocusable = true
                 layoutParams = LinearLayout.LayoutParams(dp(btnWidth), dp(btnHeight)).apply {
                     topMargin = dp(2)
                     bottomMargin = dp(2)
@@ -1687,19 +1707,8 @@ class CarPresentation(
                     if (isDay) setColorFilter(Color.parseColor("#0F172A")) else setColorFilter(Color.WHITE)
                 }
                 addView(icon, LinearLayout.LayoutParams(dp(iconSize), dp(iconSize)))
-                // Null label means truly icon-only; no empty text view.
-                if (label != null) {
-                    addView(TextView(context).apply {
-                        text = label
-                        textSize = textSizeSp
-                        gravity = Gravity.CENTER
-                        maxLines = 1
-                        includeFontPadding = false
-                        setTextColor(if (isDay) Color.parseColor("#0F172A") else Color.parseColor("#EAF2F8"))
-                    }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                        topMargin = dp(1)
-                    })
-                }
+                // Titles remain in contentDescription for TalkBack and Mazda
+                // focus, but are never painted under YouTube toolbar icons.
                 enableTouchBounce()
                 setOnClickListener { onClick(this) }
             }
@@ -1710,12 +1719,12 @@ class CarPresentation(
             gravity = Gravity.CENTER
             background = rounded(
                 if (isDay) Color.parseColor("#F7FFFFFF") else Color.parseColor("#E60B1118"),
-                18f,
-                if (isDay) Color.parseColor("#94A3B8") else Color.parseColor("#506B8299"),
+                15f,
+                if (isDay) Color.parseColor("#CBD5E1") else Color.parseColor("#40576C"),
                 1
             )
-            setPadding(dp(5), dp(5), dp(5), dp(5))
-            elevation = dp(18).toFloat()
+            setPadding(dp(3), dp(4), dp(3), dp(4))
+            elevation = dp(10).toFloat()
 
             addView(toolButton(R.drawable.ic_bar_home, "Trang chủ") { showDashboard() })
 
