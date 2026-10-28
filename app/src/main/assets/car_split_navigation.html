@@ -28,7 +28,7 @@ var map=L.map('map',{zoomControl:false,preferCanvas:true}).setView([21.0285,105.
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
   maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 }).addTo(map);
-var marker=null,line=null,destinationMarker=null,route=null,destination=null,position=null,routeCoords=[],steps=[],active=false,follow=true;
+var marker=null,line=null,destinationMarker=null,route=null,destination=null,position=null,routeCoords=[],steps=[],cumulative=[],active=false,follow=true;
 var lastRouteAt=0,lastRecalcAt=0,lastDistance=Infinity,routePending=false,routeVersion=0,lastGpsAt=0;
 var statusEl=document.getElementById('status'),nextEl=document.getElementById('maneuver'),distanceEl=document.getElementById('distance'),metaEl=document.getElementById('meta');
 function status(text){statusEl.textContent=text;}
@@ -83,8 +83,24 @@ function redraw(){
  if(destinationMarker)map.removeLayer(destinationMarker);
  destinationMarker=L.circleMarker([destination.lat,destination.lng],{radius:9,color:'#fff',weight:3,fillColor:'#0d9488',fillOpacity:1}).addTo(map);
  if(!active)map.fitBounds(line.getBounds(),{padding:[70,22]});
+ cumulative=[0];
+ for(var j=1;j<routeCoords.length;j++){
+  cumulative[j]=cumulative[j-1]+distanceM(
+   {lat:routeCoords[j-1][0],lng:routeCoords[j-1][1]},
+   {lat:routeCoords[j][0],lng:routeCoords[j][1]});
+ }
  steps=[];
- (data.legs||[]).forEach(function(leg){(leg.steps||[]).forEach(function(step){steps.push(step);});});
+ (data.legs||[]).forEach(function(leg){(leg.steps||[]).forEach(function(step){
+  var loc=step.maneuver&&step.maneuver.location;
+  if(!loc)return;
+  var best=0,min=Infinity;
+  for(var i=0;i<routeCoords.length;i+=Math.max(1,Math.floor(routeCoords.length/1200))){
+   var d=distanceM({lat:loc[1],lng:loc[0]},{lat:routeCoords[i][0],lng:routeCoords[i][1]});
+   if(d<min){min=d;best=i;}
+  }
+  step.routeIndex=best;steps.push(step);
+ });});
+ steps.sort(function(a,b){return a.routeIndex-b.routeIndex;});
  active=true;lastRouteAt=Date.now();lastDistance=Infinity;
  updateInstruction();
  status('Đang dẫn đường · vị trí cập nhật theo GPS. Tuyến OSM/OSRM có thể khác Google Maps.');
@@ -109,14 +125,20 @@ function calculateRoute(force){
   else displayError('Không tính được tuyến: '+String(e.message||e));
  });
 }
-function nearestRouteDistance(){
- if(!routeCoords.length||!position)return Infinity;
- var min=Infinity,limit=routeCoords.length;
+function nearestRoutePoint(){
+ if(!routeCoords.length||!position)return {index:0,distance:Infinity};
+ var min=Infinity,best=0,limit=routeCoords.length;
  for(var i=0;i<limit;i+=Math.max(1,Math.floor(limit/1500))){
   var d=distanceM(position,{lat:routeCoords[i][0],lng:routeCoords[i][1]});
-  if(d<min)min=d;
+  if(d<min){min=d;best=i;}
  }
- return min;
+ // Refine around the best sampled coordinate for accurate turn progress.
+ var stride=Math.max(1,Math.floor(limit/1500));
+ for(var j=Math.max(0,best-stride);j<=Math.min(limit-1,best+stride);j++){
+  var d2=distanceM(position,{lat:routeCoords[j][0],lng:routeCoords[j][1]});
+  if(d2<min){min=d2;best=j;}
+ }
+ return {index:best,distance:min};
 }
 function updateInstruction(){
  if(!position)return;
@@ -125,27 +147,25 @@ function updateInstruction(){
   metaEl.textContent=destination.name;status('Đã tới khu vực điểm đến. Kiểm tra lối vào thực tế.');
   return;
  }
- if(!route)return;
- var best=steps[steps.length-1]||null,bestDist=Infinity;
+ if(!route||!routeCoords.length)return;
+ var progress=nearestRoutePoint(),idx=progress.index;
+ var next=null;
  for(var i=0;i<steps.length;i++){
-  var loc=steps[i].maneuver&&steps[i].maneuver.location;
-  if(!loc)continue;
-  var d=distanceM(position,{lat:loc[1],lng:loc[0]});
-  if(d<bestDist){bestDist=d;best=steps[i];}
+  var step=steps[i],type=(step.maneuver||{}).type;
+  if(type==='depart')continue;
+  if(step.routeIndex>idx+1){next=step;break;}
  }
- var next=best;
- if(best){
-  var idx=steps.indexOf(best);
-  if(idx+1<steps.length&&bestDist<24)next=steps[idx+1];
- }
+ if(!next)next=steps[steps.length-1]||null;
  if(next){
-  var nloc=next.maneuver&&next.maneuver.location;
-  var toTurn=nloc?distanceM(position,{lat:nloc[1],lng:nloc[0]}):0;
+  var nextIndex=Math.min(next.routeIndex,cumulative.length-1);
+  var toTurn=Math.max(0,(cumulative[nextIndex]||0)-(cumulative[idx]||0));
   nextEl.textContent=stepText(next);
   distanceEl.textContent=km(toTurn)+' tới thao tác tiếp theo';
  }
- var remain=distanceM(position,destination);
- metaEl.textContent='Đích: '+destination.name+' · '+km(remain)+' đường chim bay';
+ var total=cumulative.length?cumulative[cumulative.length-1]:route.distance;
+ var remain=Math.max(0,total-(cumulative[idx]||0));
+ var eta=Math.ceil((route.duration||0)*(remain/Math.max(total,1))/60);
+ metaEl.textContent='Còn '+km(remain)+' · khoảng '+eta+' phút · '+destination.name;
 }
 function recenter(){follow=true;if(position)map.setView([position.lat,position.lng],17,{animate:true});}
 window.recenter=recenter;
@@ -173,7 +193,7 @@ window.ttubeNav={
   if(destination&&!route)calculateRoute(true);
   if(active){
    updateInstruction();
-   if(nearestRouteDistance()>85&&Date.now()-lastRecalcAt>25000)calculateRoute(false);
+   if(nearestRoutePoint().distance>85&&Date.now()-lastRecalcAt>25000)calculateRoute(false);
   }
  }
 };
