@@ -119,7 +119,7 @@ class CarPresentation(
         0.7f to 0.3f
     )
     private val splitMapUrl = "https://www.google.com/maps"
-    private val splitNavigationUrl = "file:///android_asset/car_split_navigation.html"
+    private val splitNavigationUrl = "https://appassets.androidplatform.net/assets/car_split_navigation.html"
     private var splitNavigationActive = false
     private val splitNavGpsTick = object : Runnable {
         override fun run() {
@@ -2996,6 +2996,35 @@ class CarPresentation(
             }
 
             webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(
+                    view: WebView?,
+                    request: WebResourceRequest?
+                ): WebResourceResponse? {
+                    val uri = request?.url
+                    if (uri?.scheme == "https" &&
+                        uri.host == "appassets.androidplatform.net" &&
+                        uri.path?.startsWith("/assets/") == true
+                    ) {
+                        // Local resources are whitelisted, never a generic filesystem
+                        // proxy. HTTPS document origin permits CORS-enabled route APIs.
+                        val name = uri.path?.removePrefix("/assets/").orEmpty()
+                        val mime = when (name) {
+                            "car_split_navigation.html" -> "text/html"
+                            "leaflet.js" -> "text/javascript"
+                            "leaflet.css" -> "text/css"
+                            else -> null
+                        }
+                        if (mime != null) {
+                            return try {
+                                WebResourceResponse(mime, "UTF-8", context.assets.open(name))
+                            } catch (_: Throwable) {
+                                WebResourceResponse("text/plain", "UTF-8", null)
+                            }
+                        }
+                    }
+                    return super.shouldInterceptRequest(view, request)
+                }
+
                 override fun shouldOverrideUrlLoading(
                     view: WebView?,
                     request: WebResourceRequest?
