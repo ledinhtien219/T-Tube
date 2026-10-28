@@ -24,6 +24,8 @@ internal class ProjectionDisconnectGate(private val confirmMs: Long = 6_000L) {
         }
     }
 
+    fun isProjectionActive(): Boolean = hasBeenProjected && connectionType == 2
+
     fun isPending() =
         hasBeenProjected && connectionType == 0 && disconnectStartedAt >= 0L
 
