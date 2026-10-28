@@ -355,10 +355,7 @@ object YouTubeAdBlocker {
             '.ytp-ad-overlay-slot',
             '.ytp-ad-message-container',
             '.video-ads',
-            '.ytp-ad-player-overlay',
-            '.ytp-ad-player-overlay-layout',
             '.ytp-ad-player-overlay-instream-info',
-            '.ytp-ad-player-overlay-skip-or-preview-container',
             '.ytp-ad-preview-container',
             '.ytp-ad-preview-text',
             '.ytp-ad-text',
@@ -376,11 +373,13 @@ object YouTubeAdBlocker {
         style.textContent =
             adUiSelectors.join(',') +
             '{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;background:transparent!important;box-shadow:none!important;}' +
-            'html.carhud-ad-active #movie_player [class*="ytp-ad-player-overlay"],' +
+            'html.carhud-ad-active #movie_player .ytp-ad-player-overlay-instream-info,' +
             'html.carhud-ad-active #movie_player [class*="ytp-ad-overlay"],' +
-            'html.carhud-ad-active .html5-video-player [class*="ytp-ad-player-overlay"],' +
+            'html.carhud-ad-active .html5-video-player .ytp-ad-player-overlay-instream-info,' +
             'html.carhud-ad-active .html5-video-player [class*="ytp-ad-overlay"]' +
             '{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;background:transparent!important;box-shadow:none!important;}' +
+            'html.carhud-ad-active .ytp-ad-player-overlay-layout' +
+            '{background:transparent!important;box-shadow:none!important;}' +
             '#movie_player.ad-showing::before,#movie_player.ad-showing::after,' +
             '#movie_player.ad-interrupting::before,#movie_player.ad-interrupting::after' +
             '{background:transparent!important;box-shadow:none!important;opacity:0!important;pointer-events:none!important;}';
@@ -434,9 +433,9 @@ object YouTubeAdBlocker {
                 if (!active) return;
 
                 var selector = adUiSelectors.concat([
-                    '#movie_player [class*="ytp-ad-player-overlay"]',
+                    '#movie_player .ytp-ad-player-overlay-instream-info',
                     '#movie_player [class*="ytp-ad-overlay"]',
-                    '.html5-video-player [class*="ytp-ad-player-overlay"]',
+                    '.html5-video-player .ytp-ad-player-overlay-instream-info',
                     '.html5-video-player [class*="ytp-ad-overlay"]'
                 ]).join(',');
 
