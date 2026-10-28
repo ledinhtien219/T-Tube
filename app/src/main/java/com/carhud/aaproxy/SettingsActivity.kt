@@ -970,6 +970,15 @@ class SettingsActivity : AppCompatActivity() {
 
                 content.addView(
                     createSwitchRow(
+                        title = "Tự tắt T Tube khi Android Auto ngắt kết nối",
+                        subtitle = "Hỗ trợ cả kết nối không dây; chỉ tắt sau 6 giây không tự nối lại",
+                        key = CarDisconnectWatchdog.PREF_AUTO_EXIT_ON_AA_DISCONNECT,
+                        default = true
+                    )
+                )
+
+                content.addView(
+                    createSwitchRow(
                         title = "Audio Ducking",
                         subtitle = "Tự giảm âm lượng khi có thông báo Maps",
                         key = KEY_AUDIO_DUCKING,
