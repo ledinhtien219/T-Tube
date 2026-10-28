@@ -112,6 +112,15 @@ class SettingsActivity : AppCompatActivity() {
     private val prefs: SharedPreferences by lazy {
         getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     }
+    private val playUpdater by lazy { PlayInAppUpdater(this) }
+
+    private fun checkAppUpdate() {
+        if (BuildConfig.PLAY_DISTRIBUTION) {
+            playUpdater.checkForUpdates(manual = true)
+        } else {
+            UpdateNotificationManager.check(this, manual = true)
+        }
+    }
 
     private var testDialog: androidx.appcompat.app.AlertDialog? = null
     private val exportSettings = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -303,6 +312,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        if (BuildConfig.PLAY_DISTRIBUTION) playUpdater.dispose()
         try { unregisterReceiver(exitReceiver) } catch (e: Exception) {}
         super.onDestroy()
     }
@@ -319,7 +329,9 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         val exitFilter = IntentFilter(CarAppShutdownManager.ACTION_FULL_EXIT)
         ContextCompat.registerReceiver(this, exitReceiver, exitFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
-        if (!LicenseManager.isLicensed(this)) {
+        // Play distribution is unlocked and has no ActivationActivity in its
+        // manifest. Legacy licensing applies only to the separate sideload APK.
+        if (!BuildConfig.PLAY_DISTRIBUTION && !LicenseManager.isLicensed(this)) {
             val intent = Intent(this, ActivationActivity::class.java)
             startActivity(intent)
             finish()
@@ -345,16 +357,21 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (BuildConfig.PLAY_DISTRIBUTION) {
+            // Also resume a finished Flexible Update after navigating Settings.
+            playUpdater.onResume()
+            return
+        }
         if (!LicenseManager.isLicensed(this)) {
             val intent = Intent(this, ActivationActivity::class.java)
             startActivity(intent)
             finish()
             return
         }
-        // Kiểm tra nền để đồng bộ gói mới nhất từ máy chủ Google Sheet
-        LicenseManager.checkStatus(this) { status, plan, expiry ->
+        // External license status must not be queried in Play builds.
+        LicenseManager.checkStatus(this) { status, _, _ ->
             if (status == LicenseManager.STATUS_APPROVED) {
-                // Tự động lưu và cập nhật
+                // Keep the legacy sideload status synchronized.
             }
         }
     }
@@ -2213,8 +2230,10 @@ class SettingsActivity : AppCompatActivity() {
 
                 content.addView(settingCard(
                     title = "KIỂM TRA CẬP NHẬT",
-                    subtitle = "Kiểm tra phiên bản mới và xem nội dung cập nhật",
-                    onClick = { UpdateNotificationManager.check(this@SettingsActivity, manual = true) }
+                    subtitle = if (BuildConfig.PLAY_DISTRIBUTION)
+                        "Cập nhật trực tiếp qua CH Play (không cần tải APK)" else
+                        "Kiểm tra phiên bản mới và xem nội dung cập nhật",
+                    onClick = { checkAppUpdate() }
                 ))
 
                 content.addView(settingCard(
