@@ -23,6 +23,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import com.carhud.app.BuildConfig
 import android.util.Log
 import com.google.android.apps.auto.sdk.CarActivity
 import com.google.android.apps.auto.sdk.CarActivityService
