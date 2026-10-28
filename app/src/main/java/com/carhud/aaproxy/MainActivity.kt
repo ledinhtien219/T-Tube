@@ -286,7 +286,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val pickWallpaperLauncher = registerForActivityResult(
-        ActivityResultContracts.GetConten    private data class PreparedWallpaper(val file: File, val kind: String)
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            handlePickedWallpaper(uri)
+        }
+    }
+
+    private data class PreparedWallpaper(val file: File, val kind: String)
 
     private fun handlePickedWallpaper(uri: Uri) {
         // Scan file metadata and copy large media on the IO dispatcher instead
@@ -402,9 +409,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-     Toast.makeText(this, "Lỗi khi chọn hình nền: ${e.message}", Toast.LENGTH_LONG).show()
-        }
-    }
 
     private fun queryDisplayName(uri: Uri): String {
         return try {
