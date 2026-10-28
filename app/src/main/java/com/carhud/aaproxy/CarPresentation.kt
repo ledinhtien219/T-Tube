@@ -123,6 +123,7 @@ class CarPresentation(
     private var mazdaPadHoldStartAt = 0L
     private var mazdaPadLastFrameAt = 0L
     private var mazdaPadLastEdgeScrollAt = 0L
+    private var mazdaPadLastKeepAliveAt = 0L
     private val hideMazdaPadCursorRunnable = Runnable { mazdaPadCursor?.visibility = View.GONE }
     private val mazdaPadRepeatRunnable = object : Runnable {
         override fun run() {
@@ -2695,6 +2696,9 @@ class CarPresentation(
         topToolbarContainer?.animate()?.cancel()
         CarMediaManager.isWebShowingFullscreen = false
         val isDay = isDayMode()
+        // TextureView must be visible before MediaPlayer restores its surface.
+        dashboardView?.visibility = View.VISIBLE
+        dashboardView?.bringToFront()
         dashboardView?.applyDayNightMode(isDay)
         dashboardView?.updateWallpaper()
         
@@ -2715,8 +2719,6 @@ class CarPresentation(
         sidebarContainer?.visibility = View.GONE
         hideYouTubeSeekOverlayImmediately()
         videoTimePill?.visibility = View.GONE
-        dashboardView?.visibility = View.VISIBLE
-        dashboardView?.bringToFront()
         
         if (isHudOverlayEnabled()) {
             if (hudOverlay == null) setupHudOverlay()
@@ -4842,7 +4844,12 @@ class CarPresentation(
         keepMazdaPadCursorAlive()
     }
 
-    private fun keepMazdaPadCursorAlive() {
+    private fun keepMazdaPadCursorAlive(force: Boolean = false) {
+        // Constrain expensive Handler remove/post to ~1Hz during frame-synced
+        // cursor movement, instead of doing it every animation frame.
+        val now = SystemClock.uptimeMillis()
+        if (!force && now - mazdaPadLastKeepAliveAt < 750L) return
+        mazdaPadLastKeepAliveAt = now
         mainHandler.removeCallbacks(hideMazdaPadCursorRunnable)
         mainHandler.postDelayed(hideMazdaPadCursorRunnable, 5000L)
     }
@@ -4952,7 +4959,7 @@ class CarPresentation(
         mazdaPadDy = 0f
         mazdaPadHoldStartAt = 0L
         mazdaPadLastFrameAt = 0L
-        keepMazdaPadCursorAlive()
+        keepMazdaPadCursorAlive(force = true)
     }
 
     private fun clickMazdaPadCursor(): Boolean {
