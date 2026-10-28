@@ -1,16 +1,16 @@
-name: Build Play v1.1.2 Stability Performance AAB
+name: Build Play v1.1.3 YouTube Browse Mode AAB
 
 on:
   push:
     branches:
-      - "release/play-v1.1.2-stability-performance"
+      - "release/play-v1.1.3-youtube-browse-mode"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ttube-play-v112-stability-${{ github.ref }}
+  group: ttube-play-v113-browse-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -63,6 +63,7 @@ jobs:
         run: |
           node --test tests/play-v174-mazda-fermata2-regression.test.cjs
           node --test tests/youtube-screen-settings.test.cjs
+          node --test tests/youtube-browse-mode.test.cjs
 
       - name: JVM tests
         run: |
@@ -99,7 +100,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.1.2-build300-com.ledinhtien.ttube-Stability-Performance-AAB
+          name: TTube-v1.1.3-build301-com.ledinhtien.ttube-YouTube-Browse-Mode-AAB
           path: app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 14
