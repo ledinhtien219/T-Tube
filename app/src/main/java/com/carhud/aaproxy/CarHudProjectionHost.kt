@@ -194,13 +194,13 @@ class CarHudProjectionActivity : CarActivity(), SurfaceHolder.Callback {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        Log.i("MazdaPAD", "CarActivity DOWN key=$keyCode repeat=${event.repeatCount} source=${event.source} device=${event.deviceId}")
+        if (BuildConfig.DEBUG) Log.d("MazdaPAD", "DOWN key=$keyCode repeat=${event.repeatCount} source=${event.source}")
         if (presentation?.handleMazdaPadKeyDown(keyCode, event) == true) return true
         return super.onKeyDown(keyCode, event)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        Log.i("MazdaPAD", "CarActivity UP key=$keyCode source=${event.source} device=${event.deviceId}")
+        if (BuildConfig.DEBUG) Log.d("MazdaPAD", "UP key=$keyCode source=${event.source}")
         if (presentation?.handleMazdaPadKeyUp(keyCode, event) == true) return true
         return super.onKeyUp(keyCode, event)
     }
