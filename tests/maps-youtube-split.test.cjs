@@ -155,7 +155,10 @@ assert.match(navigationHtml, /window\.ttubeNav =?\s*\{|window\.ttubeNav=\{/);
 assert.match(navigationHtml, /window\.ttubeNav=\{[\s\S]*?updatePosition:function/);
 assert.match(navigationHtml, /geometries=geojson&steps=true/);
 assert.match(navigationHtml, /routePending=true/);
-assert.match(navigationHtml, /nearestRouteDistance\(\)>85/);
+assert.match(navigationHtml, /nearestRoutePoint\(\)\.distance>85/);
+assert.match(navigationHtml, /function nearestRoutePoint\(\)/);
+assert.match(navigationHtml, /step\.routeIndex>idx\+1/);
+assert.match(navigationHtml, /cumulative\[idx\]/);
 assert.match(navigationHtml, /OpenStreetMap/);
 assert.doesNotMatch(navigationHtml, /mt\{s\}\.google\.com/);
 
