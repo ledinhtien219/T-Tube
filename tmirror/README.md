@@ -1,4 +1,4 @@
-# T-Mirror 0.1 — independently written Android Auto mirroring experiment
+# T-Mirror 0.2 — independently written Android Auto mirroring experiment
 
 **Copyright notice:** This implementation is authored independently. It is NOT a fork, derivative, repack, or patch of ScreenOnAuto's distributed APK. We used only publicly documented Android APIs and the existing AAuto SDK binding bundled in T-Tube.
 
@@ -16,7 +16,7 @@
 
 - Android Auto host MAY HIDE either or both projection entries, even after Google Play installation.
 - Legacy split-pane alongside real Google Maps is NOT GUARANTEED. Android Auto decides where to show an app.
-- No touch forwarding, privileged phone-screen-off, Shizuku, brightness controls, media session proxy, or multi-touch yet.
+- Optional tap and swipe forwarding is implemented via an opt-in Accessibility Service; privileged screen-off, Shizuku, brightness controls, media session proxy, and multi-touch are not yet implemented.
 - Performance is a CPU-backed 10 fps prototype (up to 1280 long edge); later production versions should use hardware-accelerated GPU composition.
 - No auto-bypass of MediaProjection consent. Screenshots of protected/DRM content may appear black. No anti-DRM measures.
 - Google Play internal testing does NOT override Android Auto supported app category / quality restrictions. Android Auto video mirroring is not an officially supported video-app category for driving.
@@ -50,7 +50,7 @@ Use signed tmirror-play.aab in Google Play Console Internal testing.
 
 1. Install the standalone test APK on Android 10+ phone; open T-Mirror.
 2. Pick T-Tube (or another app) and tap Start capture; grant Android screen sharing.
-3. Ensure screen capture notification appears and the selected app opens.
+3. Ensure screen capture notification appears and the selected app opens. Optionally tap **Bật điều khiển chạm** on the phone and manually enable **T-Mirror Touch** in Android Accessibility settings (only when parked).
 4. Connect Android Auto. Open Google Maps first.
 5. Look for T-Mirror (Legacy) in the car launcher and open it.
 6. If the host gives a second pane, you should see the phone's screen next to genuine Google Maps. On small/unsupported screens host may hide Maps or omit the entry altogether.
