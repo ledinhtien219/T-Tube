@@ -46,6 +46,7 @@ class MainActivity : Activity() {
             isAllCaps = false
         }
         container.addView(text("T-Mirror · Thử nghiệm Android Auto", 22f))
+        container.addView(text(installationDiagnostic(), 13f))
         container.addView(text("Phản chiếu màn hình điện thoại thật. Google Maps vẫn do Android Auto quản lý. Legacy chỉ xuất hiện cạnh Maps nếu head unit hỗ trợ.", 14f))
         state = text("Trạng thái: Chưa phản chiếu", 15f)
         container.addView(state)
@@ -76,6 +77,33 @@ class MainActivity : Activity() {
             != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), requestNotification)
         }
+    }
+
+    private fun installationDiagnostic(): String {
+        val source: String? = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                packageManager.getInstallSourceInfo(packageName).installingPackageName
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getInstallerPackageName(packageName)
+            }
+        } catch (_: Exception) { null }
+        val sourceLabel = when (source) {
+            "com.android.vending" -> "Google Play Store"
+            null -> "Không xác định / ADB"
+            else -> source
+        }
+        val full = Intent(Intent.ACTION_MAIN)
+            .addCategory("com.google.android.gms.car.category.CATEGORY_PROJECTION")
+            .setPackage(packageName)
+        val legacy = Intent(Intent.ACTION_MAIN)
+            .addCategory("com.google.android.gms.car.category.CATEGORY_PROJECTION_OEM")
+            .setPackage(packageName)
+        val fullCount = packageManager.queryIntentServices(full, 0).size
+        val legacyCount = packageManager.queryIntentServices(legacy, 0).size
+        return "Nguồn cài: $sourceLabel. Projection service: Full=$fullCount / Legacy=$legacyCount. " +
+            "Đã khai báo service không có nghĩa Android Auto đã chấp nhận; " +
+            "hãy xem Customize Launcher trên điện thoại."
     }
 
     private fun updateState() {
