@@ -102,8 +102,6 @@ class CarPresentation(
     private var splitModeActive = false
     private var splitContainer: LinearLayout? = null
     private var splitMapWeb: WebView? = null
-    private var splitMapSearchButton: TextView? = null
-    private var splitMapDirectionsButton: TextView? = null
     private var splitControlsContainer: LinearLayout? = null
     private var splitBackButton: TextView? = null
     private var splitHomeButton: TextView? = null
@@ -119,20 +117,6 @@ class CarPresentation(
         0.7f to 0.3f
     )
     private val splitMapUrl = "https://www.google.com/maps"
-    private val splitNavigationUrl = "https://appassets.androidplatform.net/assets/car_split_navigation.html"
-    private var splitNavigationActive = false
-    private val splitNavGpsTick = object : Runnable {
-        override fun run() {
-            if (!splitModeActive || !splitNavigationActive) return
-            val current = GpsSpeedManager.lastLocation.value
-            if (current != null) {
-                val ageMs = (System.currentTimeMillis() - current.time).coerceAtLeast(0L)
-                val args = "${current.latitude},${current.longitude},${current.bearing},${current.speed},$ageMs"
-                splitMapWeb?.evaluateJavascript("window.ttubeNav&&ttubeNav.updatePosition($args)", null)
-            }
-            splitControlHandler.postDelayed(this, 1500L)
-        }
-    }
 
     // WebView restoreState/loadUrl is asynchronous; current URL may still belong to the previous app.
     private var pendingSessionRestoreAppId: String? = null
@@ -2484,53 +2468,6 @@ class CarPresentation(
             web.resumeTimers()
         } catch (_: Throwable) {}
 
-        splitMapSearchButton = TextView(context).apply {
-            text = "⌕"
-            contentDescription = "Tìm địa điểm trên Google Maps"
-            textSize = 27f
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            background = rounded(Color.parseColor("#E61E293B"), 14f, Color.parseColor("#6638BDF8"), 1)
-            elevation = dp(40).toFloat()
-            setOnClickListener {
-                showSplitControlsTemporarily()
-                requestSplitMapSearch()
-            }
-        }.also { button ->
-            root.addView(
-                button,
-                FrameLayout.LayoutParams(dp(50), dp(50), Gravity.TOP or Gravity.START).apply {
-                    leftMargin = dp(10)
-                    topMargin = dp(8)
-                }
-            )
-        }
-
-        splitMapDirectionsButton = TextView(context).apply {
-            text = "➤"
-            contentDescription = "Chỉ đường từ vị trí hiện tại"
-            textSize = 24f
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            background = rounded(Color.parseColor("#E61E293B"), 14f, Color.parseColor("#665EEBFF"), 1)
-            elevation = dp(40).toFloat()
-            setOnClickListener {
-                splitLastTouchedPane = "maps"
-                showSplitControlsTemporarily()
-                requestSplitMapDirections()
-            }
-        }.also { button ->
-            root.addView(
-                button,
-                FrameLayout.LayoutParams(dp(50), dp(50), Gravity.TOP or Gravity.START).apply {
-                    leftMargin = dp(10)
-                    topMargin = dp(64)
-                }
-            )
-        }
-
         val controls = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -2637,13 +2574,8 @@ class CarPresentation(
         root.post {
             if (!splitModeActive) return@post
             injectYouTubeForCurrentViewport(web)
-            splitMapSearchButton?.bringToFront()
-            splitMapDirectionsButton?.bringToFront()
             splitControlsContainer?.bringToFront()
             showSplitControlsTemporarily()
-            if (restoringSplit && CarMediaManager.mapsYoutubeNavigationDestination.isNotBlank()) {
-                startSplitNavigation(CarMediaManager.mapsYoutubeNavigationDestination)
-            }
         }
     }
 
@@ -2708,10 +2640,6 @@ class CarPresentation(
 
     private fun goBackWithinSplit() {
         if (!splitModeActive) return
-        if (splitNavigationActive && splitLastTouchedPane == "maps") {
-            stopSplitNavigation()
-            return
-        }
         if (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) {
             hideSearchOverlay(notifyPhone = false)
             return
@@ -2793,135 +2721,21 @@ class CarPresentation(
         return false
     }
 
-    private fun resolveSplitNavigationDestination(routeUrl: String?, hint: String?): String {
-        val hintValue = hint.orEmpty().trim()
-        if (hintValue.isNotBlank()) return hintValue
-        val route = routeUrl.orEmpty().ifBlank { CarMediaManager.mapsYoutubeSplitLastRouteUrl }
-        val uri = try { android.net.Uri.parse(route) } catch (_: Throwable) { null }
-        val direct = try { uri?.getQueryParameter("destination") } catch (_: Throwable) { null }
-        if (!direct.isNullOrBlank()) return direct
-
-        // Google route URLs often embed destination coordinates even when the
-        // displayed place name is not present in OpenStreetMap geocoders.
-        val encoded = route
-        val latLon = Regex("!3d(-?[0-9.]+)!4d(-?[0-9.]+)")
-            .findAll(encoded).lastOrNull()
-        if (latLon != null) {
-            val lat = latLon.groupValues[1].toDoubleOrNull()
-            val lng = latLon.groupValues[2].toDoubleOrNull()
-            if (lat != null && lng != null && lat in -90.0..90.0 && lng in -180.0..180.0) {
-                return "$lat,$lng"
-            }
-        }
-        val lonLat = Regex("!1d(-?[0-9.]+)!2d(-?[0-9.]+)")
-            .findAll(encoded).lastOrNull()
-        if (lonLat != null) {
-            val lng = lonLat.groupValues[1].toDoubleOrNull()
-            val lat = lonLat.groupValues[2].toDoubleOrNull()
-            if (lat != null && lng != null && lat in -90.0..90.0 && lng in -180.0..180.0) {
-                return "$lat,$lng"
-            }
-        }
-
-        val segments = uri?.pathSegments.orEmpty()
-        if (segments.size >= 4 && segments[0] == "maps" && segments[1] == "dir") {
-            val segment = segments.drop(3)
-                .firstOrNull { it.isNotBlank() && !it.startsWith("data=") && !it.startsWith("@") }
-            if (!segment.isNullOrBlank()) return android.net.Uri.decode(segment.replace("+", " "))
-        }
-        return CarMediaManager.mapsYoutubeLastDestination
-    }
-
-    private fun startSplitNavigation(routeUrl: String? = null, destinationHint: String? = null) {
-        if (!splitModeActive) return
-        val destination = resolveSplitNavigationDestination(routeUrl, destinationHint).trim()
-        if (destination.isBlank()) {
-            Toast.makeText(context, "Chưa xác định được điểm đến. Nhập lại bằng nút ➤.", Toast.LENGTH_LONG).show()
-            requestSplitMapDirections()
-            return
-        }
-        val map = splitMapWeb ?: return
-        CarMediaManager.mapsYoutubeNavigationDestination = destination
-        CarMediaManager.mapsYoutubeLastDestination = destination
-        splitNavigationActive = true
-        splitLastTouchedPane = "maps"
-        GpsSpeedManager.start(context)
-        map.settings.userAgentString = "TTubeSplitNavigation/1.0 (+https://github.com/ledinhtien219/T-Tube)"
-        map.loadUrl(splitNavigationUrl)
-        splitControlHandler.removeCallbacks(splitNavGpsTick)
-        showSplitControlsTemporarily()
-    }
-
-    private fun stopSplitNavigation() {
-        if (!splitNavigationActive && CarMediaManager.mapsYoutubeNavigationDestination.isBlank()) return
-        splitNavigationActive = false
-        CarMediaManager.mapsYoutubeNavigationDestination = ""
-        splitControlHandler.removeCallbacks(splitNavGpsTick)
-        val map = splitMapWeb ?: return
-        map.settings.userAgentString = mobileUserAgent
-        val route = CarMediaManager.mapsYoutubeSplitLastRouteUrl
-        val target = if (isSplitMapsRouteUrl(route)) route else splitMapUrl
-        CarMediaManager.mapsYoutubeSplitUrl = target
-        map.loadUrl(target)
-        showSplitControlsTemporarily()
-    }
-
-    private fun onSplitNavigationPageReady(map: WebView) {
-        if (!splitNavigationActive) return
-        val destination = CarMediaManager.mapsYoutubeNavigationDestination
-        map.evaluateJavascript(
-            "window.ttubeNav&&ttubeNav.begin(" + org.json.JSONObject.quote(destination) + ")",
-            null
-        )
-        splitControlHandler.removeCallbacks(splitNavGpsTick)
-        splitControlHandler.post(splitNavGpsTick)
-    }
-
-    private fun injectSplitMapsStartButtonListener(map: WebView) {
-        if (!splitModeActive || splitNavigationActive) return
-        val script = """
-            (function() {
-                if (window.__ttubeMapsStartListener) return;
-                window.__ttubeMapsStartListener = true;
-                document.addEventListener('click', function(event) {
-                    var button = event.target && event.target.closest ?
-                        event.target.closest('button,a,[role="button"]') : null;
-                    if (!button || !location.href.includes('/maps/dir')) return;
-                    var label = (button.getAttribute('aria-label') || button.innerText || button.textContent || '').trim();
-                    if (!/^(bắt đầu|start|start navigation|navigate)(\s|$)/i.test(label)) return;
-                    event.preventDefault();
-                    event.stopPropagation();
-                    event.stopImmediatePropagation();
-                    if (window.AndroidSplitMaps) {
-                        window.AndroidSplitMaps.startNavigation(location.href, '');
-                    }
-                }, true);
-            })();
-        """.trimIndent()
-        map.evaluateJavascript(script, null)
-    }
-
     private fun showSplitControlsTemporarily() {
         if (!splitModeActive) return
         splitControlHandler.removeCallbacks(splitHideControlsRunnable)
-        listOfNotNull<View>(splitMapSearchButton, splitMapDirectionsButton, splitControlsContainer).forEach { view ->
+        listOfNotNull<View>(splitControlsContainer).forEach { view ->
             view.animate().cancel()
             view.alpha = 1f
-            view.visibility = if (splitNavigationActive && view !== splitControlsContainer) {
-                View.INVISIBLE
-            } else {
-                View.VISIBLE
-            }
+            view.visibility = View.VISIBLE
         }
-        splitMapSearchButton?.bringToFront()
-        splitMapDirectionsButton?.bringToFront()
         splitControlsContainer?.bringToFront()
         splitControlHandler.postDelayed(splitHideControlsRunnable, 10_000L)
     }
 
     private fun hideSplitControls() {
         if (!splitModeActive) return
-        listOfNotNull<View>(splitMapSearchButton, splitMapDirectionsButton, splitControlsContainer).forEach { view ->
+        listOfNotNull<View>(splitControlsContainer).forEach { view ->
             view.animate().cancel()
             view.animate()
                 .alpha(0f)
@@ -2950,30 +2764,12 @@ class CarPresentation(
             settings.setSupportZoom(true)
             settings.builtInZoomControls = false
             settings.displayZoomControls = false
-            // The mobile Maps shell is much lighter in a half-width Android Auto
-            // pane. Route planning is handled by T Tube's native split controls,
-            // so we do not need the heavy desktop Maps UI here.
+            // Show Google's own Maps Web UI in this pane. No custom navigation.
             settings.userAgentString = mobileUserAgent
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.setSupportMultipleWindows(false)
             isFocusable = true
             isFocusableInTouchMode = true
-
-            addJavascriptInterface(object {
-                @android.webkit.JavascriptInterface
-                fun startNavigation(currentUrl: String, destination: String) {
-                    mainHandler.post {
-                        if (splitModeActive && !splitNavigationActive) {
-                            startSplitNavigation(currentUrl, destination)
-                        }
-                    }
-                }
-
-                @android.webkit.JavascriptInterface
-                fun stopNavigation() {
-                    mainHandler.post { stopSplitNavigation() }
-                }
-            }, "AndroidSplitMaps")
 
             try {
                 CookieManager.getInstance().setAcceptCookie(true)
@@ -2996,35 +2792,6 @@ class CarPresentation(
             }
 
             webViewClient = object : WebViewClient() {
-                override fun shouldInterceptRequest(
-                    view: WebView?,
-                    request: WebResourceRequest?
-                ): WebResourceResponse? {
-                    val uri = request?.url
-                    if (uri?.scheme == "https" &&
-                        uri.host == "appassets.androidplatform.net" &&
-                        uri.path?.startsWith("/assets/") == true
-                    ) {
-                        // Local resources are whitelisted, never a generic filesystem
-                        // proxy. HTTPS document origin permits CORS-enabled route APIs.
-                        val name = uri.path?.removePrefix("/assets/").orEmpty()
-                        val mime = when (name) {
-                            "car_split_navigation.html" -> "text/html"
-                            "leaflet.js" -> "text/javascript"
-                            "leaflet.css" -> "text/css"
-                            else -> null
-                        }
-                        if (mime != null) {
-                            return try {
-                                WebResourceResponse(mime, "UTF-8", context.assets.open(name))
-                            } catch (_: Throwable) {
-                                WebResourceResponse("text/plain", "UTF-8", java.io.ByteArrayInputStream(byteArrayOf()))
-                            }
-                        }
-                    }
-                    return super.shouldInterceptRequest(view, request)
-                }
-
                 override fun shouldOverrideUrlLoading(
                     view: WebView?,
                     request: WebResourceRequest?
@@ -3040,13 +2807,6 @@ class CarPresentation(
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     val value = url.orEmpty()
-                    if (value.startsWith(splitNavigationUrl)) {
-                        if (view != null) onSplitNavigationPageReady(view)
-                        return
-                    }
-                    if (view != null && isSplitMapsWebUrl(value)) {
-                        injectSplitMapsStartButtonListener(view)
-                    }
                     val host = try {
                         android.net.Uri.parse(value).host.orEmpty().lowercase()
                     } catch (_: Throwable) {
@@ -3184,36 +2944,19 @@ class CarPresentation(
             return null
         }
 
-        if (target.startsWith(splitNavigationUrl)) return false
         val uri = try { android.net.Uri.parse(target) } catch (_: Throwable) { null }
         val scheme = uri?.scheme.orEmpty().lowercase()
 
         if (scheme == "http" || scheme == "https") {
             val host = uri?.host.orEmpty().lowercase()
             if (host == "play.google.com" || host == "market.android.com") {
-                if (isSplitMapsRouteUrl(CarMediaManager.mapsYoutubeSplitLastRouteUrl)) {
-                    startSplitNavigation(CarMediaManager.mapsYoutubeSplitLastRouteUrl)
-                    return true
-                }
                 return restoreSplitMapsRoute(map)
             }
-            if (isSplitMapsWebUrl(target)) {
-                if (isSplitMapsRouteUrl(target) &&
-                    uri?.getQueryParameter("dir_action") == "navigate"
-                ) {
-                    startSplitNavigation(target)
-                    return true
-                }
-                return false
-            }
+            if (isSplitMapsWebUrl(target)) return false
             return restoreSplitMapsRoute(map)
         }
 
         if (scheme == "market") {
-            if (isSplitMapsRouteUrl(CarMediaManager.mapsYoutubeSplitLastRouteUrl)) {
-                startSplitNavigation(CarMediaManager.mapsYoutubeSplitLastRouteUrl)
-                return true
-            }
             return restoreSplitMapsRoute(map)
         }
 
@@ -3231,22 +2974,14 @@ class CarPresentation(
             val query = extractQuery(uri).orEmpty().ifBlank {
                 target.substringAfter("q=", "").substringBefore('&')
             }
-            startSplitNavigation(
-                CarMediaManager.mapsYoutubeSplitLastRouteUrl,
-                if (query.isNotBlank()) android.net.Uri.decode(query) else null
-            )
-            return true
+            return if (query.isNotBlank()) {
+                loadMapsQuery(query, directions = true)
+            } else {
+                restoreSplitMapsRoute(map)
+            }
         }
 
         if (scheme == "intent") {
-            // Google Maps "Bắt đầu" hands control to the Android app via intent://.
-            // Route it into our in-pane navigator before considering any fallback.
-            if (target.contains("package=com.google.android.apps.maps", ignoreCase = true) &&
-                isSplitMapsRouteUrl(CarMediaManager.mapsYoutubeSplitLastRouteUrl)
-            ) {
-                startSplitNavigation(CarMediaManager.mapsYoutubeSplitLastRouteUrl)
-                return true
-            }
             try {
                 val intent = Intent.parseUri(target, Intent.URI_INTENT_SCHEME)
                 val data = intent.data
@@ -3297,8 +3032,7 @@ class CarPresentation(
                     ignoreCase = true
                 )
                 if (mapsPackage) {
-                    startSplitNavigation(CarMediaManager.mapsYoutubeSplitLastRouteUrl)
-                    return true
+                    return restoreSplitMapsRoute(map)
                 }
             } catch (_: Throwable) {}
 
@@ -3401,55 +3135,6 @@ class CarPresentation(
         showKeyboardOverlayInternal(requestNative = false, showKeys = true)
     }
 
-    private fun requestSplitMapDirections(initialDestination: String = "") {
-        if (!splitModeActive || searchOverlay.visibility == View.VISIBLE) return
-        searchOverlayMode = "maps_directions"
-        webKeyboardTargetPending = false
-        searchInput.error = null
-        searchInput.imeOptions = EditorInfo.IME_ACTION_GO
-        searchInput.hint = if (GpsSpeedManager.lastLocation.value != null) {
-            "Điểm đến · Điểm đi: GPS hiện tại"
-        } else {
-            "Điểm đến · Maps sẽ lấy vị trí hiện tại"
-        }
-        searchInput.setText(initialDestination)
-        searchInput.setSelection(searchInput.text.length)
-        searchOverlayVoiceButton?.visibility = View.GONE
-        searchOverlaySubmitButton?.apply {
-            visibility = View.VISIBLE
-            text = "➤ Chỉ đường"
-        }
-        searchSuggestionStrip?.visibility = View.GONE
-        keyboardActionKey?.text = "➤ ĐI"
-        splitControlHandler.removeCallbacks(splitHideControlsRunnable)
-        showKeyboardOverlayInternal(requestNative = false, showKeys = true)
-    }
-
-    private fun openSplitDirections(destination: String) {
-        val clean = destination.trim()
-        if (clean.isBlank()) return
-
-        val current = GpsSpeedManager.lastLocation.value
-        val originPart = if (current != null) {
-            "&origin=" + android.net.Uri.encode("${current.latitude},${current.longitude}")
-        } else {
-            ""
-        }
-        val target = "https://www.google.com/maps/dir/?api=1" +
-            originPart +
-            "&destination=" + android.net.Uri.encode(clean) +
-            "&travelmode=driving"
-
-        CarMediaManager.mapsYoutubeSplitUrl = target
-        CarMediaManager.mapsYoutubeSplitLastRouteUrl = target
-        CarMediaManager.mapsYoutubeLastDestination = clean
-        CarMediaManager.isMapsYoutubeSplitActive = true
-        splitLastTouchedPane = "maps"
-        splitMapWeb?.loadUrl(target)
-        hideSearchOverlay(notifyPhone = false)
-        showSplitControlsTemporarily()
-    }
-
     private fun leaveMapsYoutubeSplit(
         reattachYoutube: Boolean = true,
         preservePersistentState: Boolean = false
@@ -3459,18 +3144,9 @@ class CarPresentation(
             return
         }
         splitModeActive = false
-        splitNavigationActive = false
-        if (!preservePersistentState) {
-            CarMediaManager.isMapsYoutubeSplitActive = false
-            CarMediaManager.mapsYoutubeNavigationDestination = ""
-        }
-        splitControlHandler.removeCallbacks(splitNavGpsTick)
+        if (!preservePersistentState) CarMediaManager.isMapsYoutubeSplitActive = false
 
         splitControlHandler.removeCallbacks(splitHideControlsRunnable)
-        splitMapSearchButton?.let { (it.parent as? ViewGroup)?.removeView(it) }
-        splitMapSearchButton = null
-        splitMapDirectionsButton?.let { (it.parent as? ViewGroup)?.removeView(it) }
-        splitMapDirectionsButton = null
         splitControlsContainer?.let { (it.parent as? ViewGroup)?.removeView(it) }
         splitControlsContainer = null
         splitBackButton = null
@@ -4768,11 +4444,6 @@ class CarPresentation(
     }
 
     private fun executeSearch(query: String, broadcast: Boolean = false) {
-        if (searchOverlayMode == "maps_directions") {
-            if (!splitModeActive) return
-            openSplitDirections(query)
-            return
-        }
         if (searchOverlayMode == "maps") {
             val q = query.trim()
             if (q.isBlank() || !splitModeActive) return
@@ -5825,9 +5496,7 @@ class CarPresentation(
 
                 val onOverlayControl =
                     (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) ||
-                    containsScreenPoint(splitControlsContainer) ||
-                    containsScreenPoint(splitMapSearchButton) ||
-                    containsScreenPoint(splitMapDirectionsButton)
+                    containsScreenPoint(splitControlsContainer)
 
                 // Do not let a tap on Back/Home/ratio/swap/search/route overwrite
                 // the last content pane. Otherwise pressing Back itself can change
