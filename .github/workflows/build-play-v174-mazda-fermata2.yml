@@ -1,16 +1,16 @@
-name: Build Play v1.1.4 YouTube Swipe MiniPiP AAB
+name: Build Play v1.1.5 MiniPiP Touch Scroll Fix AAB
 
 on:
   push:
     branches:
-      - "release/play-v1.1.4-youtube-swipe-minipip"
+      - "release/play-v1.1.5-minipip-touch-scroll"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ttube-play-v114-minipip-${{ github.ref }}
+  group: ttube-play-v115-minipip-touch-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -101,7 +101,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.1.4-build302-com.ledinhtien.ttube-YouTube-Swipe-MiniPiP-AAB
+          name: TTube-v1.1.5-build303-com.ledinhtien.ttube-MiniPiP-Touch-Scroll-AAB
           path: app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 14
