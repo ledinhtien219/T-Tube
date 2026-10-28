@@ -12,8 +12,8 @@ android {
         applicationId = "com.ledinhtien.ttube"
         minSdk = 29
         targetSdk = 36
-        versionCode = 304
-        versionName = "1.1.6"
+        versionCode = 305
+        versionName = "1.1.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -125,6 +125,8 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
     implementation("androidx.media:media:1.7.0")
+    // Official Google Play flexible in-app update API (phone UI only).
+    implementation("com.google.android.play:app-update:2.1.0")
     implementation(files("libs/aauto.aar"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
