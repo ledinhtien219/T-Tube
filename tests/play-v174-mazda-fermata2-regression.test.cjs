@@ -11,8 +11,8 @@ const adblock = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/YouTubeAdB
 assert.match(gradle, /applicationId = "com\.ledinhtien\.ttube"/);
 assert.match(gradle, /compileSdk = 36/);
 assert.match(gradle, /targetSdk = 36/);
-assert.match(gradle, /versionCode = 299/);
-assert.match(gradle, /versionName = "1\.1\.1"/);
+assert.match(gradle, /versionCode = 300/);
+assert.match(gradle, /versionName = "1\.1\.2"/);
 assert.match(gradle, /PLAY_DISTRIBUTION/);
 assert.match(gradle, /isDebuggable = false/);
 
@@ -66,3 +66,24 @@ assert.match(presentation, /keepMazdaPadCursorAlive\(force: Boolean = false\)/);
 assert.match(adblock, /adUiFramePending/);
 assert.match(adblock, /requestAnimationFrame/);
 console.log('PASS: Play 1.1.0 stable074 + Mazda + Fermata2 + runtime performance + wireless auto-exit');
+
+const disconnect = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarDisconnectWatchdog.kt','utf8');
+const picker = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/MainActivity.kt','utf8');
+const adCss = adblock.slice(adblock.indexOf('var adUiSelectors'),adblock.indexOf('function getPlayer'));
+assert.match(disconnect, /if \(action == Intent\.ACTION_POWER_DISCONNECTED\) return/);
+assert.match(disconnect, /connectionLiveData != null \|\| connectionExitGate\.isProjectionActive\(\)/);
+assert.match(disconnect, /autoExitEnabled\(context\)/);
+assert.doesNotMatch(disconnect, /onProjectionLifecycleEnded[\s\S]{0,250}checkPowerState/);
+assert.match(picker, /withContext\(Dispatchers\.IO\) \{ preparePickedWallpaper\(uri\) \}/);
+assert.match(picker, /pending\.renameTo\(dest\)/);
+assert.match(picker, /copied > maxBytes/);
+assert.match(dashboard, /coroutineScope\.launch\(Dispatchers\.IO\)/);
+assert.match(dashboard, /inJustDecodeBounds = true/);
+assert.match(dashboard, /inSampleSize = sample/);
+assert.match(dashboard, /wallpaperImageJob\?\.cancel\(\)/);
+assert.match(dashboard, /60_000L - \(System\.currentTimeMillis\(\) % 60_000L\)/);
+assert.doesNotMatch(adCss, /^\s*'\.ytp-ad-player-overlay',/m);
+assert.doesNotMatch(adCss, /^\s*'\.ytp-ad-player-overlay-layout',/m);
+assert.doesNotMatch(adCss, /^\s*'\.ytp-ad-player-overlay-skip-or-preview-container',/m);
+assert.match(adblock, /\.ytp-ad-skip-button-modern/);
+console.log('PASS build 300 stability gates: wireless power, wallpaper IO, sampled bitmap, skip control');
