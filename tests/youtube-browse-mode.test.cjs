@@ -6,8 +6,8 @@ const gradle = fs.readFileSync('app/build.gradle.kts','utf8');
 const min = fs.readFileSync('app/src/main/res/drawable/ic_bar_minimize.xml','utf8');
 const max = fs.readFileSync('app/src/main/res/drawable/ic_bar_expand.xml','utf8');
 
-assert.match(gradle, /versionCode = 302/);
-assert.match(gradle, /versionName = "1\.1\.4"/);
+assert.match(gradle, /versionCode = 303/);
+assert.match(gradle, /versionName = "1\.1\.5"/);
 assert.match(presentation, /fun toolButton\(iconRes: Int, label: String\?,/);
 assert.match(presentation, /if \(label != null\)/);
 assert.match(presentation, /val browseToggle = toolButton\([\s\S]*?R\.drawable\.ic_bar_minimize,[\s\S]*?null[\s\S]*?toggleYouTubeBrowseMode\(\)/);
