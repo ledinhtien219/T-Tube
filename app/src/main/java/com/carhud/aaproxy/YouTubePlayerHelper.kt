@@ -224,9 +224,13 @@ object YouTubePlayerHelper {
     try {
         // Preserve the browse/fullscreen choice through YouTube SPA updates.
         window.__carhudBrowseMode = false;
+        window.__carhudPipMode = false;
         try {
             window.__carhudBrowseMode =
                 window.sessionStorage.getItem('carhud_youtube_browse_mode') === '1';
+            window.__carhudPipMode =
+                window.sessionStorage.getItem('carhud_youtube_pip_mode') === '1';
+            if (window.__carhudPipMode) window.__carhudBrowseMode = true;
         } catch(e) {}
 
         // 1. Spoof Page Visibility & Focus so YouTube NEVER pauses background playback
@@ -369,6 +373,12 @@ object YouTubePlayerHelper {
         '.carhud-force-fullscreen .watch-below-the-fold, .carhud-force-fullscreen ytm-item-section-renderer, .carhud-force-fullscreen ytm-watch-metadata, .carhud-force-fullscreen ytm-mobile-topbar-renderer { display: none !important; } ' +
         'html.carhud-youtube-browse, html.carhud-youtube-browse body { height: auto !important; overflow-y: auto !important; touch-action: pan-y !important; } ' +
         'html.carhud-youtube-browse .watch-below-the-fold, html.carhud-youtube-browse ytm-watch-metadata, html.carhud-youtube-browse ytm-item-section-renderer { display: block !important; visibility: visible !important; height: auto !important; opacity: 1 !important; pointer-events: auto !important; } ' +
+        // A single original YouTube player floats above the normal scrolling
+        // recommendation list. No second <video>, WebView, iframe or navigation.
+        'html.carhud-youtube-pip ytm-app, html.carhud-youtube-pip .page-container, html.carhud-youtube-pip ytm-watch { transform:none!important;filter:none!important;contain:none!important; } ' +
+        'html.carhud-youtube-pip [data-carhud-pip-host="1"] { position:fixed!important;top:auto!important;left:auto!important;right:14px!important;bottom:14px!important;width:clamp(168px,32vw,320px)!important;max-width:calc(100vw - 28px)!important;height:auto!important;min-height:0!important;aspect-ratio:16/9!important;margin:0!important;padding:0!important;border-radius:11px!important;overflow:hidden!important;background:#000!important;z-index:9900!important;box-shadow:0 5px 22px #0009!important;pointer-events:auto!important; } ' +
+        'html.carhud-youtube-pip [data-carhud-pip-host="1"] ytm-player, html.carhud-youtube-pip [data-carhud-pip-host="1"] #movie_player, html.carhud-youtube-pip [data-carhud-pip-host="1"] .html5-video-player, html.carhud-youtube-pip [data-carhud-pip-host="1"] .html5-video-container { position:relative!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;overflow:hidden!important; } ' +
+        'html.carhud-youtube-pip [data-carhud-pip-host="1"] video { position:absolute!important;inset:0!important;left:0!important;top:0!important;right:0!important;bottom:0!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;margin:0!important;object-fit:contain!important;z-index:2!important;pointer-events:auto!important; } ' +
         '.video-ads, .ytp-ad-module, .ytp-ad-player-overlay-layout, .ytp-ad-image-overlay, .ytp-ad-text-overlay, ytm-promoted-sparkles-web-renderer, ytm-companion-ad-renderer, ytm-promoted-video-renderer, ytd-banner-promo-renderer, ytd-in-feed-ad-layout-renderer { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; } ' +
         '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, [class*="ytp-ad-skip"], .videoAdUiSkipButton { z-index: 2147483647 !important; pointer-events: auto !important; } ' +
         '*, html, body { -webkit-tap-highlight-color: transparent !important; touch-action: pan-y !important; } ' +
@@ -946,17 +956,45 @@ object YouTubePlayerHelper {
             } catch(e) {}
         }
 
+        // Keep the original player node in the DOM. Only tag its existing
+        // wrapper so the CSS pins it; never reparent or clone the video.
+        function unpinMiniPlayerHost() {
+            var old = window.__carhudMiniPlayerHost;
+            if (old) old.removeAttribute('data-carhud-pip-host');
+            window.__carhudMiniPlayerHost = null;
+        }
+
+        function pinMiniPlayerHost() {
+            var video = getMainVideo();
+            if (!video || !video.closest) return;
+            var host = video.closest('#player-container-id') ||
+                       video.closest('.player-container') ||
+                       video.closest('ytm-player') ||
+                       video.closest('#movie_player') ||
+                       video.parentElement;
+            if (!host || host === document.body || host === document.documentElement) return;
+            if (window.__carhudMiniPlayerHost !== host) {
+                unpinMiniPlayerHost();
+                window.__carhudMiniPlayerHost = host;
+                host.setAttribute('data-carhud-pip-host', '1');
+            }
+        }
+
         function updateWatchLayout() {
             try {
                 var watch = window.location.pathname.indexOf('/watch') === 0;
-                var browsing = watch && !!window.__carhudBrowseMode;
+                var pip = watch && !!window.__carhudPipMode;
+                var browsing = watch && (!!window.__carhudBrowseMode || pip);
                 var html = document.documentElement, body = document.body;
                 var wasBrowsing = html.classList.contains('carhud-youtube-browse');
+                var wasPip = html.classList.contains('carhud-youtube-pip');
 
+                // Remove marker before the former host is painted fullscreen.
+                if (!pip && window.__carhudMiniPlayerHost) unpinMiniPlayerHost();
                 if (browsing || !watch) {
                     html.classList.remove('carhud-force-fullscreen');
                     if (body) body.classList.remove('carhud-force-fullscreen');
-                    if (!wasBrowsing || !browsing) {
+                    if (!wasBrowsing || !browsing || (pip && !wasPip)) {
                         releaseVideoFill();
                         if (browsing) releaseInlineVideoStyle();
                     }
@@ -970,18 +1008,90 @@ object YouTubePlayerHelper {
 
                 html.classList.toggle('carhud-youtube-browse', browsing);
                 if (body) body.classList.toggle('carhud-youtube-browse', browsing);
+                html.classList.toggle('carhud-youtube-pip', pip);
+                if (body) body.classList.toggle('carhud-youtube-pip', pip);
+                if (pip) pinMiniPlayerHost();
             } catch(e) {}
         }
 
         window.__carhudUpdateWatchLayout = updateWatchLayout;
         window.__carhudSetBrowseMode = function(enabled) {
             window.__carhudBrowseMode = !!enabled;
+            if (!enabled) window.__carhudPipMode = false;
             try {
                 window.sessionStorage.setItem(
                     'carhud_youtube_browse_mode', enabled ? '1' : '0');
             } catch(e) {}
             updateWatchLayout();
         };
+
+        window.__carhudSetPipMode = function(enabled) {
+            // A YouTube watch page is required; don't create a floating video
+            // on search/home or any other web app.
+            if (enabled && window.location.pathname.indexOf('/watch') !== 0) return;
+            var newMode = !!enabled;
+            var changed = newMode !== !!window.__carhudPipMode;
+            window.__carhudPipMode = newMode;
+            window.__carhudBrowseMode = newMode;
+            try {
+                window.sessionStorage.setItem('carhud_youtube_pip_mode', newMode ? '1' : '0');
+                window.sessionStorage.setItem('carhud_youtube_browse_mode', newMode ? '1' : '0');
+            } catch(e) {}
+            updateWatchLayout();
+            if (changed) {
+                try {
+                    if (window.AndroidVoice && window.AndroidVoice.onYouTubeMiniPlayerChanged)
+                        window.AndroidVoice.onYouTubeMiniPlayerChanged(newMode);
+                } catch(e) {}
+            }
+        };
+
+        // Swipe down on the player: enter Mini PiP. Native YouTube gestures
+        // outside the player remain untouched so cards still scroll/select.
+        var miniTouchStart = null;
+        document.addEventListener('touchstart', function(e) {
+            miniTouchStart = null;
+            if (window.__carhudPipMode || location.pathname.indexOf('/watch') !== 0 ||
+                !e.touches || e.touches.length !== 1) return;
+            var target = e.target;
+            if (!target || !target.closest ||
+                !target.closest('video, #movie_player, .html5-video-player, ytm-player, #player-container-id'))
+                return;
+            miniTouchStart = {
+                x:e.touches[0].clientX, y:e.touches[0].clientY, time:Date.now()
+            };
+        }, {capture:true, passive:true});
+
+        document.addEventListener('touchend', function(e) {
+            var started = miniTouchStart;
+            miniTouchStart = null;
+            if (!started || !e.changedTouches || !e.changedTouches.length) return;
+            var touch = e.changedTouches[0];
+            var dx = touch.clientX - started.x;
+            var dy = touch.clientY - started.y;
+            if (dy > 72 && dy > Math.abs(dx) * 1.4 && Date.now() - started.time < 1200) {
+                if (e.cancelable) e.preventDefault();
+                window.__carhudMiniIgnoreClickUntil = Date.now() + 650;
+                window.__carhudSetPipMode(true);
+            }
+        }, {capture:true, passive:false});
+
+        document.addEventListener('touchcancel', function() {
+            miniTouchStart = null;
+        }, {capture:true, passive:true});
+
+        // Tap mini player to expand it, without pausing or clicking YouTube's
+        // underlying playback controls. No interference outside the mini box.
+        document.addEventListener('click', function(e) {
+            if (!window.__carhudPipMode || !window.__carhudMiniPlayerHost) return;
+            var target = e.target;
+            if (!target || !window.__carhudMiniPlayerHost.contains(target)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+            if (Date.now() < (window.__carhudMiniIgnoreClickUntil || 0)) return;
+            window.__carhudSetPipMode(false);
+        }, true);
 
         function handleWatchPage() {
             try {
@@ -2190,6 +2300,21 @@ object YouTubePlayerHelper {
      * Switch between vehicle fullscreen and the ordinary YouTube watch page.
      * No reload, no duplicate WebView or player.
      */
+    /**
+     * Move the current YouTube player into an in-page floating mini-player,
+     * retaining touch scrolling and native recommendations behind it.
+     */
+    fun setMiniPlayerMode(view: WebView?, enabled: Boolean) {
+        val literal = if (enabled) "true" else "false"
+        try {
+            view?.evaluateJavascript(
+                "(function(){if(window.__carhudSetPipMode)" +
+                    "window.__carhudSetPipMode($literal);})();",
+                null
+            )
+        } catch (_: Exception) {}
+    }
+
     fun setBrowseMode(view: WebView?, enabled: Boolean) {
         val js = if (enabled) "true" else "false"
         try {
