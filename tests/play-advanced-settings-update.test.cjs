@@ -8,8 +8,8 @@ const gradle = fs.readFileSync('app/build.gradle.kts','utf8');
 const manifest = fs.readFileSync('app/src/main/AndroidManifest.xml','utf8');
 const layout = fs.readFileSync('app/src/main/res/layout/activity_main.xml','utf8');
 
-assert.match(gradle, /versionCode = 305/);
-assert.match(gradle, /versionName = "1\.1\.7"/);
+assert.match(gradle, /versionCode = 306/);
+assert.match(gradle, /versionName = "1\.1\.8"/);
 assert.match(gradle, /implementation\("com\.google\.android\.play:app-update:2\.1\.0"\)/);
 assert.match(gradle, /applicationId = "com\.ledinhtien\.ttube"/);
 
