@@ -58,3 +58,16 @@ Use signed tmirror-play.aab in Google Play Console Internal testing.
 8. Recheck the app against Android Auto Google Play quality criteria before attempting distribution.
 
 The project relies on the AAuto SDK binary at `../app/libs/aauto.aar`, already bundled in this repo. Before redistributing a Play AAB, verify you have appropriate rights to redistribute that dependency and comply with all Google/Android Auto terms.
+
+
+## v0.3 Android Auto launcher visibility diagnosis
+
+When `T-Mirror` or `T-Mirror (Legacy)` is absent from Android Auto:
+
+1. Open the T-Mirror phone app and read **Nguồn cài**. If it is not **Google Play Store**, Android Auto may reject the direct APK even when the services are registered.
+2. Check the phone **Android Auto → Customize launcher** page. If the entry is not listed there, resizing/scaling fixes cannot help.
+3. Check the phone app's `Projection service: Full=1 / Legacy=1` diagnostic. If zero, the installed manifest is not registering the entry correctly; reinstall the newly built APK.
+4. To test a trusted install source use a **properly signed** AAB through Google Play Console Internal App Sharing or Internal Testing. Google Play distribution and Android Auto launcher approval are separate requirements; unsupported mirror/video categories may still be rejected.
+5. Check on a parked vehicle. The Android Auto host controls whether Legacy actually has a second pane beside **Google Maps**.
+
+**Explicit limitation:** This independent app's experimental `CarActivityService` + `CATEGORY_PROJECTION_OEM` mechanism is not a supported, publicly documented Play distribution API for arbitrary mirroring apps. No manifest combination guarantees appearing in every Android Auto launcher; this build is for compatibility diagnostics, not a claim of support.
