@@ -3,6 +3,7 @@ package com.tcar.tmirror
 import android.os.Bundle
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.MotionEvent
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.google.android.apps.auto.sdk.CarActivity
@@ -37,6 +38,35 @@ class MirrorCarActivity : CarActivity(), SurfaceHolder.Callback {
         surface = SurfaceView(this).apply {
             holder.addCallback(this@MirrorCarActivity)
             setZOrderOnTop(false)
+            isClickable = true
+            setOnTouchListener { _, event ->
+                if (!MirrorTouchService.enabled) return@setOnTouchListener false
+                val point = MirrorFrames.normalizedPoint(
+                    event.x, event.y, width, height
+                )
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        touchStart = point
+                        touchStartedAt = event.eventTime
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        val from = touchStart
+                        if (from != null && point != null) {
+                            MirrorTouchService.sendGesture(
+                                from, point, event.eventTime - touchStartedAt
+                            )
+                        }
+                        touchStart = null
+                        true
+                    }
+                    MotionEvent.ACTION_CANCEL -> {
+                        touchStart = null
+                        true
+                    }
+                    else -> true
+                }
+            }
         }
         val root = FrameLayout(this)
         root.addView(surface, FrameLayout.LayoutParams(
