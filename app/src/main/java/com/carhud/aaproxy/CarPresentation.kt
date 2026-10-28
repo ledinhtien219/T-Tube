@@ -3018,7 +3018,7 @@ class CarPresentation(
                             return try {
                                 WebResourceResponse(mime, "UTF-8", context.assets.open(name))
                             } catch (_: Throwable) {
-                                WebResourceResponse("text/plain", "UTF-8", null)
+                                WebResourceResponse("text/plain", "UTF-8", java.io.ByteArrayInputStream(byteArrayOf()))
                             }
                         }
                     }
