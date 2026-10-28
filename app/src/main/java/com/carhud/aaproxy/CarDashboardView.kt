@@ -89,6 +89,7 @@ class CarDashboardView(
         const val WALLPAPER_CUSTOM = "custom"
         const val PREF_CUSTOM_WALLPAPER_PATH = "pref_custom_wallpaper_path"
         const val PREF_CUSTOM_WALLPAPER_KIND = "pref_custom_wallpaper_kind"
+        const val PREF_CUSTOM_WALLPAPER_REVISION = "pref_custom_wallpaper_revision"
         const val WALLPAPER_KIND_IMAGE = "image"
         const val WALLPAPER_KIND_GIF = "gif"
         const val WALLPAPER_KIND_VIDEO = "video"
@@ -99,7 +100,7 @@ class CarDashboardView(
     }
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == PREF_WALLPAPER_TYPE || key == PREF_CUSTOM_WALLPAPER_PATH || key == PREF_CUSTOM_WALLPAPER_KIND || key == PREF_USER_NAME) {
+        if (key == PREF_WALLPAPER_TYPE || key == PREF_CUSTOM_WALLPAPER_PATH || key == PREF_CUSTOM_WALLPAPER_KIND || key == PREF_CUSTOM_WALLPAPER_REVISION || key == PREF_USER_NAME) {
             post {
                 updateWallpaper()
             }
@@ -732,12 +733,24 @@ class CarDashboardView(
     }
 
     private var staticWallpaperSignature: String? = null
+    private var activeVideoWallpaperPath: String? = null
+    private var activeVideoWallpaperRevision = -1L
+    private var wallpaperGeneration = 0L
+
     fun updateWallpaper() {
         val rawType = prefs.getString(PREF_WALLPAPER_TYPE, WALLPAPER_BUGATTI) ?: WALLPAPER_BUGATTI
         val type = if (rawType == "homer") WALLPAPER_BUGATTI else rawType
         val customPath = prefs.getString(PREF_CUSTOM_WALLPAPER_PATH, null)
         val customKind = prefs.getString(PREF_CUSTOM_WALLPAPER_KIND, WALLPAPER_KIND_IMAGE)
         val isStatic = type != WALLPAPER_CUSTOM || customKind == WALLPAPER_KIND_IMAGE
+        val revision = prefs.getLong(PREF_CUSTOM_WALLPAPER_REVISION, 0L)
+        // Preserve an already-running wallpaper player when returning Home.
+        // A new external file has a new revision even if its path is identical.
+        if (type == WALLPAPER_CUSTOM && customKind == WALLPAPER_KIND_VIDEO &&
+            activeVideoWallpaperPath == customPath &&
+            activeVideoWallpaperRevision == revision &&
+            wallpaperPlayer != null && dashboardVideoBackground.isAvailable
+        ) return
         val signature = if (type == WALLPAPER_CUSTOM) {
             val file = customPath?.let(::File)
             "$type|$customPath|${file?.lastModified()}|${file?.length()}"
@@ -767,7 +780,7 @@ class CarDashboardView(
                     ?: WALLPAPER_KIND_IMAGE
                 if (!path.isNullOrBlank() && File(path).exists()) {
                     when (kind) {
-                        WALLPAPER_KIND_VIDEO -> playVideoWallpaper(path)
+                        WALLPAPER_KIND_VIDEO -> playVideoWallpaper(path, revision)
                         WALLPAPER_KIND_GIF -> playGifWallpaper(path)
                         else -> showCustomImage(path)
                     }
@@ -836,7 +849,10 @@ class CarDashboardView(
         }
     }
 
-    private fun playVideoWallpaper(path: String) {
+    private fun playVideoWallpaper(path: String, revision: Long) {
+        activeVideoWallpaperPath = path
+        activeVideoWallpaperRevision = revision
+        val generation = wallpaperGeneration
         forceWallpaperLayersFullscreen()
         dashboardBackground.setImageDrawable(null)
         dashboardBackground.visibility = View.GONE
@@ -864,12 +880,18 @@ class CarDashboardView(
                     if (isShown) it.start()
                 }
                 player.setOnErrorListener { _, _, _ ->
-                    post { applyBugattiDefault() }
+                    post {
+                        if (wallpaperGeneration == generation && wallpaperPlayer === player) {
+                            applyBugattiDefault()
+                        }
+                    }
                     true
                 }
                 player.prepareAsync()
             } catch (_: Throwable) {
-                post { applyBugattiDefault() }
+                post {
+                    if (wallpaperGeneration == generation) applyBugattiDefault()
+                }
             }
         }
 
@@ -967,6 +989,9 @@ class CarDashboardView(
     }
 
     private fun stopDynamicWallpaper() {
+        wallpaperGeneration++
+        activeVideoWallpaperPath = null
+        activeVideoWallpaperRevision = -1L
         try {
             animatedWallpaper?.stop()
         } catch (_: Throwable) {
