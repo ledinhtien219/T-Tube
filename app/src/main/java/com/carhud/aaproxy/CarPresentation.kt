@@ -740,6 +740,7 @@ class CarPresentation(
                 val isYouTube = currentActiveAppId == "youtube" && (url.contains("youtube.com") || url.contains("youtu.be"))
                 if (isYouTube) {
                     YouTubePlayerHelper.inject(view, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
+                    YouTubePlayerHelper.setBrowseMode(view, prefs.getBoolean(youtubeBrowsePref, false))
                     YouTubePlayerHelper.applyCarSearchHome(view)
                     updateYouTubeHomeObstacles()
 
@@ -1241,6 +1242,21 @@ class CarPresentation(
     private var youtubeSeekTimeLabel: TextView? = null
     private var youtubeSeekDragging = false
     private var youtubeSeekDurationSec = 0
+    private val youtubeBrowsePref = "pref_youtube_browse_mode"
+    private var youtubeBrowseButton: LinearLayout? = null
+    private var youtubeBrowseIcon: ImageView? = null
+
+    private fun toggleYouTubeBrowseMode() {
+        if (currentActiveAppId != "youtube" || isWebVideoFullscreen) return
+        val browsing = !prefs.getBoolean(youtubeBrowsePref, false)
+        prefs.edit().putBoolean(youtubeBrowsePref, browsing).apply()
+        YouTubePlayerHelper.setBrowseMode(web, browsing)
+        youtubeBrowseIcon?.setImageResource(
+            if (browsing) R.drawable.ic_bar_expand else R.drawable.ic_bar_minimize
+        )
+        youtubeBrowseButton?.contentDescription =
+            if (browsing) "Phóng to video YouTube" else "Thu nhỏ video YouTube"
+    }
 
     private fun formatPlaybackSeconds(seconds: Int): String {
         val safe = seconds.coerceAtLeast(0)
@@ -1328,6 +1344,8 @@ class CarPresentation(
         sidebarContainer?.let { root.removeView(it) }
         sidebarContainer = null
         youtubeSeekContainer?.let { root.removeView(it) }
+        youtubeBrowseButton = null
+        youtubeBrowseIcon = null
         youtubeSeekContainer = null
         youtubeSeekBar = null
         youtubeSeekTimeLabel = null
@@ -1627,7 +1645,7 @@ class CarPresentation(
         val iconSize = ((23 * scale) / 100).coerceIn(19, 30)
         val textSizeSp = (9.2f * scale / 100f).coerceIn(8f, 12f)
 
-        fun toolButton(iconRes: Int, label: String, onClick: (LinearLayout) -> Unit): LinearLayout {
+        fun toolButton(iconRes: Int, label: String?, onClick: (LinearLayout) -> Unit): LinearLayout {
             return LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
@@ -1648,16 +1666,19 @@ class CarPresentation(
                     if (isDay) setColorFilter(Color.parseColor("#0F172A")) else setColorFilter(Color.WHITE)
                 }
                 addView(icon, LinearLayout.LayoutParams(dp(iconSize), dp(iconSize)))
-                addView(TextView(context).apply {
-                    text = label
-                    textSize = textSizeSp
-                    gravity = Gravity.CENTER
-                    maxLines = 1
-                    includeFontPadding = false
-                    setTextColor(if (isDay) Color.parseColor("#0F172A") else Color.parseColor("#EAF2F8"))
-                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    topMargin = dp(1)
-                })
+                // Null label means truly icon-only; no empty text view.
+                if (label != null) {
+                    addView(TextView(context).apply {
+                        text = label
+                        textSize = textSizeSp
+                        gravity = Gravity.CENTER
+                        maxLines = 1
+                        includeFontPadding = false
+                        setTextColor(if (isDay) Color.parseColor("#0F172A") else Color.parseColor("#EAF2F8"))
+                    }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        topMargin = dp(1)
+                    })
+                }
                 enableTouchBounce()
                 setOnClickListener { onClick(this) }
             }
@@ -1689,6 +1710,19 @@ class CarPresentation(
 
             addView(toolButton(R.drawable.ic_bar_play_pause, "Phát / Dừng") { togglePlayPause() })
             addView(toolButton(R.drawable.ic_bar_next, "Tiếp theo") { YouTubePlayerHelper.playNext(web) })
+            // One icon-only button; Youtube itself owns scrolling and selecting
+            // suggested videos in browse mode.
+            val browseEnabled = prefs.getBoolean(youtubeBrowsePref, false)
+            val browseToggle = toolButton(
+                if (browseEnabled) R.drawable.ic_bar_expand else R.drawable.ic_bar_minimize,
+                null
+            ) { toggleYouTubeBrowseMode() }
+            browseToggle.contentDescription =
+                if (browseEnabled) "Phóng to video YouTube" else "Thu nhỏ video YouTube"
+            browseToggle.isFocusable = true
+            youtubeBrowseButton = browseToggle
+            youtubeBrowseIcon = browseToggle.getChildAt(0) as? ImageView
+            addView(browseToggle)
             addView(toolButton(R.drawable.ic_bar_setting, "Cài đặt") {
                 showVideoQualityMenu()
             })
