@@ -34,6 +34,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -736,6 +737,7 @@ class CarDashboardView(
     private var activeVideoWallpaperPath: String? = null
     private var activeVideoWallpaperRevision = -1L
     private var wallpaperGeneration = 0L
+    private var wallpaperImageJob: Job? = null
 
     fun updateWallpaper() {
         val rawType = prefs.getString(PREF_WALLPAPER_TYPE, WALLPAPER_BUGATTI) ?: WALLPAPER_BUGATTI
@@ -753,7 +755,7 @@ class CarDashboardView(
         ) return
         val signature = if (type == WALLPAPER_CUSTOM) {
             val file = customPath?.let(::File)
-            "$type|$customPath|${file?.lastModified()}|${file?.length()}"
+            "$type|$customPath|$revision|${file?.lastModified()}|${file?.length()}"
         } else type
         // Returning home must not decode the same image or restart its layers.
         if (isStatic && staticWallpaperSignature == signature) return
@@ -804,21 +806,46 @@ class CarDashboardView(
     }
 
     private fun showCustomImage(path: String) {
-        try {
-            val bmp = BitmapFactory.decodeFile(path)
-            if (bmp != null) {
+        // Decode a screen-sized sample in the background; never allocate an
+        // entire 12–48MP photo on the projection/UI thread.
+        val generation = wallpaperGeneration
+        val targetW = width.coerceAtLeast(1).coerceAtMost(1920)
+        val targetH = height.coerceAtLeast(1).coerceAtMost(1080)
+        wallpaperImageJob?.cancel()
+        wallpaperImageJob = coroutineScope.launch(Dispatchers.IO) {
+            val bitmap = try {
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(path, bounds)
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) null
+                else {
+                    var sample = 1
+                    while (bounds.outWidth / sample > targetW * 2 ||
+                           bounds.outHeight / sample > targetH * 2) sample *= 2
+                    BitmapFactory.decodeFile(path, BitmapFactory.Options().apply {
+                        inSampleSize = sample
+                        inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                    })
+                }
+            } catch (_: Throwable) { null }
+
+            withContext(Dispatchers.Main) {
+                if (generation != wallpaperGeneration || !isAttachedToWindow ||
+                    prefs.getString(PREF_CUSTOM_WALLPAPER_PATH, null) != path) {
+                    bitmap?.recycle()
+                    return@withContext
+                }
+                if (bitmap == null) {
+                    applyBugattiDefault()
+                    return@withContext
+                }
                 forceWallpaperLayersFullscreen()
                 dashboardVideoBackground.visibility = View.GONE
                 dashboardBackground.scaleType = ImageView.ScaleType.CENTER_CROP
-                dashboardBackground.setImageBitmap(bmp)
+                dashboardBackground.setImageBitmap(bitmap)
                 dashboardBackground.visibility = View.VISIBLE
                 dashboardScrim.visibility = View.VISIBLE
                 dashboardScrim.setBackgroundColor(Color.parseColor("#35000000"))
-            } else {
-                applyBugattiDefault()
             }
-        } catch (_: Throwable) {
-            applyBugattiDefault()
         }
     }
 
@@ -989,6 +1016,8 @@ class CarDashboardView(
     }
 
     private fun stopDynamicWallpaper() {
+        wallpaperImageJob?.cancel()
+        wallpaperImageJob = null
         wallpaperGeneration++
         activeVideoWallpaperPath = null
         activeVideoWallpaperRevision = -1L
@@ -1052,7 +1081,8 @@ class CarDashboardView(
                 // Lunar Date: ÂL: 05/08 - Năm Bính Ngọ
                 setTextIfChanged(lunarDateText, VietnameseLunarHelper.getFormattedLunarWithCanChi(cal))
 
-                timeHandler.postDelayed(this, 1000)
+                // Clock/date/greeting change at minute boundaries, not every second.
+                timeHandler.postDelayed(this, 60_000L - (System.currentTimeMillis() % 60_000L) + 50L)
             }
         }
         timeHandler.post(timeRunnable)
