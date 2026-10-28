@@ -9,8 +9,8 @@ assert.ok(jsMatch, 'Missing YouTube injected script');
 const js = jsMatch[1];
 new Function(js);
 
-assert.match(gradle,/versionCode = 305/);
-assert.match(gradle,/versionName = "1\.1\.7"/);
+assert.match(gradle,/versionCode = 306/);
+assert.match(gradle,/versionName = "1\.1\.8"/);
 assert.match(js,/window\.__carhudSetPipMode = function\(enabled\)/);
 assert.match(js,/window\.__carhudPipMode = newMode/);
 assert.match(js,/window\.__carhudBrowseMode = newMode/);
