@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: tmirror-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tmirror:
     name: Build T-Mirror test APK + unsigned Play AAB
