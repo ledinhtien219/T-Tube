@@ -13,9 +13,6 @@ const media = fs.readFileSync(
   'app/src/main/java/com/carhud/aaproxy/CarMediaManager.kt',
   'utf8'
 );
-const navigationHtml = fs.readFileSync(
-  'app/src/main/assets/car_split_navigation.html', 'utf8'
-);
 
 assert.match(
   model,
@@ -64,7 +61,6 @@ assert.match(
   presentation,
   /fun dispatchProjectedTouch\(event: MotionEvent\): Boolean \{[\s\S]*?if \(splitModeActive\) \{[\s\S]*?dispatchTouchEvent\(copy\)[\s\S]*?return true/
 );
-assert.match(presentation, /val onOverlayControl =[\s\S]*?containsScreenPoint\(splitControlsContainer\)[\s\S]*?containsScreenPoint\(splitMapDirectionsButton\)/);
 assert.match(presentation, /if \(!onOverlayControl\) \{[\s\S]*?splitLastTouchedPane = "maps"[\s\S]*?splitLastTouchedPane = "youtube"/);
 
 assert.match(presentation, /private fun requestSplitMapSearch\([\s\S]*?initialText: String = ""[\s\S]*?hint: String = "Tìm địa điểm trên Google Maps"/);
@@ -98,15 +94,9 @@ assert.match(presentation, /private fun restoreSplitMapsRoute\(map: WebView\): B
 assert.match(presentation, /mapsYoutubeSplitLastRouteUrl/);
 assert.match(presentation, /www\.google\.com\/maps\/search\/\?api=1&query=/);
 assert.match(presentation, /settings\.setGeolocationEnabled\(true\)/);
-assert.match(presentation, /splitMapDirectionsButton = TextView\(context\)[\s\S]*?text = "➤"[\s\S]*?requestSplitMapDirections\(\)/);
-assert.match(presentation, /private fun requestSplitMapDirections\(initialDestination: String = ""\)/);
-assert.match(presentation, /searchOverlayMode = "maps_directions"/);
-assert.match(presentation, /private fun openSplitDirections\(destination: String\)/);
-assert.match(presentation, /CarMediaManager\.mapsYoutubeSplitLastRouteUrl = target/);
 assert.match(presentation, /GpsSpeedManager\.lastLocation\.value/);
 assert.match(presentation, /&origin=" \+ android\.net\.Uri\.encode\("\$\{current\.latitude\},\$\{current\.longitude\}"\)/);
 assert.match(presentation, /&travelmode=driving/);
-assert.match(presentation, /if \(searchOverlayMode == "maps_directions"\)/);
 assert.match(presentation, /settings\.userAgentString = mobileUserAgent/);
 assert.match(presentation, /private fun handleSplitMapNavigation\(view: WebView\?, rawTarget: String\)/);
 assert.match(presentation, /"https:\/\/www\.google\.com\/maps\/dir\/\?api=1" \+/);
@@ -137,33 +127,12 @@ assert.match(
   /override fun dismiss\(\) \{[\s\S]*?leaveMapsYoutubeSplit\(reattachYoutube = false, preservePersistentState = true\)[\s\S]*?releaseSplitMapWeb\(\)/
 );
 
-
-// In-pane navigation must not hand Google's Start button to Play Store.
-assert.match(presentation, /splitNavigationUrl = "https:\/\/appassets\.androidplatform\.net\/assets\/car_split_navigation\.html"/);
-assert.match(presentation, /uri\.host == "appassets\.androidplatform\.net"/);
-assert.match(presentation, /"car_split_navigation\.html" -> "text\/html"/);
-assert.match(presentation, /"leaflet\.js" -> "text\/javascript"/);
-assert.match(presentation, /"leaflet\.css" -> "text\/css"/);
-assert.match(presentation, /@android\.webkit\.JavascriptInterface[\s\S]*?fun startNavigation\(currentUrl: String, destination: String\)/);
-assert.match(presentation, /injectSplitMapsStartButtonListener\(view\)/);
-assert.match(presentation, /document\.addEventListener\('click'[\s\S]*?event\.stopImmediatePropagation\(\)/);
-assert.match(presentation, /private fun startSplitNavigation\(routeUrl: String\? = null, destinationHint: String\? = null\)/);
-assert.match(presentation, /splitMapWeb\?\.evaluateJavascript\("window\.ttubeNav&&ttubeNav\.updatePosition\(\$args\)"/);
-assert.match(presentation, /onSplitNavigationPageReady\(view\)/);
-assert.match(presentation, /private fun stopSplitNavigation\(\)/);
-assert.match(presentation, /startSplitNavigation\(CarMediaManager\.mapsYoutubeSplitLastRouteUrl\)/);
-assert.match(presentation, /uri\?\.getQueryParameter\("dir_action"\) == "navigate"/);
-assert.match(media, /var mapsYoutubeNavigationDestination: String = ""/);
-assert.match(media, /var mapsYoutubeLastDestination: String = ""/);
-assert.match(navigationHtml, /window\.ttubeNav =?\s*\{|window\.ttubeNav=\{/);
-assert.match(navigationHtml, /window\.ttubeNav=\{[\s\S]*?updatePosition:function/);
-assert.match(navigationHtml, /geometries=geojson&steps=true/);
-assert.match(navigationHtml, /routePending=true/);
-assert.match(navigationHtml, /nearestRoutePoint\(\)\.distance>85/);
-assert.match(navigationHtml, /function nearestRoutePoint\(\)/);
-assert.match(navigationHtml, /step\.routeIndex>idx\+1/);
-assert.match(navigationHtml, /cumulative\[idx\]/);
-assert.match(navigationHtml, /OpenStreetMap/);
-assert.doesNotMatch(navigationHtml, /mt\{s\}\.google\.com/);
-
-console.log('PASS: independent Google Maps + YouTube split projection mode');
+// Google Maps must be its own unmodified web experience: no custom
+// navigation page, GPS/OSRM runner, route overlay, or auxiliary map buttons.
+assert.doesNotMatch(presentation, /splitNavigationUrl|startSplitNavigation|stopSplitNavigation|AndroidSplitMaps|injectSplitMapsStartButtonListener/);
+assert.doesNotMatch(presentation, /splitMapDirectionsButton|splitMapSearchButton|maps_directions/);
+assert.doesNotMatch(media, /mapsYoutubeNavigationDestination|mapsYoutubeLastDestination/);
+assert.match(presentation, /settings\.userAgentString = mobileUserAgent/);
+assert.match(presentation, /mapWeb\.loadUrl\(startUrl\)/);
+assert.match(presentation, /https:\/\/www\.google\.com\/maps/);
+console.log('PASS: split with original Google Maps Web (no custom navigation)');
