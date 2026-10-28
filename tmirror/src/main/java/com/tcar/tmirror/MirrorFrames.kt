@@ -56,6 +56,21 @@ object MirrorFrames {
         }
     }
 
+    /** Convert a touch in the letterboxed car pane to phone-normalized coordinates. */
+    fun normalizedPoint(x: Float, y: Float, paneWidth: Int, paneHeight: Int): Pair<Float, Float>? =
+        synchronized(this) {
+            val b = bitmap ?: return@synchronized null
+            if (paneWidth <= 0 || paneHeight <= 0) return@synchronized null
+            val scale = minOf(paneWidth.toFloat() / b.width, paneHeight.toFloat() / b.height)
+            val displayedW = b.width * scale
+            val displayedH = b.height * scale
+            val left = (paneWidth - displayedW) / 2f
+            val top = (paneHeight - displayedH) / 2f
+            val nx = (x - left) / displayedW
+            val ny = (y - top) / displayedH
+            if (nx !in 0f..1f || ny !in 0f..1f) null else nx to ny
+        }
+
     fun clear() {
         synchronized(this) { bitmap?.recycle(); bitmap = null }
         listeners.forEach { listener -> runCatching { listener() } }
