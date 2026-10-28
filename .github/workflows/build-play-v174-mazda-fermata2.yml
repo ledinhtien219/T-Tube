@@ -1,16 +1,16 @@
-name: Build Play v1.1.7 Advanced Settings and Play Update AAB
+name: Build Play v1.1.8 YouTube Cinema Mini PiP AAB
 
 on:
   push:
     branches:
-      - "release/play-v1.1.7-advanced-settings-play-update"
+      - "release/play-v1.1.8-youtube-cinema-ui"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ttube-play-v117-settings-update-${{ github.ref }}
+  group: ttube-play-v118-cinema-ui-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -67,6 +67,7 @@ jobs:
           node --test tests/youtube-mini-pip.test.cjs
           node --test tests/youtube-mini-pip-scroll.test.cjs
           node --test tests/play-advanced-settings-update.test.cjs
+          node --test tests/youtube-cinema-ui.test.cjs
 
       - name: JVM tests
         run: |
@@ -103,7 +104,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.1.7-build305-com.ledinhtien.ttube-Advanced-Settings-Play-Update-AAB
+          name: TTube-v1.1.8-build306-com.ledinhtien.ttube-YouTube-Cinema-MiniPiP-AAB
           path: app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 14
