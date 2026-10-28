@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+    <application
+        android:label="T-Mirror"
+        android:icon="@drawable/ic_tmirror"
+        android:allowBackup="false"
+        android:theme="@android:style/Theme.Material.NoActionBar"
+        android:usesCleartextTraffic="false"
+        android:hardwareAccelerated="true">
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="unspecified">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".CaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
+        <!-- Optional: the user MUST enable this service manually in Android
+             Accessibility settings. Only dispatches user touch gestures. -->
+        <service
+            android:name=".MirrorTouchService"
+            android:label="T-Mirror Touch"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/touch_service" />
+        </service>
+
+        <!-- EXPERIMENTAL: AA host decides whether it will give this entry a
+             side-by-side Legacy pane. Neither service overrides Maps. -->
+        <service
+            android:name=".LegacyCarService"
+            android:label="T-Mirror (Legacy)"
+            android:icon="@drawable/ic_tmirror"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="com.google.android.gms.car.category.CATEGORY_PROJECTION_OEM"/>
+            </intent-filter>
+        </service>
+        <service
+            android:name=".FullCarService"
+            android:label="T-Mirror"
+            android:icon="@drawable/ic_tmirror"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="com.google.android.gms.car.category.CATEGORY_PROJECTION"/>
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

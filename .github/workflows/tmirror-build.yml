@@ -1,0 +1,59 @@
+name: T-Mirror (independent) APK and AAB
+
+on:
+  push:
+    branches:
+      - experiment/tmirror-independent-mirroring-20261028
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tmirror-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tmirror:
+    name: Build T-Mirror test APK + unsigned Play AAB
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Restore shared stable debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: thtv-stable-debug-keystore-v1
+      - name: Verify stable APK signing key
+        run: |
+          test -f ~/.android/debug.keystore || {
+            echo "Stable debug signing key not present; refusing to rotate the signing certificate."
+            exit 1
+          }
+      - name: Install Android 16 SDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" || yes | sdkmanager "platforms;android-36"
+          test -f "$ANDROID_HOME/platforms/android-36/android.jar"
+      - uses: gradle/actions/setup-gradle@v3
+      - name: Build Android APK and AAB
+        run: |
+          chmod +x gradlew
+          ./gradlew :tmirror:assembleDebug :tmirror:bundleRelease --stacktrace
+      - name: Upload test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: T-Mirror-v0.4.0-test-APK
+          path: tmirror/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload unsigned release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: T-Mirror-v0.4.0-unsigned-AAB
+          path: tmirror/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 14
