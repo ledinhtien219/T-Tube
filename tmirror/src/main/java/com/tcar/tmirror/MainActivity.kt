@@ -80,19 +80,19 @@ class MainActivity : Activity() {
     }
 
     private fun installationDiagnostic(): String {
-        val source: String? = try {
+        // On Android 11+ Gearhead may validate the initiating installer, not the
+        // simpler installingPackageName shown by earlier T-Mirror builds.
+        // Keep both visible to avoid falsely declaring an ADB install as Play.
+        val (initiator, installer) = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                packageManager.getInstallSourceInfo(packageName).installingPackageName
+                val info = packageManager.getInstallSourceInfo(packageName)
+                Pair(info.initiatingPackageName, info.installingPackageName)
             } else {
                 @Suppress("DEPRECATION")
-                packageManager.getInstallerPackageName(packageName)
+                val oldInstaller = packageManager.getInstallerPackageName(packageName)
+                Pair(oldInstaller, oldInstaller)
             }
-        } catch (_: Exception) { null }
-        val sourceLabel = when (source) {
-            "com.android.vending" -> "Google Play Store"
-            null -> "Không xác định / ADB"
-            else -> source
-        }
+        } catch (_: Exception) { Pair(null, null) }
         val full = Intent(Intent.ACTION_MAIN)
             .addCategory("com.google.android.gms.car.category.CATEGORY_PROJECTION")
             .setPackage(packageName)
@@ -101,9 +101,17 @@ class MainActivity : Activity() {
             .setPackage(packageName)
         val fullCount = packageManager.queryIntentServices(full, 0).size
         val legacyCount = packageManager.queryIntentServices(legacy, 0).size
-        return "Nguồn cài: $sourceLabel. Projection service: Full=$fullCount / Legacy=$legacyCount. " +
-            "Đã khai báo service không có nghĩa Android Auto đã chấp nhận; " +
-            "hãy xem Customize Launcher trên điện thoại."
+        val fromPlay = initiator == "com.android.vending" ||
+            (initiator == "com.google.android.packageinstaller" && installer == "com.android.vending")
+        val eligibility = if (fromPlay) {
+            "Nguồn cài có dấu hiệu Play; Android Auto vẫn có thể từ chối projection."
+        } else {
+            "APK cài trực tiếp có thể bị Android Auto chặn, dù service hợp lệ."
+        }
+        return "Nguồn: initiator=${initiator ?: "không rõ"}, installer=${installer ?: "không rõ"}." +
+            "\nProjection service: Full=$fullCount / Legacy=$legacyCount." +
+            "\n$eligibility" +
+            "\nNếu không thấy trong Customize Launcher, xem log CAR.VALIDATOR."
     }
 
     private fun updateState() {
