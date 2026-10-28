@@ -1,4 +1,4 @@
-# T-Mirror 0.2 — independently written Android Auto mirroring experiment
+# T-Mirror 0.3 — independently written Android Auto mirroring experiment
 
 **Copyright notice:** This implementation is authored independently. It is NOT a fork, derivative, repack, or patch of ScreenOnAuto's distributed APK. We used only publicly documented Android APIs and the existing AAuto SDK binding bundled in T-Tube.
 
