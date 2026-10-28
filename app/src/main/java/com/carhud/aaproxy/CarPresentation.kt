@@ -527,6 +527,15 @@ class CarPresentation(
 
 
             @JavascriptInterface
+            fun onYouTubeMiniPlayerChanged(enabled: Boolean) {
+                mainHandler.post {
+                    if (currentActiveAppId == "youtube") {
+                        updateYouTubeMiniPlayerUi(enabled)
+                    }
+                }
+            }
+
+            @JavascriptInterface
             fun onUserSelectedVideo(url: String) {
                 CarMediaManager.userWantsPlayback = true
                 CarMediaManager.saveLastPlayedUrl(context, url)
@@ -740,7 +749,7 @@ class CarPresentation(
                 val isYouTube = currentActiveAppId == "youtube" && (url.contains("youtube.com") || url.contains("youtu.be"))
                 if (isYouTube) {
                     YouTubePlayerHelper.inject(view, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
-                    YouTubePlayerHelper.setBrowseMode(view, prefs.getBoolean(youtubeBrowsePref, false))
+                    YouTubePlayerHelper.setMiniPlayerMode(view, prefs.getBoolean(youtubeBrowsePref, false))
                     YouTubePlayerHelper.applyCarSearchHome(view)
                     updateYouTubeHomeObstacles()
 
@@ -1246,22 +1255,28 @@ class CarPresentation(
     private var youtubeBrowseButton: LinearLayout? = null
     private var youtubeBrowseIcon: ImageView? = null
 
-    private fun toggleYouTubeBrowseMode() {
-        if (currentActiveAppId != "youtube" || isWebVideoFullscreen) return
-        val browsing = !prefs.getBoolean(youtubeBrowsePref, false)
-        prefs.edit().putBoolean(youtubeBrowsePref, browsing).apply()
-        YouTubePlayerHelper.setBrowseMode(web, browsing)
-        if (!browsing) {
-            // Returning to fullscreen must restore the chosen 4:3/21:9
-            // aspect ratio as well as ordinary fill/contain/cover.
+    private fun updateYouTubeMiniPlayerUi(enabled: Boolean) {
+        if (prefs.getBoolean(youtubeBrowsePref, false) != enabled) {
+            prefs.edit().putBoolean(youtubeBrowsePref, enabled).apply()
+        }
+        youtubeBrowseIcon?.setImageResource(
+            if (enabled) R.drawable.ic_bar_expand else R.drawable.ic_bar_minimize
+        )
+        youtubeBrowseButton?.contentDescription =
+            if (enabled) "Phóng to video YouTube" else "Thu nhỏ video YouTube"
+        if (!enabled && currentActiveAppId == "youtube" && isYouTubeVideoPage()) {
+            // Reapply the selected fullscreen fit (including 4:3 and 21:9)
+            // after a swipe/tap or toolbar-initiated expansion.
             val aspect = prefs.getString("car_video_aspect_mode", "fill") ?: "fill"
             YouTubePlayerHelper.setVideoAspectRatio(web, aspect)
         }
-        youtubeBrowseIcon?.setImageResource(
-            if (browsing) R.drawable.ic_bar_expand else R.drawable.ic_bar_minimize
-        )
-        youtubeBrowseButton?.contentDescription =
-            if (browsing) "Phóng to video YouTube" else "Thu nhỏ video YouTube"
+    }
+
+    private fun toggleYouTubeBrowseMode() {
+        if (currentActiveAppId != "youtube" || isWebVideoFullscreen || !isYouTubeVideoPage()) return
+        val enabled = !prefs.getBoolean(youtubeBrowsePref, false)
+        YouTubePlayerHelper.setMiniPlayerMode(web, enabled)
+        updateYouTubeMiniPlayerUi(enabled)
     }
 
     private fun formatPlaybackSeconds(seconds: Int): String {
@@ -1716,8 +1731,8 @@ class CarPresentation(
 
             addView(toolButton(R.drawable.ic_bar_play_pause, "Phát / Dừng") { togglePlayPause() })
             addView(toolButton(R.drawable.ic_bar_next, "Tiếp theo") { YouTubePlayerHelper.playNext(web) })
-            // One icon-only button; Youtube itself owns scrolling and selecting
-            // suggested videos in browse mode.
+            // One icon-only button. A swipe or this button enters inline Mini PiP;
+            // native YouTube retains its scrolling recommendation cards underneath.
             val browseEnabled = prefs.getBoolean(youtubeBrowsePref, false)
             val browseToggle = toolButton(
                 if (browseEnabled) R.drawable.ic_bar_expand else R.drawable.ic_bar_minimize,
