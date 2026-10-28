@@ -1,16 +1,16 @@
-name: Build Play v1.1.1 YouTube Screen Settings AAB
+name: Build Play v1.1.2 Stability Performance AAB
 
 on:
   push:
     branches:
-      - "release/play-v1.1.1-youtube-screen-settings"
+      - "release/play-v1.1.2-stability-performance"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ttube-play-v111-youtube-screen-${{ github.ref }}
+  group: ttube-play-v112-stability-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -99,7 +99,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.1.1-build299-com.ledinhtien.ttube-YouTube-Screen-Settings-AAB
+          name: TTube-v1.1.2-build300-com.ledinhtien.ttube-Stability-Performance-AAB
           path: app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 14
