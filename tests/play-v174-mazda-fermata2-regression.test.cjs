@@ -11,8 +11,8 @@ const adblock = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/YouTubeAdB
 assert.match(gradle, /applicationId = "com\.ledinhtien\.ttube"/);
 assert.match(gradle, /compileSdk = 36/);
 assert.match(gradle, /targetSdk = 36/);
-assert.match(gradle, /versionCode = 297/);
-assert.match(gradle, /versionName = "1\.0\.99"/);
+assert.match(gradle, /versionCode = 298/);
+assert.match(gradle, /versionName = "1\.1\.0"/);
 assert.match(gradle, /PLAY_DISTRIBUTION/);
 assert.match(gradle, /isDebuggable = false/);
 
@@ -47,4 +47,22 @@ const intercept = adblock.slice(
 assert.match(intercept, /return null/);
 assert.doesNotMatch(intercept, /createEmptyResponse/);
 
-console.log('PASS: Play 1.0.99 = stable 0.74 UI + Mazda DPAD + Fermata2 + Play policy gates');
+const watchdog = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarDisconnectWatchdog.kt', 'utf8');
+const gate = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/ProjectionDisconnectGate.kt', 'utf8');
+const settings = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/SettingsActivity.kt', 'utf8');
+const dashboard = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt', 'utf8');
+
+assert.match(watchdog, /CarConnection\(context.applicationContext\)\.type/);
+assert.match(watchdog, /PROJECTION_EXIT_CONFIRM_MS = 6_000L/);
+assert.match(watchdog, /connectionExitGate\.shouldExit/);
+assert.match(watchdog, /beginCarConnectionObservation/);
+assert.match(gate, /hasBeenProjected && connectionType == 0/);
+assert.match(settings, /PREF_AUTO_EXIT_ON_AA_DISCONNECT/);
+assert.match(dashboard, /PREF_CUSTOM_WALLPAPER_REVISION/);
+assert.match(dashboard, /wallpaperGeneration == generation/);
+assert.match(dashboard, /activeVideoWallpaperRevision == revision/);
+assert.match(main, /PREF_CUSTOM_WALLPAPER_REVISION/);
+assert.match(presentation, /keepMazdaPadCursorAlive\(force: Boolean = false\)/);
+assert.match(adblock, /adUiFramePending/);
+assert.match(adblock, /requestAnimationFrame/);
+console.log('PASS: Play 1.1.0 stable074 + Mazda + Fermata2 + runtime performance + wireless auto-exit');
