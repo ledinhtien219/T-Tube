@@ -64,6 +64,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val playUpdater by lazy { PlayInAppUpdater(this) }
     private var fullExitReceiver: BroadcastReceiver? = null
 
     // Tabs
@@ -518,7 +519,13 @@ class MainActivity : AppCompatActivity() {
         startClockTicker()
 
         // Hiển thị nhật ký cập nhật phiên bản mới khi vừa cập nhật app
-        ChangelogManager.checkAndShowChangelog(this, onDismiss = { UpdateNotificationManager.check(this) })
+        ChangelogManager.checkAndShowChangelog(this, onDismiss = {
+            if (BuildConfig.PLAY_DISTRIBUTION) {
+                playUpdater.checkForUpdates(manual = false)
+            } else {
+                UpdateNotificationManager.check(this)
+            }
+        })
         startMediaObserver()
         loadQuickChannels()
     }
@@ -2102,10 +2109,21 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
 
-        findViewById<Button>(R.id.btnOpenAdvancedSettings)?.setOnClickListener {
-            val intent = Intent(this, SettingsActivity::class.java)
-            startActivity(intent)
+        // The entire Advanced Settings card is actionable, not just its
+        // internal button. Play builds must open Settings without activation.
+        val openAdvancedSettings = View.OnClickListener {
+            try {
+                startActivity(Intent(this, SettingsActivity::class.java))
+            } catch (e: Exception) {
+                Toast.makeText(this, "Không mở được Cài đặt nâng cao: ${e.message}", Toast.LENGTH_LONG).show()
+            }
         }
+        findViewById<LinearLayout>(R.id.settingCardAdvanced)?.apply {
+            isClickable = true
+            isFocusable = true
+            setOnClickListener(openAdvancedSettings)
+        }
+        findViewById<Button>(R.id.btnOpenAdvancedSettings)?.setOnClickListener(openAdvancedSettings)
     }
 
     private fun updateUserSettingsText() {
@@ -2679,6 +2697,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (BuildConfig.PLAY_DISTRIBUTION) playUpdater.onResume()
         if (!BuildConfig.PLAY_DISTRIBUTION && !LicenseManager.isLicensed(this)) {
             val intent = Intent(this, ActivationActivity::class.java)
             startActivity(intent)
@@ -2771,6 +2790,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        if (BuildConfig.PLAY_DISTRIBUTION) playUpdater.dispose()
         try {
             fullExitReceiver?.let { unregisterReceiver(it) }
             fullExitReceiver = null
