@@ -56,7 +56,7 @@ class CarPresentation(
     private var isCurrentlyPlaying = false
     private lateinit var searchOverlay: FrameLayout
     private lateinit var searchInput: EditText
-    private var searchOverlayMode: String = "youtube" // youtube | web (page field) | address
+    private var searchOverlayMode: String = "youtube" // youtube | web (page field) | address | maps
     private var searchOverlayVoiceButton: TextView? = null
     private var searchOverlaySubmitButton: TextView? = null
     private var searchSuggestionStrip: View? = null
@@ -95,6 +95,29 @@ class CarPresentation(
     private var dashboardView: CarDashboardView? = null
     private var isDashboardShowing = true
     private var currentActiveAppId: String = "youtube"
+
+    // Maps + YouTube split mode deliberately uses two independent WebViews.
+    // The persistent media WebView stays on the right so YouTube login, history,
+    // playback state and MediaSession ownership are preserved without a reload.
+    private var splitModeActive = false
+    private var splitContainer: LinearLayout? = null
+    private var splitMapWeb: WebView? = null
+    private var splitControlsContainer: LinearLayout? = null
+    private var splitBackButton: TextView? = null
+    private var splitHomeButton: TextView? = null
+    private var splitRatioButton: TextView? = null
+    private var splitSwapButton: TextView? = null
+    private var splitDivider: View? = null
+    private var splitLastTouchedPane: String = "maps"
+    private val splitControlHandler = Handler(Looper.getMainLooper())
+    private val splitHideControlsRunnable = Runnable { hideSplitControls() }
+    private val splitRatioOptions = listOf(
+        0.5f to 0.5f,
+        0.3f to 0.7f,
+        0.7f to 0.3f
+    )
+    private val splitMapUrl = "https://www.google.com/maps"
+
     // WebView restoreState/loadUrl is asynchronous; current URL may still belong to the previous app.
     private var pendingSessionRestoreAppId: String? = null
     private val appTransitions = WebTransitionState()
@@ -169,16 +192,7 @@ class CarPresentation(
         lastAppliedScale = -1
         applyWebScaleForUrl(web.url)
         try {
-            YouTubePlayerHelper.inject(
-                web,
-                isUltrawide,
-                isPortrait,
-                carWidth,
-                carHeight,
-                carDpi,
-                phoneDpi.toInt(),
-                aspectRatio
-            )
+            injectYouTubeForCurrentViewport(web)
         } catch (_: Throwable) {}
 
         updateHudLayoutParams()
@@ -437,7 +451,7 @@ class CarPresentation(
         YouTubePlayerHelper.applyUltraPerformance(web)
 
         // Apply scaling & responsive layout immediately to the active WebView
-        YouTubePlayerHelper.inject(web, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
+        injectYouTubeForCurrentViewport(web)
         YouTubePlayerHelper.applyTheme(web, initIsDay)
 
         try {
@@ -624,6 +638,7 @@ class CarPresentation(
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 if (view !== web || !isCurrentAppPage(url)) return
+                if (splitModeActive && currentActiveAppId == "youtube") recordSplitYouTubeHistory(url)
                 TikTokWebPolicy.applyRenderingPolicy(view, url)
                 // Starting navigation does not mean the new document is visible.
                 browserLoading = true
@@ -636,6 +651,7 @@ class CarPresentation(
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                 super.doUpdateVisitedHistory(view, url, isReload)
                 if (view !== web || !isCurrentAppPage(url)) return
+                if (splitModeActive && currentActiveAppId == "youtube") recordSplitYouTubeHistory(url)
                 updateBrowserToolbar(url)
                 if (view != null) {
                     applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
@@ -669,6 +685,7 @@ class CarPresentation(
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 if (view !== web || view.url != url || !isCurrentAppPage(url)) return
+                if (splitModeActive && currentActiveAppId == "youtube") recordSplitYouTubeHistory(url)
                 finishPendingNavigation()
                 hideAppSwitchShield()
                 if (currentActiveAppId == "web" && browserNeedsHistoryReset && view.url == url) {
@@ -691,7 +708,7 @@ class CarPresentation(
                 TikTokWebPolicy.recoverSearchIfBlank(view, url)
                 val isYouTube = currentActiveAppId == "youtube" && (url.contains("youtube.com") || url.contains("youtu.be"))
                 if (isYouTube) {
-                    YouTubePlayerHelper.inject(view, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
+                    injectYouTubeForCurrentViewport(view)
                     YouTubePlayerHelper.applyCarSearchHome(view)
                     updateYouTubeHomeObstacles()
 
@@ -839,7 +856,7 @@ class CarPresentation(
                     CarMediaManager.currentLoadingUrl = targetUrl
                     web.loadUrl(targetUrl)
                 } else {
-                    YouTubePlayerHelper.inject(web, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
+                    injectYouTubeForCurrentViewport(web)
                     scheduleSafeResume(web, 700L)
                 }
             } else if (currentUrl.isNullOrBlank() || currentUrl == "about:blank") {
@@ -848,13 +865,13 @@ class CarPresentation(
                     web.loadUrl(defaultHome)
                 }
             } else if (currentUrl.contains("watch")) {
-                YouTubePlayerHelper.inject(web, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
+                injectYouTubeForCurrentViewport(web)
                 scheduleSafeResume(web, 700L)
             } else {
                 // Home/results pages are navigation state, not playback state.
                 // Recreating Android Auto after the native keyboard must keep the
                 // result list visible instead of selecting the first video.
-                YouTubePlayerHelper.inject(web, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
+                injectYouTubeForCurrentViewport(web)
             }
 
         }
@@ -870,7 +887,9 @@ class CarPresentation(
             },
             onAddAppClick = { showAddAppDialog() },
             onAllAppsClick = { showAppGridOverlay() },
-            onFullscreenRequested = { app -> showWebFullscreen(app) },
+            onFullscreenRequested = { app ->
+                if (app.id == "maps_youtube_split") showMapsYoutubeSplit() else showWebFullscreen(app)
+            },
             onBackClick = { goBack() },
             onEmbeddedClosed = {},
             onSearchClick = { showSearchOverlay() },
@@ -961,6 +980,17 @@ class CarPresentation(
         } catch (e: Exception) {}
 
         setContentView(root)
+
+        // Opening Android Auto's native keyboard temporarily replaces this surface.
+        // Recreate the two-pane layout when the surface comes back.
+        if (CarMediaManager.isMapsYoutubeSplitActive) {
+            root.post {
+                if (CarMediaManager.isMapsYoutubeSplitActive && !splitModeActive) {
+                    showMapsYoutubeSplit()
+                }
+            }
+        }
+
         val draft = CarMediaManager.editorDraft
         if (draft != null && draft.appId == currentActiveAppId && draft.page == web.url) {
             mainHandler.post { applyEditorDraft(draft) }
@@ -1284,6 +1314,15 @@ class CarPresentation(
         youtubeSeekBar = null
         youtubeSeekTimeLabel = null
         youtubeSeekDragging = false
+
+        // Settings/theme rebuilds must never restore floating controls over split panes.
+        if (splitModeActive) {
+            sidebarContainer?.animate()?.cancel()
+            sidebarContainer?.visibility = View.GONE
+            sidebarContainer = null
+            autoHideHandler.removeCallbacks(hideBarsRunnable)
+            return
+        }
 
         // Settings/theme rebuilds must never restore the floating controls on home.
         if (isDashboardShowing || currentActiveAppId == "iptv" || currentActiveAppId == "web") {
@@ -1761,6 +1800,17 @@ class CarPresentation(
         if ((::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) ||
             appGridOverlay?.visibility == View.VISIBLE || addAppOverlay?.visibility == View.VISIBLE) return
         updateYouTubeHomeObstacles()
+        if (splitModeActive) {
+            sidebarContainer?.animate()?.cancel()
+            topToolbarContainer?.animate()?.cancel()
+            youtubeSeekContainer?.animate()?.cancel()
+            sidebarContainer?.visibility = View.GONE
+            topToolbarContainer?.visibility = View.GONE
+            hideYouTubeSeekOverlayImmediately()
+            autoHideHandler.removeCallbacks(hideBarsRunnable)
+            return
+        }
+
         // IPTV has its own on-screen controls. Keep the native Android Auto
         // navigation/control pill hidden for the whole IPTV session.
         if (isDashboardShowing || currentActiveAppId == "iptv") {
@@ -1849,6 +1899,7 @@ class CarPresentation(
 
     fun resetAutoHideTimer() {
         autoHideHandler.removeCallbacks(hideBarsRunnable)
+        if (splitModeActive) return
         if (currentActiveAppId == "web" || currentActiveAppId == "tiktok") return
         autoHideHandler.postDelayed(hideBarsRunnable, 10000L)
     }
@@ -2072,7 +2123,21 @@ class CarPresentation(
                 SystemVoiceModule.report(context, "Đã yêu cầu tiếp tục nội dung đang phát.")
             }
             is SystemVoiceCommand.Tv -> {
-                if (command.channel.isBlank()) {
+                if (splitModeActive) {
+                    // Split mode is a locked Maps + YouTube workspace. Even if the
+                    // parser recognizes a TV/channel phrase, keep the workspace and
+                    // search that channel in the YouTube pane instead of launching IPTV.
+                    val query = command.channel.trim().ifBlank { "truyền hình trực tiếp" }
+                    CarMediaManager.userWantsPlayback = true
+                    CarMediaManager.ensureAudioFocus()
+                    CarMediaManager.acquireWakeLock(context)
+                    YouTubePlayerHelper.search(web, query, autoPlayFirst = true)
+                    showSplitControlsTemporarily()
+                    SystemVoiceModule.report(
+                        context,
+                        "Đang mở $query trên YouTube trong màn hình chia đôi."
+                    )
+                } else if (command.channel.isBlank()) {
                     CarMediaManager.userWantsPlayback = true
                     playTvChannel("")
                     SystemVoiceModule.report(context, "Đã mở Truyền hình.")
@@ -2095,25 +2160,44 @@ class CarPresentation(
                 }
             }
             is SystemVoiceCommand.Music -> {
-                val youtube = WebAppManager.getAllApps(context).find { it.id == "youtube" }
-                    ?: WebAppManager.DEFAULT_APPS.first { it.id == "youtube" }
                 val last = CarMediaManager.lastPlayedUrl.orEmpty()
                 val lastUri = android.net.Uri.parse(last)
                 val lastHost = lastUri.host.orEmpty()
                 val canResume = command.query.isBlank() && lastUri.scheme == "https" &&
                     (lastHost == "youtube.com" || lastHost.endsWith(".youtube.com")) && lastUri.path == "/watch"
                 val query = command.query.ifBlank { "nhạc Việt" }
-                val host = if (WebAppManager.isAppDesktop(context, "youtube")) "https://www.youtube.com" else "https://m.youtube.com"
-                val target = if (canResume) last else "$host/results?search_query=" + android.net.Uri.encode(query)
+
                 CarMediaManager.userWantsPlayback = true
                 CarMediaManager.ensureAudioFocus()
                 CarMediaManager.acquireWakeLock(context)
-                switchWebApp(youtube, startUrl = target)
-                CarMediaManager.userWantsPlayback = true
-                SystemVoiceModule.report(context, if (canResume) "Đang mở bài nhạc gần nhất." else "Đang tìm nhạc: $query")
-                if (!canResume) {
-                    systemVoiceSearchPending = true
-                    pollSystemVoiceMusic(query, systemVoiceGeneration, 0)
+
+                if (splitModeActive) {
+                    // Voice requests made inside Maps + YouTube are scoped to the
+                    // live YouTube pane. Never call switchWebApp() here because it
+                    // tears down split mode and forces the user to re-enter it.
+                    if (canResume) {
+                        web.loadUrl(last)
+                    } else {
+                        YouTubePlayerHelper.search(web, query, autoPlayFirst = true)
+                    }
+                    showSplitControlsTemporarily()
+                    SystemVoiceModule.report(
+                        context,
+                        if (canResume) "Đang mở bài nhạc gần nhất trong màn hình chia đôi."
+                        else "Đang phát trong màn hình chia đôi: $query"
+                    )
+                } else {
+                    val youtube = WebAppManager.getAllApps(context).find { it.id == "youtube" }
+                        ?: WebAppManager.DEFAULT_APPS.first { it.id == "youtube" }
+                    val host = if (WebAppManager.isAppDesktop(context, "youtube")) "https://www.youtube.com" else "https://m.youtube.com"
+                    val target = if (canResume) last else "$host/results?search_query=" + android.net.Uri.encode(query)
+                    switchWebApp(youtube, startUrl = target)
+                    CarMediaManager.userWantsPlayback = true
+                    SystemVoiceModule.report(context, if (canResume) "Đang mở bài nhạc gần nhất." else "Đang tìm nhạc: $query")
+                    if (!canResume) {
+                        systemVoiceSearchPending = true
+                        pollSystemVoiceMusic(query, systemVoiceGeneration, 0)
+                    }
                 }
             }
         }
@@ -2144,6 +2228,33 @@ class CarPresentation(
 
     private fun handleVoiceQuery(query: String) {
         cancelSystemVoiceRequest()
+
+        if (splitModeActive) {
+            // While the split launcher is active, voice input belongs to YouTube.
+            // Keep Maps, ratio and pane order untouched and run the result directly
+            // in the persistent YouTube WebView.
+            val mediaQuery = VoiceQueryResolver.cleanForMediaSearch(query).ifBlank { query.trim() }
+            if (mediaQuery.isNotBlank()) {
+                searchInput.setText(mediaQuery)
+                searchInput.setSelection(mediaQuery.length)
+                YouTubePlayerHelper.setDuckingVolume(web, 1.0f)
+                CarMediaManager.userWantsPlayback = true
+                CarMediaManager.ensureAudioFocus()
+                CarMediaManager.acquireWakeLock(context)
+                YouTubePlayerHelper.search(web, mediaQuery, autoPlayFirst = true)
+                CarMediaManager.notifyVoiceState(
+                    VoiceSearchManager.State.SUCCESS,
+                    "Đang phát trong màn hình chia đôi: $mediaQuery"
+                )
+                updateVoiceState(
+                    VoiceSearchManager.State.SUCCESS,
+                    "Đang phát trong màn hình chia đôi: $mediaQuery"
+                )
+                hideSearchOverlay(notifyPhone = false)
+                showSplitControlsTemporarily()
+            }
+            return
+        }
 
         if (currentActiveAppId == "tiktok" && !isDashboardShowing) {
             YouTubePlayerHelper.setDuckingVolume(web, 1.0f)
@@ -2279,7 +2390,834 @@ class CarPresentation(
         return currentActiveAppId !in setOf("youtube", "iptv", "tiktok")
     }
 
+    /**
+     * Full projection split mode: official Google Maps web on the left and the
+     * existing persistent YouTube WebView on the right. Both panes receive the
+     * original pointer stream, so drag/zoom/scroll/tap stay independent.
+     */
+    fun showMapsYoutubeSplit() {
+        if (splitModeActive) return
+        val restoringSplit = CarMediaManager.isMapsYoutubeSplitActive
+        CarMediaManager.isMapsYoutubeSplitActive = true
+        cancelSystemVoiceRequest()
+
+        val youtubeApp = WebAppManager.getAllApps(context).find { it.id == "youtube" }
+            ?: WebAppManager.DEFAULT_APPS.first { it.id == "youtube" }
+
+        // Reuse the live YouTube WebView whenever possible. If another app owns it,
+        // switch ownership once, then move that same WebView into the split container.
+        if (currentActiveAppId != "youtube" || !isUrlForApp(youtubeApp, web.url)) {
+            switchWebApp(youtubeApp, embedded = false)
+        }
+
+        if (!restoringSplit) {
+            CarMediaManager.mapsYoutubeSplitYoutubeHistory.clear()
+        }
+        recordSplitYouTubeHistory(web.url)
+
+        splitModeActive = true
+        isDashboardShowing = false
+        CarMediaManager.isWebShowingFullscreen = true
+        CarMediaManager.isEmbeddedAppShowing = false
+        dashboardView?.detachEmbeddedWeb()
+        dashboardView?.visibility = View.GONE
+
+        autoHideHandler.removeCallbacks(hideBarsRunnable)
+        sidebarContainer?.animate()?.cancel()
+        topToolbarContainer?.animate()?.cancel()
+        sidebarContainer?.visibility = View.GONE
+        topToolbarContainer?.visibility = View.GONE
+        hideYouTubeSeekOverlayImmediately()
+        videoTimePill?.visibility = View.GONE
+        hudOverlay?.visibility = View.GONE
+        hideAppSwitchShield()
+
+        val mapWeb = ensureSplitMapWeb()
+        (mapWeb.parent as? ViewGroup)?.removeView(mapWeb)
+        (web.parent as? ViewGroup)?.removeView(web)
+
+        val divider = View(context).apply {
+            setBackgroundColor(Color.parseColor("#334155"))
+            isClickable = false
+        }
+        splitDivider = divider
+
+        val container = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(Color.BLACK)
+        }
+        splitContainer = container
+        applySplitLayout()
+
+        root.addView(
+            container,
+            0,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+
+        mapWeb.visibility = View.VISIBLE
+        web.visibility = View.VISIBLE
+        web.alpha = 1f
+        try {
+            mapWeb.onResume()
+            mapWeb.resumeTimers()
+            web.onResume()
+            web.resumeTimers()
+        } catch (_: Throwable) {}
+
+        val controls = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(3), dp(3), dp(3), dp(3))
+            background = rounded(
+                Color.parseColor("#EB111827"),
+                16f,
+                Color.parseColor("#805EEBFF"),
+                1
+            )
+            elevation = dp(44).toFloat()
+        }
+        splitControlsContainer = controls
+
+        fun splitButtonDivider(): View = View(context).apply {
+            setBackgroundColor(Color.parseColor("#406B7A90"))
+            layoutParams = LinearLayout.LayoutParams(dp(1), dp(38)).apply {
+                gravity = Gravity.CENTER_VERTICAL
+            }
+        }
+
+        splitBackButton = TextView(context).apply {
+            text = "←"
+            contentDescription = "Quay lại trong Maps hoặc YouTube"
+            textSize = 30f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = rounded(Color.parseColor("#1E293B"), 10f, Color.TRANSPARENT, 0)
+            enableTouchBounce(0.93f)
+            setOnClickListener {
+                goBackWithinSplit()
+                showSplitControlsTemporarily()
+            }
+        }.also {
+            controls.addView(it, LinearLayout.LayoutParams(dp(62), dp(58)))
+        }
+
+        controls.addView(splitButtonDivider())
+
+        splitHomeButton = TextView(context).apply {
+            text = "⌂"
+            contentDescription = "Về màn hình chính"
+            textSize = 31f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = rounded(Color.parseColor("#26354A"), 12f, Color.TRANSPARENT, 0)
+            enableTouchBounce(0.93f)
+            setOnClickListener { showDashboard() }
+        }.also {
+            controls.addView(it, LinearLayout.LayoutParams(dp(70), dp(58)))
+        }
+
+        controls.addView(splitButtonDivider())
+
+        splitRatioButton = TextView(context).apply {
+            text = splitRatioLabel()
+            contentDescription = "Đổi tỉ lệ chia màn hình"
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = rounded(Color.parseColor("#1E293B"), 10f, Color.TRANSPARENT, 0)
+            enableTouchBounce(0.93f)
+            setOnClickListener {
+                cycleSplitRatio()
+                showSplitControlsTemporarily()
+            }
+        }.also {
+            controls.addView(it, LinearLayout.LayoutParams(dp(88), dp(58)))
+        }
+
+        controls.addView(splitButtonDivider())
+
+        splitSwapButton = TextView(context).apply {
+            text = "⇄"
+            contentDescription = "Đổi vị trí Google Maps và YouTube"
+            textSize = 30f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = rounded(Color.parseColor("#1E293B"), 10f, Color.TRANSPARENT, 0)
+            enableTouchBounce(0.93f)
+            setOnClickListener {
+                swapSplitSides()
+                showSplitControlsTemporarily()
+            }
+        }.also {
+            controls.addView(it, LinearLayout.LayoutParams(dp(68), dp(58)))
+        }
+
+        root.addView(
+            controls,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            ).apply {
+                topMargin = dp(8)
+            }
+        )
+
+        root.post {
+            if (!splitModeActive) return@post
+            injectYouTubeForCurrentViewport(web)
+            splitControlsContainer?.bringToFront()
+            showSplitControlsTemporarily()
+        }
+    }
+
+    private fun normalizedSplitRatioIndex(): Int {
+        val size = splitRatioOptions.size
+        if (size == 0) return 0
+        val raw = CarMediaManager.mapsYoutubeSplitRatioIndex
+        return ((raw % size) + size) % size
+    }
+
+    private fun splitRatioLabel(): String {
+        val (left, right) = splitRatioOptions[normalizedSplitRatioIndex()]
+        return "${(left * 100).roundToInt()}/${(right * 100).roundToInt()}"
+    }
+
+    private fun currentSplitWeights(): Pair<Float, Float> =
+        splitRatioOptions[normalizedSplitRatioIndex()]
+
+    private fun applySplitLayout() {
+        val container = splitContainer ?: return
+        val map = splitMapWeb ?: return
+        val divider = splitDivider ?: return
+        val (leftWeight, rightWeight) = currentSplitWeights()
+
+        (map.parent as? ViewGroup)?.removeView(map)
+        (web.parent as? ViewGroup)?.removeView(web)
+        (divider.parent as? ViewGroup)?.removeView(divider)
+        container.removeAllViews()
+
+        val leftView: View = if (CarMediaManager.mapsYoutubeSplitSwapped) web else map
+        val rightView: View = if (CarMediaManager.mapsYoutubeSplitSwapped) map else web
+
+        container.addView(
+            leftView,
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, leftWeight)
+        )
+        container.addView(
+            divider,
+            LinearLayout.LayoutParams(dp(2), ViewGroup.LayoutParams.MATCH_PARENT)
+        )
+        container.addView(
+            rightView,
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, rightWeight)
+        )
+        splitRatioButton?.text = splitRatioLabel()
+        container.requestLayout()
+        container.post {
+            if (splitModeActive) injectYouTubeForCurrentViewport(web)
+        }
+    }
+
+    private fun cycleSplitRatio() {
+        CarMediaManager.mapsYoutubeSplitRatioIndex =
+            (normalizedSplitRatioIndex() + 1) % splitRatioOptions.size
+        applySplitLayout()
+    }
+
+    private fun swapSplitSides() {
+        CarMediaManager.mapsYoutubeSplitSwapped = !CarMediaManager.mapsYoutubeSplitSwapped
+        applySplitLayout()
+    }
+
+    private fun goBackWithinSplit() {
+        if (!splitModeActive) return
+        if (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) {
+            hideSearchOverlay(notifyPhone = false)
+            return
+        }
+
+        if (splitLastTouchedPane == "youtube") {
+            if (goBackWithinSplitYouTube()) return
+        }
+
+        val map = splitMapWeb
+        if (splitLastTouchedPane == "maps" && map != null) {
+            if (map.canGoBack()) {
+                map.goBack()
+            } else {
+                val current = map.url.orEmpty()
+                if (current.isNotBlank() && current.trimEnd('/') != splitMapUrl.trimEnd('/')) {
+                    CarMediaManager.mapsYoutubeSplitUrl = splitMapUrl
+                    map.loadUrl(splitMapUrl)
+                }
+            }
+        }
+    }
+
+    private fun normalizeSplitYouTubeUrl(raw: String?): String? {
+        val value = raw.orEmpty().trim()
+        if (value.isBlank()) return null
+        val uri = try { android.net.Uri.parse(value) } catch (_: Throwable) { return null }
+        val host = uri.host.orEmpty().lowercase()
+        if (!(host == "youtube.com" || host.endsWith(".youtube.com") || host == "youtu.be")) return null
+        if (uri.scheme != "https" && uri.scheme != "http") return null
+        return uri.buildUpon().fragment(null).build().toString()
+    }
+
+    private fun recordSplitYouTubeHistory(raw: String?) {
+        if (!splitModeActive && !CarMediaManager.isMapsYoutubeSplitActive) return
+        val normalized = normalizeSplitYouTubeUrl(raw) ?: return
+        val history = CarMediaManager.mapsYoutubeSplitYoutubeHistory
+        if (history.lastOrNull() == normalized) return
+        history.add(normalized)
+        while (history.size > 40) history.removeAt(0)
+    }
+
+    private fun goBackWithinSplitYouTube(): Boolean {
+        val history = CarMediaManager.mapsYoutubeSplitYoutubeHistory
+        val current = normalizeSplitYouTubeUrl(web.url)
+
+        while (history.isNotEmpty() && history.lastOrNull() == current) {
+            history.removeAt(history.lastIndex)
+        }
+
+        val previous = history.lastOrNull()
+        if (!previous.isNullOrBlank()) {
+            web.loadUrl(previous)
+            return true
+        }
+
+        // WebView history can still help for navigations that happened before the
+        // split history recorder was attached. Only accept YouTube entries.
+        val webHistory = web.copyBackForwardList()
+        for (index in webHistory.currentIndex - 1 downTo 0) {
+            val candidate = normalizeSplitYouTubeUrl(webHistory.getItemAtIndex(index)?.url)
+            if (!candidate.isNullOrBlank() && candidate != current) {
+                recordSplitYouTubeHistory(candidate)
+                web.loadUrl(candidate)
+                return true
+            }
+        }
+
+        // Last fallback: YouTube home. Never leave the split workspace.
+        val home = if (WebAppManager.isAppDesktop(context, "youtube")) {
+            "https://www.youtube.com/"
+        } else {
+            "https://m.youtube.com/"
+        }
+        if (current?.trimEnd('/') != home.trimEnd('/')) {
+            web.loadUrl(home)
+            return true
+        }
+        return false
+    }
+
+    private fun showSplitControlsTemporarily() {
+        if (!splitModeActive) return
+        splitControlHandler.removeCallbacks(splitHideControlsRunnable)
+        listOfNotNull<View>(splitControlsContainer).forEach { view ->
+            view.animate().cancel()
+            view.alpha = 1f
+            view.visibility = View.VISIBLE
+        }
+        splitControlsContainer?.bringToFront()
+        splitControlHandler.postDelayed(splitHideControlsRunnable, 10_000L)
+    }
+
+    private fun hideSplitControls() {
+        if (!splitModeActive) return
+        listOfNotNull<View>(splitControlsContainer).forEach { view ->
+            view.animate().cancel()
+            view.animate()
+                .alpha(0f)
+                .setDuration(220L)
+                .withEndAction {
+                    if (splitModeActive) view.visibility = View.INVISIBLE
+                }
+                .start()
+        }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun ensureSplitMapWeb(): WebView {
+        splitMapWeb?.let { return it }
+
+        val mapWeb = WebView(context).apply {
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            setBackgroundColor(Color.WHITE)
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.databaseEnabled = true
+            settings.setGeolocationEnabled(true)
+            settings.mediaPlaybackRequiresUserGesture = true
+            settings.useWideViewPort = true
+            settings.loadWithOverviewMode = false
+            settings.setSupportZoom(true)
+            settings.builtInZoomControls = false
+            settings.displayZoomControls = false
+            // Show Google's own Maps Web UI in this pane. No custom navigation.
+            settings.userAgentString = mobileUserAgent
+            settings.javaScriptCanOpenWindowsAutomatically = false
+            settings.setSupportMultipleWindows(false)
+            isFocusable = true
+            isFocusableInTouchMode = true
+
+            try {
+                CookieManager.getInstance().setAcceptCookie(true)
+                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+            } catch (_: Throwable) {}
+
+            webChromeClient = object : WebChromeClient() {
+                override fun onGeolocationPermissionsShowPrompt(
+                    origin: String?,
+                    callback: GeolocationPermissions.Callback?
+                ) {
+                    val host = try {
+                        android.net.Uri.parse(origin.orEmpty()).host.orEmpty().lowercase()
+                    } catch (_: Throwable) {
+                        ""
+                    }
+                    val allow = host == "google.com" || host.endsWith(".google.com")
+                    callback?.invoke(origin, allow, false)
+                }
+            }
+
+            webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(
+                    view: WebView?,
+                    request: WebResourceRequest?
+                ): Boolean {
+                    return handleSplitMapNavigation(view, request?.url?.toString().orEmpty())
+                }
+
+                @Deprecated("Deprecated in Java")
+                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                    return handleSplitMapNavigation(view, url.orEmpty())
+                }
+
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    val value = url.orEmpty()
+                    val host = try {
+                        android.net.Uri.parse(value).host.orEmpty().lowercase()
+                    } catch (_: Throwable) {
+                        ""
+                    }
+                    if (isSplitMapsWebUrl(value)) {
+                        CarMediaManager.mapsYoutubeSplitUrl = value
+                        if (isSplitMapsRouteUrl(value)) {
+                            CarMediaManager.mapsYoutubeSplitLastRouteUrl = value
+                        }
+                    } else if (host == "play.google.com" || host == "market.android.com") {
+                        view?.post {
+                            val currentView = view
+                            if (currentView != null) restoreSplitMapsRoute(currentView)
+                        }
+                    }
+                }
+            }
+
+            // Do not consume the touch: Maps still receives the full gesture stream.
+            // On ACTION_UP we only inspect whether the user actually tapped an input.
+            setOnTouchListener { _, event ->
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                    splitLastTouchedPane = "maps"
+                }
+                if (event.actionMasked == MotionEvent.ACTION_UP) {
+                    openSplitMapInput(event.x, event.y)
+                }
+                false
+            }
+        }
+        splitMapWeb = mapWeb
+        val savedMapUrl = CarMediaManager.mapsYoutubeSplitUrl
+        val startUrl = when {
+            isSplitMapsWebUrl(savedMapUrl) -> savedMapUrl
+            isSplitMapsWebUrl(CarMediaManager.mapsYoutubeSplitLastRouteUrl) ->
+                CarMediaManager.mapsYoutubeSplitLastRouteUrl
+            else -> splitMapUrl
+        }
+        CarMediaManager.mapsYoutubeSplitUrl = startUrl
+        mapWeb.loadUrl(startUrl)
+        return mapWeb
+    }
+
+    private fun isSplitMapsWebUrl(raw: String?): Boolean {
+        val value = raw.orEmpty().trim()
+        if (value.isBlank()) return false
+        val uri = try { android.net.Uri.parse(value) } catch (_: Throwable) { return false }
+        val scheme = uri.scheme.orEmpty().lowercase()
+        if (scheme != "https" && scheme != "http") return false
+
+        val host = uri.host.orEmpty().lowercase()
+        val path = uri.path.orEmpty()
+        if (host == "play.google.com" || host == "market.android.com") return false
+        if (host == "maps.google.com") return true
+        if (host == "www.google.com" || host == "google.com") {
+            return path == "/maps" || path.startsWith("/maps/")
+        }
+        return false
+    }
+
+    private fun isSplitMapsRouteUrl(raw: String?): Boolean {
+        if (!isSplitMapsWebUrl(raw)) return false
+        val uri = try { android.net.Uri.parse(raw) } catch (_: Throwable) { return false }
+        val path = uri.path.orEmpty()
+        return path.startsWith("/maps/dir") ||
+            path.startsWith("/maps/preview/directions") ||
+            uri.getQueryParameter("destination") != null
+    }
+
+    private fun restoreSplitMapsRoute(map: WebView): Boolean {
+        val route = CarMediaManager.mapsYoutubeSplitLastRouteUrl
+        val target = when {
+            isSplitMapsRouteUrl(route) -> route
+            isSplitMapsWebUrl(CarMediaManager.mapsYoutubeSplitUrl) ->
+                CarMediaManager.mapsYoutubeSplitUrl
+            else -> splitMapUrl
+        }
+        CarMediaManager.mapsYoutubeSplitUrl = target
+        if (map.url != target) map.loadUrl(target)
+        Toast.makeText(
+            context,
+            "Giữ chỉ đường trong T-Tube. Đã chặn mở Google Maps/Play Store.",
+            Toast.LENGTH_SHORT
+        ).show()
+        return true
+    }
+
+    private fun handleSplitMapNavigation(view: WebView?, rawTarget: String): Boolean {
+        val map = view ?: splitMapWeb ?: return false
+        val target = rawTarget.trim()
+        if (target.isBlank()) return false
+
+        fun loadWebTarget(webTarget: String): Boolean {
+            if (!isSplitMapsWebUrl(webTarget)) return restoreSplitMapsRoute(map)
+            CarMediaManager.mapsYoutubeSplitUrl = webTarget
+            if (isSplitMapsRouteUrl(webTarget)) {
+                CarMediaManager.mapsYoutubeSplitLastRouteUrl = webTarget
+            }
+            map.loadUrl(webTarget)
+            return true
+        }
+
+        fun loadMapsQuery(query: String, directions: Boolean = false): Boolean {
+            val clean = android.net.Uri.decode(query).trim()
+            if (clean.isBlank()) return restoreSplitMapsRoute(map)
+
+            if (directions) {
+                val current = GpsSpeedManager.lastLocation.value
+                val originPart = if (current != null) {
+                    "&origin=" + android.net.Uri.encode("${current.latitude},${current.longitude}")
+                } else {
+                    ""
+                }
+                val webTarget = "https://www.google.com/maps/dir/?api=1" +
+                    originPart +
+                    "&destination=" + android.net.Uri.encode(clean) +
+                    "&travelmode=driving"
+                return loadWebTarget(webTarget)
+            }
+
+            return loadWebTarget(
+                "https://www.google.com/maps/search/?api=1&query=" +
+                    android.net.Uri.encode(clean)
+            )
+        }
+
+        fun extractQuery(uri: android.net.Uri?): String? {
+            if (uri == null) return null
+            val keys = arrayOf("destination", "daddr", "q", "query")
+            for (key in keys) {
+                val value = uri.getQueryParameter(key)
+                if (!value.isNullOrBlank()) return value
+            }
+            return null
+        }
+
+        val uri = try { android.net.Uri.parse(target) } catch (_: Throwable) { null }
+        val scheme = uri?.scheme.orEmpty().lowercase()
+
+        if (scheme == "http" || scheme == "https") {
+            val host = uri?.host.orEmpty().lowercase()
+            if (host == "play.google.com" || host == "market.android.com") {
+                return restoreSplitMapsRoute(map)
+            }
+            if (isSplitMapsWebUrl(target)) return false
+            return restoreSplitMapsRoute(map)
+        }
+
+        if (scheme == "market") {
+            return restoreSplitMapsRoute(map)
+        }
+
+        if (scheme == "geo") {
+            val query = extractQuery(uri)
+            if (!query.isNullOrBlank()) return loadMapsQuery(query)
+            val coords = uri?.schemeSpecificPart.orEmpty()
+                .substringBefore('?')
+                .takeIf { it.isNotBlank() && it != "0,0" }
+                .orEmpty()
+            return if (coords.isNotBlank()) loadMapsQuery(coords) else restoreSplitMapsRoute(map)
+        }
+
+        if (scheme == "google.navigation") {
+            val query = extractQuery(uri).orEmpty().ifBlank {
+                target.substringAfter("q=", "").substringBefore('&')
+            }
+            return if (query.isNotBlank()) {
+                loadMapsQuery(query, directions = true)
+            } else {
+                restoreSplitMapsRoute(map)
+            }
+        }
+
+        if (scheme == "intent") {
+            try {
+                val intent = Intent.parseUri(target, Intent.URI_INTENT_SCHEME)
+                val data = intent.data
+                val dataString = intent.dataString.orEmpty()
+
+                if (dataString.startsWith("google.navigation:", true)) {
+                    val navUri = try {
+                        android.net.Uri.parse(dataString)
+                    } catch (_: Throwable) {
+                        null
+                    }
+                    val query = extractQuery(navUri)
+                    if (!query.isNullOrBlank()) return loadMapsQuery(query, directions = true)
+                }
+
+                if (isSplitMapsWebUrl(dataString)) {
+                    return loadWebTarget(dataString)
+                }
+
+                val query = extractQuery(data)
+                    ?: intent.getStringExtra("destination")
+                    ?: intent.getStringExtra("daddr")
+                    ?: intent.getStringExtra("query")
+                    ?: intent.getStringExtra("q")
+                if (!query.isNullOrBlank()) {
+                    return loadMapsQuery(query, directions = true)
+                }
+
+                val rawWeb = target
+                    .substringAfter("intent://", "")
+                    .substringBefore("#Intent", "")
+                    .takeIf {
+                        it.startsWith("maps.google.com", true) ||
+                            it.startsWith("www.google.com/maps", true)
+                    }
+                    ?.let { "https://$it" }
+                if (!rawWeb.isNullOrBlank() && isSplitMapsWebUrl(rawWeb)) {
+                    return loadWebTarget(rawWeb)
+                }
+
+                val fallback = intent.getStringExtra("browser_fallback_url")
+                if (!fallback.isNullOrBlank() && isSplitMapsWebUrl(fallback)) {
+                    return loadWebTarget(fallback)
+                }
+
+                val mapsPackage = target.contains(
+                    "package=com.google.android.apps.maps",
+                    ignoreCase = true
+                )
+                if (mapsPackage) {
+                    return restoreSplitMapsRoute(map)
+                }
+            } catch (_: Throwable) {}
+
+            return restoreSplitMapsRoute(map)
+        }
+
+        return restoreSplitMapsRoute(map)
+    }
+
+    private fun openSplitMapInput(touchX: Float, touchY: Float) {
+        val mapWeb = splitMapWeb ?: return
+        val xRatio = touchX / mapWeb.width.coerceAtLeast(1)
+        val yRatio = touchY / mapWeb.height.coerceAtLeast(1)
+
+        mapWeb.postDelayed({
+            if (!splitModeActive || activeCarInput?.closed == false) return@postDelayed
+            val js = """
+                (function() {
+                    function editable(el) {
+                        if (!el) return false;
+                        if (el.disabled || el.readOnly) return false;
+                        if (el.matches && el.matches('textarea,[contenteditable="true"]')) return true;
+                        if (el.tagName === 'INPUT') {
+                            return /^(text|search|email|url|tel|number)${'$'}/.test(el.type || 'text');
+                        }
+                        return false;
+                    }
+
+                    var hit = document.elementFromPoint($xRatio * innerWidth, $yRatio * innerHeight);
+                    var el = hit;
+                    while (el && !editable(el)) el = el.parentElement;
+
+                    // Google Maps can move focus/rebuild the search box in its click handler.
+                    if (!el && editable(document.activeElement)) el = document.activeElement;
+                    if (!el) return null;
+
+                    return {
+                        value: el.value || el.textContent || '',
+                        hint: el.getAttribute('placeholder') ||
+                              el.getAttribute('aria-label') ||
+                              'Tìm địa điểm trên Google Maps'
+                    };
+                })();
+            """.trimIndent()
+
+            mapWeb.evaluateJavascript(js) { result ->
+                if (!splitModeActive || searchOverlay.visibility == View.VISIBLE) return@evaluateJavascript
+                val input = if (!result.isNullOrBlank() && result != "null") {
+                    try { org.json.JSONObject(result) } catch (_: Exception) { null }
+                } else {
+                    null
+                }
+
+                if (input != null) {
+                    requestSplitMapSearch(
+                        initialText = input.optString("value"),
+                        hint = input.optString("hint", "Tìm địa điểm trên Google Maps")
+                    )
+                    return@evaluateJavascript
+                }
+
+                // Google Maps periodically replaces the search box with a custom
+                // wrapper/shadow DOM. If DOM capture misses it, a tap in the top
+                // search band still opens the split Maps keyboard.
+                val topSearchBand = touchY <= kotlin.math.max(dp(150).toFloat(), mapWeb.height * 0.24f)
+                val insideSearchWidth =
+                    touchX >= dp(42).toFloat() && touchX <= (mapWeb.width - dp(8)).toFloat()
+                if (topSearchBand && insideSearchWidth) {
+                    requestSplitMapSearch()
+                }
+            }
+        }, 120L)
+    }
+
+    private fun requestSplitMapSearch(
+        initialText: String = "",
+        hint: String = "Tìm địa điểm trên Google Maps"
+    ) {
+        if (!splitModeActive || searchOverlay.visibility == View.VISIBLE) return
+
+        // Split mode must work on both AndroidX SearchTemplate hosts and the
+        // Google Automotive projection host used by DHU/head units. Use T Tube's
+        // own projected keyboard here so the input path never depends on a native
+        // keyboard host being registered.
+        searchOverlayMode = "maps"
+        webKeyboardTargetPending = false
+        searchInput.error = null
+        searchInput.imeOptions = EditorInfo.IME_ACTION_SEARCH
+        searchInput.hint = hint.ifBlank { "Tìm địa điểm trên Google Maps" }
+        searchInput.setText(initialText)
+        searchInput.setSelection(searchInput.text.length)
+        searchOverlayVoiceButton?.visibility = View.GONE
+        searchOverlaySubmitButton?.apply {
+            visibility = View.VISIBLE
+            text = "🔍 Tìm"
+        }
+        searchSuggestionStrip?.visibility = View.GONE
+        keyboardActionKey?.text = "🔍 TÌM"
+        splitControlHandler.removeCallbacks(splitHideControlsRunnable)
+        showKeyboardOverlayInternal(requestNative = false, showKeys = true)
+    }
+
+    private fun leaveMapsYoutubeSplit(
+        reattachYoutube: Boolean = true,
+        preservePersistentState: Boolean = false
+    ) {
+        if (!splitModeActive && splitContainer == null) {
+            if (!preservePersistentState) CarMediaManager.isMapsYoutubeSplitActive = false
+            return
+        }
+        splitModeActive = false
+        if (!preservePersistentState) CarMediaManager.isMapsYoutubeSplitActive = false
+
+        splitControlHandler.removeCallbacks(splitHideControlsRunnable)
+        splitControlsContainer?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        splitControlsContainer = null
+        splitBackButton = null
+        splitHomeButton = null
+        splitRatioButton = null
+        splitSwapButton = null
+
+        (web.parent as? ViewGroup)?.removeView(web)
+        splitMapWeb?.let { map ->
+            (map.parent as? ViewGroup)?.removeView(map)
+            try { map.onPause() } catch (_: Throwable) {}
+        }
+        splitDivider?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        splitDivider = null
+        splitContainer?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        splitContainer = null
+
+        if (reattachYoutube && ::root.isInitialized && web.parent == null) {
+            root.addView(
+                web,
+                0,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
+            web.visibility = View.VISIBLE
+            web.alpha = 1f
+        }
+    }
+
+    private fun releaseSplitMapWeb() {
+        splitMapWeb?.let { map ->
+            try {
+                (map.parent as? ViewGroup)?.removeView(map)
+                map.stopLoading()
+                map.destroy()
+            } catch (_: Throwable) {}
+        }
+        splitMapWeb = null
+    }
+
+    private fun injectYouTubeForCurrentViewport(targetWeb: WebView) {
+        val viewportWidth = if (splitModeActive) {
+            val (leftWeight, rightWeight) = currentSplitWeights()
+            val youtubeWeight = if (CarMediaManager.mapsYoutubeSplitSwapped) leftWeight else rightWeight
+            val usableWidth = (carWidth - dp(2)).coerceAtLeast(1)
+            (usableWidth * youtubeWeight).roundToInt().coerceAtLeast(1)
+        } else {
+            carWidth
+        }
+        val viewportHeight = carHeight.coerceAtLeast(1)
+        val viewportAspect = viewportWidth.toFloat() / viewportHeight.toFloat()
+        YouTubePlayerHelper.inject(
+            targetWeb,
+            isUltrawide = !splitModeActive && isUltrawide,
+            isPortrait = !splitModeActive && isPortrait,
+            carWidth = viewportWidth,
+            carHeight = viewportHeight,
+            carDpi = carDpi,
+            phoneDpi = phoneDpi.toInt(),
+            aspectRatio = viewportAspect
+        )
+    }
+
     fun switchWebApp(app: WebAppItem, embedded: Boolean = false, startUrl: String? = null) {
+        if (app.id == "maps_youtube_split") {
+            showMapsYoutubeSplit()
+            return
+        }
+        if (splitModeActive) leaveMapsYoutubeSplit(reattachYoutube = true)
         // Repeated taps while the same app is loading must not restart its request.
         if (!navigationFailed && app.id == currentActiveAppId && startUrl == null &&
             (pendingSessionRestoreAppId == app.id || isCurrentAppPage(web.url))) {
@@ -2564,6 +3502,7 @@ class CarPresentation(
     }
 
     fun showWebFullscreen(app: WebAppItem? = null) {
+        if (splitModeActive) leaveMapsYoutubeSplit(reattachYoutube = true)
         isDashboardShowing = false
         hudOverlay?.let { if (!it.isHudLocked()) it.toggleLock() }
         CarMediaManager.isWebShowingFullscreen = true
@@ -2645,6 +3584,7 @@ class CarPresentation(
 
     fun showDashboard() {
         cancelSystemVoiceRequest()
+        if (splitModeActive) leaveMapsYoutubeSplit(reattachYoutube = true)
         isDashboardShowing = true
         autoHideHandler.removeCallbacks(hideBarsRunnable)
         sidebarContainer?.animate()?.cancel()
@@ -3504,6 +4444,19 @@ class CarPresentation(
     }
 
     private fun executeSearch(query: String, broadcast: Boolean = false) {
+        if (searchOverlayMode == "maps") {
+            val q = query.trim()
+            if (q.isBlank() || !splitModeActive) return
+            val target = "https://www.google.com/maps/search/?api=1&query=" +
+                android.net.Uri.encode(q)
+            CarMediaManager.mapsYoutubeSplitUrl = target
+            CarMediaManager.isMapsYoutubeSplitActive = true
+            splitLastTouchedPane = "maps"
+            splitMapWeb?.loadUrl(target)
+            hideSearchOverlay(notifyPhone = false)
+            showSplitControlsTemporarily()
+            return
+        }
         if (searchOverlayMode == "address") {
             if (isBrowserApp()) navigateBrowser(query)
             return
@@ -4112,7 +5065,7 @@ class CarPresentation(
         searchOverlaySubmitButton?.apply { visibility = View.VISIBLE; text = "🔍 Tìm" }
         searchSuggestionStrip?.visibility = View.VISIBLE
         keyboardActionKey?.text = "🔍 TÌM"
-        showKeyboardOverlayInternal()
+        showKeyboardOverlayInternal(requestNative = !splitModeActive)
     }
 
     private fun showWebKeyboardOverlay(
@@ -4149,7 +5102,7 @@ class CarPresentation(
         }
         searchSuggestionStrip?.visibility = View.GONE
         keyboardActionKey?.text = if (webKeyboardAction == "search") "🔍 TÌM / ĐI" else "↵ NHẬP"
-        showKeyboardOverlayInternal()
+        showKeyboardOverlayInternal(requestNative = !splitModeActive)
     }
 
     private fun showBrowserAddressOverlay() {
@@ -4293,7 +5246,7 @@ class CarPresentation(
         voiceManager.cancelListening()
         YouTubePlayerHelper.setDuckingVolume(web, 1.0f)
 
-        if (requestNative && prefs.getString("car_keyboard_input_mode", "native") != "thtv") {
+        if (requestNative && !splitModeActive && prefs.getString("car_keyboard_input_mode", "native") != "thtv") {
             val input = createEditorInput()
             activeCarInput = input
             if (CarMediaManager.requestCarNativeSearch(input)) return
@@ -4330,6 +5283,17 @@ class CarPresentation(
             imm?.hideSoftInputFromWindow(searchInput.windowToken, 0)
         } catch (e: Exception) {}
         searchOverlay.visibility = View.GONE
+
+        if (splitModeActive) {
+            hudOverlay?.visibility = View.GONE
+            sidebarContainer?.visibility = View.GONE
+            topToolbarContainer?.visibility = View.GONE
+            hideYouTubeSeekOverlayImmediately()
+            showSplitControlsTemporarily()
+            appSwitchShield?.bringToFront()
+            if (notifyPhone) CarMediaManager.dismissSearch()
+            return
+        }
 
         // Restore elements cleanly based on screen state
         if (isDashboardShowing) {
@@ -4517,6 +5481,46 @@ class CarPresentation(
 
     /** Keep the receiver chosen on DOWN until UP/CANCEL, even when a key closes the overlay. */
     fun dispatchProjectedTouch(event: MotionEvent): Boolean {
+        if (splitModeActive) {
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                val rootPosition = IntArray(2)
+                root.getLocationOnScreen(rootPosition)
+                val screenX = rootPosition[0] + event.x.toInt()
+                val screenY = rootPosition[1] + event.y.toInt()
+
+                fun containsScreenPoint(view: View?): Boolean {
+                    if (view == null || view.visibility != View.VISIBLE) return false
+                    val rect = android.graphics.Rect()
+                    return view.getGlobalVisibleRect(rect) && rect.contains(screenX, screenY)
+                }
+
+                val onOverlayControl =
+                    (::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE) ||
+                    containsScreenPoint(splitControlsContainer)
+
+                // Do not let a tap on Back/Home/ratio/swap/search/route overwrite
+                // the last content pane. Otherwise pressing Back itself can change
+                // the target from YouTube to Maps just before the click fires.
+                if (!onOverlayControl) {
+                    val mapRect = android.graphics.Rect()
+                    val youtubeRect = android.graphics.Rect()
+                    when {
+                        splitMapWeb?.getGlobalVisibleRect(mapRect) == true &&
+                            mapRect.contains(screenX, screenY) -> splitLastTouchedPane = "maps"
+                        web.getGlobalVisibleRect(youtubeRect) &&
+                            youtubeRect.contains(screenX, screenY) -> splitLastTouchedPane = "youtube"
+                    }
+                }
+                showSplitControlsTemporarily()
+            }
+            val copy = MotionEvent.obtain(event)
+            try {
+                (window?.decorView ?: root).dispatchTouchEvent(copy)
+            } finally {
+                copy.recycle()
+            }
+            return true
+        }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             val editing = ::searchOverlay.isInitialized && searchOverlay.visibility == View.VISIBLE
             val tikTok = currentActiveAppId == "tiktok" && !isDashboardShowing &&
@@ -4717,6 +5721,11 @@ class CarPresentation(
 
     fun goBack() {
         cancelSystemVoiceRequest()
+        if (splitModeActive) {
+            goBackWithinSplit()
+            showSplitControlsTemporarily()
+            return
+        }
         if (videoQualityOverlay != null) { hideVideoQualityMenu(); return }
         if (addAppOverlay?.visibility == View.VISIBLE) {
             hideAddAppDialog()
@@ -4755,6 +5764,11 @@ class CarPresentation(
         if (event.action == KeyEvent.ACTION_DOWN) {
             when (event.keyCode) {
                 KeyEvent.KEYCODE_BACK -> {
+                    if (splitModeActive) {
+                        goBackWithinSplit()
+                        showSplitControlsTemporarily()
+                        return true
+                    }
                     if (currentActiveAppId == "tiktok" && !isDashboardShowing) {
                         goBackWithinTikTok()
                         return true
@@ -4867,6 +5881,8 @@ class CarPresentation(
     override fun dismiss() {
         CarMediaManager.saveWebAppSession(currentActiveAppId, web)
         cancelSystemVoiceRequest()
+        leaveMapsYoutubeSplit(reattachYoutube = false, preservePersistentState = true)
+        releaseSplitMapWeb()
         SystemVoiceModule.detach(systemVoiceReceiver)
         detachInputCallbacks()
         try {
@@ -4877,6 +5893,8 @@ class CarPresentation(
 
     fun destroyWeb() {
         cancelSystemVoiceRequest()
+        leaveMapsYoutubeSplit(reattachYoutube = false)
+        releaseSplitMapWeb()
         SystemVoiceModule.detach(systemVoiceReceiver)
         detachInputCallbacks()
         try {

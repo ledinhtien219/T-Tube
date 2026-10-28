@@ -45,7 +45,7 @@ assert.match(manager, /url = "https:\/\/www\.tiktok\.com\/"[\s\S]*?isDesktop = t
 
 // Per-app dashboard pin state is separate from app availability.
 assert.match(main, /PREF_DASHBOARD_PINNED_APPS = "pref_dashboard_pinned_apps"/);
-assert.match(manager, /DEFAULT_DASHBOARD_PINNED_IDS = setOf\("youtube", "iptv", "web"\)/);
+assert.match(manager, /DEFAULT_DASHBOARD_PINNED_IDS = setOf\("maps_youtube_split", "youtube", "iptv", "web"\)/);
 assert.match(manager, /fun setAppPinnedToDashboard\(/);
 assert.match(manager, /fun getPinnedDashboardApps\(/);
 assert.match(settings, /ỨNG DỤNG TRÊN MÀN HÌNH CHÍNH/);
