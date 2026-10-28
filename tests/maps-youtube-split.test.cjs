@@ -13,6 +13,9 @@ const media = fs.readFileSync(
   'app/src/main/java/com/carhud/aaproxy/CarMediaManager.kt',
   'utf8'
 );
+const navigationHtml = fs.readFileSync(
+  'app/src/main/assets/car_split_navigation.html', 'utf8'
+);
 
 assert.match(
   model,
@@ -133,5 +136,27 @@ assert.match(
   presentation,
   /override fun dismiss\(\) \{[\s\S]*?leaveMapsYoutubeSplit\(reattachYoutube = false, preservePersistentState = true\)[\s\S]*?releaseSplitMapWeb\(\)/
 );
+
+
+// In-pane navigation must not hand Google's Start button to Play Store.
+assert.match(presentation, /splitNavigationUrl = "file:\/\/\/android_asset\/car_split_navigation\.html"/);
+assert.match(presentation, /@android\.webkit\.JavascriptInterface[\s\S]*?fun startNavigation\(currentUrl: String, destination: String\)/);
+assert.match(presentation, /injectSplitMapsStartButtonListener\(view\)/);
+assert.match(presentation, /document\.addEventListener\('click'[\s\S]*?event\.stopImmediatePropagation\(\)/);
+assert.match(presentation, /private fun startSplitNavigation\(routeUrl: String\? = null, destinationHint: String\? = null\)/);
+assert.match(presentation, /splitMapWeb\?\.evaluateJavascript\("window\.ttubeNav&&ttubeNav\.updatePosition\(\$args\)"/);
+assert.match(presentation, /onSplitNavigationPageReady\(view\)/);
+assert.match(presentation, /private fun stopSplitNavigation\(\)/);
+assert.match(presentation, /startSplitNavigation\(CarMediaManager\.mapsYoutubeSplitLastRouteUrl\)/);
+assert.match(presentation, /uri\?\.getQueryParameter\("dir_action"\) == "navigate"/);
+assert.match(media, /var mapsYoutubeNavigationDestination: String = ""/);
+assert.match(media, /var mapsYoutubeLastDestination: String = ""/);
+assert.match(navigationHtml, /window\.ttubeNav =?\s*\{|window\.ttubeNav=\{/);
+assert.match(navigationHtml, /window\.ttubeNav=\{[\s\S]*?updatePosition:function/);
+assert.match(navigationHtml, /geometries=geojson&steps=true/);
+assert.match(navigationHtml, /routePending=true/);
+assert.match(navigationHtml, /nearestRouteDistance\(\)>85/);
+assert.match(navigationHtml, /OpenStreetMap/);
+assert.doesNotMatch(navigationHtml, /mt\{s\}\.google\.com/);
 
 console.log('PASS: independent Google Maps + YouTube split projection mode');
