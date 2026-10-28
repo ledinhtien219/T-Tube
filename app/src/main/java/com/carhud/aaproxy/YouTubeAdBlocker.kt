@@ -324,6 +324,7 @@ object YouTubeAdBlocker {
             playerObserverTarget: null,
             adUiObserver: null,
             adUiObserverTarget: null,
+            adUiFramePending: false,
             video: null,
             timeHandler: null,
             inAd: false,
@@ -617,11 +618,20 @@ object YouTubeAdBlocker {
                 state.adUiObserverTarget = target;
                 state.adUiObserver = new MutationObserver(function() {
                     try {
-                        if (isShowingAd()) {
-                            suppressAdChrome(true);
-                            skipAd();
-                        }
-                    } catch(e) {}
+                        // Burst DOM changes are collapsed into one pass/frame.
+                        // Existing CSS hides known ad overlays immediately.
+                        if (!isShowingAd() || state.adUiFramePending) return;
+                        state.adUiFramePending = true;
+                        requestAnimationFrame(function() {
+                            state.adUiFramePending = false;
+                            try {
+                                if (isShowingAd()) {
+                                    suppressAdChrome(true);
+                                    skipAd();
+                                }
+                            } catch(e) {}
+                        });
+                    } catch(e) { state.adUiFramePending = false; }
                 });
 
                 state.adUiObserver.observe(target, {
