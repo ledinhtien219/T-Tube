@@ -1,16 +1,16 @@
-name: Build Play v1.1.6 MiniPiP Native Scroll Fix AAB
+name: Build Play v1.1.7 Advanced Settings and Play Update AAB
 
 on:
   push:
     branches:
-      - "release/play-v1.1.6-minipip-scroll-pane"
+      - "release/play-v1.1.7-advanced-settings-play-update"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ttube-play-v116-minipip-scroll-${{ github.ref }}
+  group: ttube-play-v117-settings-update-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -66,6 +66,7 @@ jobs:
           node --test tests/youtube-browse-mode.test.cjs
           node --test tests/youtube-mini-pip.test.cjs
           node --test tests/youtube-mini-pip-scroll.test.cjs
+          node --test tests/play-advanced-settings-update.test.cjs
 
       - name: JVM tests
         run: |
@@ -102,7 +103,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TTube-v1.1.6-build304-com.ledinhtien.ttube-MiniPiP-Native-Scroll-AAB
+          name: TTube-v1.1.7-build305-com.ledinhtien.ttube-Advanced-Settings-Play-Update-AAB
           path: app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 14
