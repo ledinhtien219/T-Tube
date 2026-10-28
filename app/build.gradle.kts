@@ -80,6 +80,16 @@ android {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("stableCi")
         }
+        // Sideloadable Play-feature preview for device testing. This is not
+        // signed with the Play upload key and must never be uploaded to Play.
+        // It intentionally keeps the production app ID to test Android Auto
+        // routing, so Android won't install it over a differently signed build.
+        create("playPreview") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("stableCi")
+            matchingFallbacks += listOf("release")
+            buildConfigField("boolean", "PLAY_DISTRIBUTION", "true")
+        }
     }
 
     lint {
