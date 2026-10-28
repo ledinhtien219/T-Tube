@@ -495,6 +495,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        if (BuildConfig.PLAY_DISTRIBUTION) playUpdater // register launcher before STARTED
         setContentView(R.layout.activity_main)
 
         CarMediaManager.mainActivityRoot = findViewById(android.R.id.content)
