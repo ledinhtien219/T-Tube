@@ -57,6 +57,15 @@ class MainActivity : Activity() {
         appChoice = button("Chọn ứng dụng tự mở") { chooseApp() }
         container.addView(appChoice)
         container.addView(button("Mở ứng dụng đã chọn") { openSelectedApp() })
+        container.addView(button("Bật điều khiển chạm (tùy chọn)") {
+            AlertDialog.Builder(this)
+                .setTitle("Quyền trợ năng T-Mirror Touch")
+                .setMessage("T-Mirror chỉ dùng quyền này để chuyển thao tác chạm/vuốt do bạn thực hiện trên màn hình xe sang điện thoại. Ứng dụng không đọc nội dung màn hình qua quyền trợ năng. Chỉ bật khi xe đang đỗ. Bạn có thể tắt quyền bất kỳ lúc nào trong Cài đặt.")
+                .setNegativeButton("Hủy", null)
+                .setPositiveButton("Mở Cài đặt") { _, _ ->
+                    startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }.show()
+        })
         container.addView(text("Chỉ dùng phản chiếu video khi xe đã đỗ. Yêu cầu đồng ý ghi màn hình mỗi phiên theo Android.", 12f))
         container.addView(text("Nếu không thấy T-Mirror (Legacy) trong Android Auto, kiểm tra nguồn cài đặt và loại màn hình. Cài từ Play Testing không bảo đảm được host chấp nhận.", 12f))
         val scroll = android.widget.ScrollView(this)
