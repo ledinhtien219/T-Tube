@@ -79,6 +79,20 @@
             </intent-filter>
         </activity>
 
+        <!-- Optional phone-side YouTube view for Legacy split mirroring.
+             Android Auto itself still owns the original Google Maps pane. -->
+        <activity
+            android:name="com.carhud.aaproxy.TTubeMirrorActivity"
+            android:label="T Tube Mirror (Test)"
+            android:exported="true"
+            android:hardwareAccelerated="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+
         <!-- Secondary Phone Activity: Detailed Settings -->
         <activity
             android:name="com.carhud.aaproxy.SystemVoiceActivity"

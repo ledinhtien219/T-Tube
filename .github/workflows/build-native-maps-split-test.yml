@@ -1,0 +1,54 @@
+name: T Tube native Maps split compatibility test APK
+
+on:
+  push:
+    branches:
+      - experiment/native-maps-split-compat-20261028
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-apk:
+    name: Build debug test APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configure Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      # Match the existing release's signing key, so adb install -r can update
+      # without uninstalling and losing the user's settings.
+      - name: Restore stable debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: thtv-stable-debug-keystore-v1
+
+      - name: Require original test signing certificate
+        run: |
+          test -f ~/.android/debug.keystore || {
+            echo "Stable signing certificate unavailable. Refusing to replace the user's installed T-Tube with a different signer."
+            exit 1
+          }
+
+      - name: Unit tests and APK
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest assembleDebug --stacktrace
+
+      - name: Publish test APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TTube-NativeMaps-Legacy-Mirror-Test-APK
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14

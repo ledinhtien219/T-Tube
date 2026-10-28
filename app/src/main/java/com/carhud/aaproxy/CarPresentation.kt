@@ -961,6 +961,20 @@ class CarPresentation(
         } catch (e: Exception) {}
 
         setContentView(root)
+
+        // Android Auto may resize the app pane when entering/leaving its
+        // dashboard. The initial post() alone does not handle later pane changes.
+        // Recalculate against the actual content viewport, never the phone DPI
+        // or a hard-coded 16:9 head-unit size. The existing sizing key prevents
+        // repeated expensive WebView scaling when dimensions did not change.
+        root.addOnLayoutChangeListener { _, l, t, r, b, oldL, oldT, oldR, oldB ->
+            if (r - l != oldR - oldL || b - t != oldB - oldT) {
+                root.post {
+                    if (isShowing) applyEffectiveViewportFromRoot()
+                }
+            }
+        }
+
         val draft = CarMediaManager.editorDraft
         if (draft != null && draft.appId == currentActiveAppId && draft.page == web.url) {
             mainHandler.post { applyEditorDraft(draft) }
