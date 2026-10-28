@@ -187,19 +187,12 @@ class CaptureService : Service() {
         val ratio = minOf(1f, maxEdge / maxOf(width, height))
         val w = (width * ratio).toInt().coerceAtLeast(2)
         val h = (height * ratio).toInt().coerceAtLeast(2)
-        val old = reader
-        val next = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2)
-        // Use one VirtualDisplay for the entire capture session (Android 14+).
-        vd.resize(w, h, resources.displayMetrics.densityDpi)
-        vd.setSurface(next.surface)
-        old?.setOnImageAvailableListener(null, null)
-        old?.close()
-        next.close() // Placeholder replaced below; see startReaderAsReplacement()
-        startReaderAsReplacement(w, h, vd)
-    }
-
-    private fun startReaderAsReplacement(w: Int, h: Int, vd: VirtualDisplay) {
+        if (reader?.width == w && reader?.height == h) return
+        // Android 14+: resize and replace the Surface on the SAME display.
+        // Never call MediaProjection.createVirtualDisplay a second time.
+        vd.setSurface(null)
         setReader(w, h)
+        vd.resize(w, h, resources.displayMetrics.densityDpi)
         vd.setSurface(reader!!.surface)
     }
 
