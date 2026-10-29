@@ -60,7 +60,7 @@ jobs:
           set -euo pipefail
           patch --batch --forward -p1 < ci/hey-mimi/v8-pro.patch
           grep -q 'versionCode = 309' app/build.gradle.kts
-          grep -q 'versionName = "1.1.13"' app/build.gradle.kts
+          grep -q 'versionName = "1.1.11"' app/build.gradle.kts
           node --test tests/hey-mimi-pro-regression.test.cjs backend/mimi-proxy-policy.test.mjs
           node --check backend/mimi-proxy.mjs
       - name: Apply v9 PiP chooser
