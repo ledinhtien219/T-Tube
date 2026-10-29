@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
+        <!-- Debug builds start ActivationActivity from MainActivity on a fresh install.
+             Without this declaration Android throws ActivityNotFoundException at startup. -->
+        <activity
+            android:name="com.carhud.aaproxy.ActivationActivity"
+            android:exported="false"
+            android:theme="@style/Theme.CarHud" />
         <activity
             android:name="com.carhud.aaproxy.TikTokSmokeActivity"
             android:exported="false"
