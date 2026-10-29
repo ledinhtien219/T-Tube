@@ -1,0 +1,176 @@
+name: Hey Mimi Pro v12 build313 — Maps Android Auto routing
+on:
+  push:
+    branches:
+      - "test/hey-mimi-pro-v12-maps-navigation-build313"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ttube-mimi-pro-v12-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  aab:
+    name: Validate and build Play release AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      PLAY_UPLOAD_KEYSTORE_BASE64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+      PLAY_UPLOAD_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+      PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+      PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+      PLAY_UPLOAD_KEYSTORE_PATH: ${{ github.workspace }}/.play/ttube-play-upload.jks
+      PLAY_UPLOAD_CERT_SHA256: ${{ secrets.PLAY_UPLOAD_CERT_SHA256 }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply Hey Mimi v3, v4 and v5
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch --batch --forward -p1 < ci/hey-mimi/TTube_assistant_mimi.patch
+          patch --batch --forward -p1 < ci/hey-mimi/TTube_HeyMimi_v2.patch
+          patch --batch --forward -p1 < ci/hey-mimi/migrate-name.patch
+          base64 --decode ci/hey-mimi/v4/MimiAssistantPanel.kt.gz.b64 | gzip -dc > app/src/main/java/com/carhud/aaproxy/MimiAssistantPanel.kt
+          base64 --decode ci/hey-mimi/v4/CarPresentation.patch.gz.b64 | gzip -dc | patch --batch --forward -p1
+          base64 --decode ci/hey-mimi/v4/panel-ui.test.cjs.gz.b64 | gzip -dc > tests/hey-mimi-panel-ui.test.cjs
+          patch --batch --forward -p1 < ci/hey-mimi/v5-visible-avatar.patch
+      - name: Apply Hey Mimi v6 AI and driving foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch --batch --forward -p1 < ci/hey-mimi/v6-ai-driving.patch
+          test -s app/src/main/java/com/carhud/aaproxy/MimiSmartAssistant.kt
+          test -s app/src/main/java/com/carhud/aaproxy/MimiHotwordEngine.kt
+          test -s backend/mimi-proxy.mjs
+          grep -q 'versionCode = 307' app/build.gradle.kts
+          grep -q 'versionName = "1.1.9"' app/build.gradle.kts
+          grep -q 'assistant_ai_enabled' app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt
+      - name: Apply v7 voice and panel stability fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/hey-mimi/v7-stability.py
+          node --test tests/hey-mimi-v7-stability.test.cjs
+      - name: Apply Pro voice commands and AI opt-in context
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch --batch --forward -p1 < ci/hey-mimi/v8-pro.patch
+          grep -q 'versionCode = 309' app/build.gradle.kts
+          grep -q 'versionName = "1.1.11"' app/build.gradle.kts
+          node --test tests/hey-mimi-pro-regression.test.cjs backend/mimi-proxy-policy.test.mjs
+          node --check backend/mimi-proxy.mjs
+      - name: Apply v9 PiP chooser
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch --batch --forward -p1 < ci/hey-mimi/v9-pip.patch
+          node --test tests/youtube-pip-chooser-pro-regression.test.cjs
+      - name: Apply v10 YouTube app switch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/hey-mimi/v10-router/apply_v10.py
+          node --test tests/hey-mimi-pro-v10-app-routing.test.cjs
+      - name: Apply v11 natural language commands, direct Mimi tap and AI fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch --batch --forward -p1 < ci/hey-mimi/v11-expanded-commands.patch
+          python3 ci/hey-mimi/v11-postpatch.py
+          grep -q 'versionCode = 312' app/build.gradle.kts
+          grep -q 'versionName = "1.1.14"' app/build.gradle.kts
+          node --test tests/hey-mimi-pro-v11-conversation-regression.test.cjs
+      - name: Apply v12 strict Maps commands and navigation
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode ci/hey-mimi/v12-maps.patch.gz.b64 | gzip -dc | patch --batch --forward -p1
+          grep -q 'versionCode = 313' app/build.gradle.kts
+          grep -q 'versionName = "1.1.15"' app/build.gradle.kts
+          test -s app/src/main/java/com/carhud/aaproxy/MimiMapsCommandRouter.kt
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Android 16 SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools" -type f -name sdkmanager | head -1)"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Prepare temporary debug certificate for unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 365 -dname 'CN=Android Debug,O=Android,C=US'
+          fi
+      - name: Verify panel and startup regressions
+        run: |
+          node --test tests/hey-mimi-panel-ui.test.cjs
+          node --test tests/hey-mimi-visible-avatar.test.cjs
+          node --test tests/hey-mimi-phone-startup.test.cjs
+          node --check backend/mimi-proxy.mjs
+      - name: Kotlin assistant, AI and hotword gate unit tests
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest --tests '*AssistantIntentParserTest' --tests '*HeyMimiConversationTest' --tests '*MimiAiPolicyTest' --tests '*MimiHotwordGateTest' --tests '*MimiProPolicyTest' --tests '*MimiAppSwitchRouterTest' --tests '*MimiExtendedLanguageTest' --tests '*MimiMapsCommandRouterTest' --stacktrace --no-daemon
+      - name: Release lint
+        run: ./gradlew lintRelease --stacktrace --no-daemon
+      - name: Build Play release AAB (unsigned CI intermediate; sign locally)
+        run: ./gradlew bundleRelease --stacktrace --no-daemon
+      - name: Build debug APK and verify boot
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+      - name: Android 15 phone startup crash smoke
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
+          script: bash ci/hey-mimi/phone-startup-smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: HeyMimi-Pro-v12-build313-phone-smoke-evidence
+          path: smoke-artifacts/**
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Verify CI artifacts and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          aab="$(find app/build/outputs/bundle/release -name '*.aab' | head -1)"
+          test -s "$aab"
+          unzip -tq "$aab"
+          mkdir -p build-output
+          cp "$aab" build-output/HeyMimi-Pro-v12-1.1.15-build313-UNSIGNED-ci.aab
+          cp app/build/outputs/apk/debug/*.apk build-output/
+          sha256sum build-output/* | tee build-output/SHA256SUMS.txt
+          echo "UNSIGNED_CI_INTERMEDIATE__MUST_SIGN_WITH_REGISTERED_UPLOAD_KEY" > build-output/SIGNING_STATUS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TTube-HeyMimi-PRO-v12-build313-unsigned-ci-and-debug
+          path: build-output/*
+          if-no-files-found: error
+          retention-days: 14
