@@ -1,0 +1,912 @@
+diff -ruN '--exclude=.git' '--exclude=.kotlin' a/app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt b/app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt
+--- a/app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt	1970-01-01 00:00:00.000000000 +0000
++++ b/app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt	2026-10-29 07:59:49.709844104 +0000
+@@ -0,0 +1,21 @@
++package com.carhud.aaproxy
++
++import android.content.Context
++
++/** Cài đặt của trợ lý. Mọi thứ nằm trong SharedPreferences chung `carhud_settings`. */
++internal object AssistantConfig {
++    const val DEFAULT_NAME = "Mimi"
++    const val PREF_ENABLED = "assistant_enabled"
++    const val PREF_NAME = "assistant_name"
++    const val PREF_SPEAK = "assistant_speak_reply"
++    const val PREF_NAV_APP = "assistant_nav_app" // auto | waze | gmaps
++    const val PREF_AUTO_PARK = "assistant_auto_save_parking"
++
++    private fun prefs(c: Context) = c.applicationContext.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
++
++    fun isEnabled(c: Context) = prefs(c).getBoolean(PREF_ENABLED, true)
++    fun name(c: Context): String = prefs(c).getString(PREF_NAME, DEFAULT_NAME)?.trim().orEmpty().ifBlank { DEFAULT_NAME }
++    fun speakReply(c: Context) = prefs(c).getBoolean(PREF_SPEAK, true)
++    fun navApp(c: Context): String = prefs(c).getString(PREF_NAV_APP, "auto") ?: "auto"
++    fun autoSaveParking(c: Context) = prefs(c).getBoolean(PREF_AUTO_PARK, true)
++}
+diff -ruN '--exclude=.git' '--exclude=.kotlin' a/app/src/main/java/com/carhud/aaproxy/AssistantIntent.kt b/app/src/main/java/com/carhud/aaproxy/AssistantIntent.kt
+--- a/app/src/main/java/com/carhud/aaproxy/AssistantIntent.kt	1970-01-01 00:00:00.000000000 +0000
++++ b/app/src/main/java/com/carhud/aaproxy/AssistantIntent.kt	2026-10-29 07:59:49.709818208 +0000
+@@ -0,0 +1,216 @@
++package com.carhud.aaproxy
++
++import java.text.Normalizer
++
++/** Những việc trợ lý hiểu được. [None] = để luồng giọng nói cũ (nhạc/TV/web) tự xử lý. */
++internal sealed class AssistantIntent {
++    object Greeting : AssistantIntent()
++    object Help : AssistantIntent()
++    object Time : AssistantIntent()
++    object Date : AssistantIntent()
++    object Weather : AssistantIntent()
++    object SaveParking : AssistantIntent()
++    object QueryParking : AssistantIntent()
++    object SaveHome : AssistantIntent()
++    object GoHome : AssistantIntent()
++    object GoParking : AssistantIntent()
++    data class Navigate(val place: String) : AssistantIntent()
++    data class Nearby(val label: String, val query: String) : AssistantIntent()
++    object Pause : AssistantIntent()
++    object Resume : AssistantIntent()
++    object Next : AssistantIntent()
++    object Previous : AssistantIntent()
++    object VolumeUp : AssistantIntent()
++    object VolumeDown : AssistantIntent()
++    data class OpenApp(val spoken: String) : AssistantIntent()
++    object None : AssistantIntent()
++}
++
++/**
++ * Thuần Kotlin (không dùng Android API) nên test được bằng JUnit thường.
++ * Nguyên tắc: chỉ nhận lệnh khi KHỚP RÕ RÀNG. Câu như "phát nhạc Sơn Tùng" luôn
++ * rơi về [AssistantIntent.None] để không phá luồng tìm nhạc hiện tại.
++ */
++internal object AssistantIntentParser {
++
++    /** Bỏ dấu nhưng GIỮ NGUYÊN độ dài chuỗi, để cắt lại phần tên địa điểm có dấu từ câu gốc. */
++    fun fold1to1(text: String): String {
++        val nfc = Normalizer.normalize(text, Normalizer.Form.NFC)
++        val sb = StringBuilder(nfc.length)
++        for (c in nfc) {
++            val base = Normalizer.normalize(c.toString(), Normalizer.Form.NFD).firstOrNull() ?: c
++            sb.append(
++                when (base) {
++                    'đ', 'Đ' -> 'd'
++                    else -> base.lowercaseChar()
++                }
++            )
++        }
++        return sb.toString()
++    }
++
++    private val fillerHead = Regex("""^(?:(?:hay|vui long|lam on|cho toi|giup toi|giup minh|cho minh|toi muon|minh muon|toi can|minh can)\s+)+""")
++    private val fillerTail = Regex("""(?:\s+(?:di|nhe|nao|giup toi|giup minh|cho toi|cho minh|ngay|luon|nua|duoc khong|dum))+$""")
++
++    private val greeting = Regex("""^(?:xin chao|chao|hello|hi|alo|chao buoi (?:sang|trua|chieu|toi))(?:\s+ban)?$""")
++    private val help = Regex("""\b(?:ban|em|tro ly)\s+(?:lam|biet)\s+(?:duoc\s+)?(?:gi|nhung gi)\b|\b(?:huong dan|tro giup)\b|\bgiup duoc gi\b""")
++    private val timeQ = Regex("""\bmay gio\b|\bgio hien tai\b|\bxem gio\b|\bbao nhieu gio\b""")
++    private val dateQ = Regex("""\bhom nay\s+(?:la\s+)?(?:thu may|ngay may|ngay bao nhieu)\b|\bngay bao nhieu\b|\bthu may\b|\bam lich\b|\bngay thang\b""")
++    private val weatherQ = Regex("""\bthoi tiet\b|\bnhiet do\b|\btroi\s+(?:co\s+)?(?:mua|nang|nong|lanh|ret)\b|\bbao nhieu do\b|\bnong khong\b|\blanh khong\b|\bco mua khong\b""")
++
++    private val queryParking = Regex("""\b(?:(?:xe|cho do xe|vi tri do xe)\s+(?:cua\s+)?(?:toi|minh)\s+(?:dang\s+)?(?:do\s+)?(?:o\s+)?dau|(?:toi|minh)\s+(?:da\s+)?do xe\s+(?:o|tai)\s+dau|tim xe(?:\s+(?:cua\s+)?(?:toi|minh))?|cho do xe\s+(?:o\s+)?dau|xe\s+(?:o\s+)?dau)\b""")
++    private val saveParking = Regex("""\b(?:(?:nho|luu|danh dau|ghi nho)\s+(?:giup\s+(?:toi|minh)\s+)?(?:cho do xe|vi tri do xe|vi tri xe|noi do xe|cho nay|vi tri nay|day)|(?:toi|minh)\s+(?:vua\s+|dang\s+)?do xe\s+(?:o|tai)\s+day|do xe\s+(?:o|tai)\s+day|xe\s+(?:o|tai)\s+day)\b""")
++
++    private val saveHome = Regex("""\b(?:dat|luu|dung|chon|nho)\s+(?:day\s+la\s+nha|nha\s+(?:o|tai)\s+day|vi tri nay la nha)\b|\bnha\s+(?:toi|minh)\s+(?:o|tai)\s+day\b""")
++    private val goHome = Regex("""^(?:(?:dan duong|chi duong|di|cho toi di|dua toi)\s+)?(?:ve|toi|den)\s+nha(?:\s+(?:toi|minh))?$|^(?:ve nha)$""")
++
++    private val goParking = Regex("""^(?:dan duong|chi duong|dan toi|dan den|dua toi|chi toi|di)\s*(?:toi|den|ve|ra)?\s+(?:cho do xe|vi tri do xe|xe cua toi|xe cua minh|xe toi|xe minh|xe)$""")
++    private val navigate = Regex("""^(?:dan duong|chi duong|dan toi|dan den|di toi|di den|tim duong|tim duong di|chi toi|dua toi|navigate to|dan duong den|dan duong toi|chi duong den|chi duong toi)\s*(?:toi|den|ra|qua|vao|ve)?\s+(.+)$""")
++
++    private val nearbyCategories = listOf(
++        Regex("""cay xang|tram xang|do xang""") to ("cây xăng" to "cây xăng"),
++        Regex("""\batm\b|cay atm|may atm""") to ("ATM" to "ATM"),
++        Regex("""tram sac|sac xe dien|tram sac xe""") to ("trạm sạc" to "trạm sạc xe điện"),
++        Regex("""bai do xe|cho do xe gan|noi do xe|gui xe""") to ("bãi đỗ xe" to "bãi đỗ xe"),
++        Regex("""tiem sua xe|sua xe|garage|gara""") to ("tiệm sửa xe" to "tiệm sửa xe"),
++        Regex("""benh vien|phong kham|cap cuu""") to ("bệnh viện" to "bệnh viện"),
++        Regex("""nha thuoc|hieu thuoc""") to ("nhà thuốc" to "nhà thuốc"),
++        Regex("""quan ca phe|ca phe|cafe|coffee""") to ("quán cà phê" to "quán cà phê"),
++        Regex("""quan an|nha hang|an uong|an com""") to ("quán ăn" to "quán ăn"),
++        Regex("""sieu thi|cua hang tien loi""") to ("siêu thị" to "siêu thị"),
++        Regex("""khach san|nha nghi""") to ("khách sạn" to "khách sạn"),
++        Regex("""nha ve sinh|toilet|nha wc""") to ("nhà vệ sinh" to "nhà vệ sinh"),
++        Regex("""tram dung chan|diem nghi chan""") to ("trạm dừng chân" to "trạm dừng chân")
++    )
++    private val nearbyCue = Regex("""^(?:((?:tim|chi duong|dan duong|di|dan toi|dan den|chi toi|cho toi biet|co)\s*(?:toi|den|ra|qua|vao)?)\s+)?(?:(?:mot|1)\s+)?(.+?)(\s+(?:gan nhat|gan day|gan toi|gan do|o gan day|quanh day|gan minh)(?:\s+khong)?)?$""")
++
++    private val pause = Regex("""^(?:tam dung|dung lai|dung nhac|dung phat|dung video|dung|pause|tat nhac|tat tieng nhac|ngung phat|ngung)$""")
++    private val resume = Regex("""^(?:tiep tuc|phat tiep|choi tiep|tiep tuc phat|bat lai|resume|play tiep)$""")
++    private val next = Regex("""^(?:bai (?:sau|tiep|ke tiep|tiep theo)|chuyen bai|bai khac|next|kenh (?:sau|tiep|ke tiep|tiep theo)|chuyen kenh)$""")
++    private val previous = Regex("""^(?:bai truoc|bai vua roi|quay lai bai|quay lai|lui lai|previous|kenh truoc)$""")
++    private val volUp = Regex("""^(?:(?:tang|to|lon)\s+(?:am luong|tieng|volume)(?:\s+(?:len|hon))?|to (?:len|hon)|lon (?:len|hon)|tang am|tang len|to tieng)$""")
++    private val volDown = Regex("""^(?:(?:giam|nho|be)\s+(?:am luong|tieng|volume)(?:\s+(?:xuong|di|hon))?|nho (?:xuong|hon|lai)|be (?:xuong|hon|lai)|giam am|giam xuong|nho tieng)$""")
++
++    private val openApp = Regex("""^(?:mo|bat|vao|chuyen sang|chuyen qua|open|chay)\s+(?:ung dung|app)?\s*(.+)$""")
++
++    private fun nfc(s: String) = Normalizer.normalize(s, Normalizer.Form.NFC)
++
++    /**
++     * Bỏ phần gọi tên đầu câu: "Hey Mimi, ...", "Mimi ơi ...", "OK Mimi ...".
++     * Chấp nhận nhận diện giọng tách chữ ("Mi mi") bằng cách cho phép khoảng trắng giữa các chữ cái của tên.
++     */
++    fun stripWake(original: String, assistantName: String): String {
++        val src = nfc(original)
++        val folded = fold1to1(src)
++        val nameRx = fold1to1(assistantName.trim()).filter { !it.isWhitespace() }
++            .map { Regex.escape(it.toString()) }.joinToString("""\s*""")
++        if (nameRx.isBlank()) return src.trim()
++        val m = Regex("""^\s*(?:(?:hey|he|ok|okay|alo|a lo|xin chao|chao)\s+)?$nameRx(?:\s+oi)?[\s,.!?:;-]*""").find(folded)
++            ?: return src.trim()
++        return src.substring(m.range.last + 1).trim()
++    }
++
++    /** Câu có mở đầu bằng tên trợ lý ("Hey Mimi ...") không? */
++    fun hasWake(original: String, assistantName: String): Boolean =
++        stripWake(original, assistantName).length != nfc(original).trim().length
++
++    fun parse(query: String, assistantName: String = AssistantConfig.DEFAULT_NAME): AssistantIntent {
++        if (query.isBlank()) return AssistantIntent.None
++        val original = stripWake(query, assistantName).trim().trim('.', ',', '!', '?')
++        if (original.isBlank()) return AssistantIntent.Greeting // chỉ gọi tên
++        val raw = fold1to1(original).replace(Regex("""\s+"""), " ").trim()
++        // Cắt từ thừa nhưng giữ bản gốc có dấu để lấy tên địa điểm.
++        val headCut = fillerHead.find(raw)?.range?.let { it.last + 1 } ?: 0
++        val text = raw.substring(headCut).replace(fillerTail, "").trim()
++        val originalTail = collapseSpaces(original).let { if (headCut <= it.length) it.substring(headCut) else it }
++        if (text.isBlank()) return AssistantIntent.None
++
++        if (greeting.matches(text)) return AssistantIntent.Greeting
++        if (help.containsMatchIn(text)) return AssistantIntent.Help
++
++        // Câu hỏi nhanh
++        if (queryParking.containsMatchIn(text)) return AssistantIntent.QueryParking
++        if (saveParking.containsMatchIn(text)) return AssistantIntent.SaveParking
++        if (saveHome.containsMatchIn(text)) return AssistantIntent.SaveHome
++        if (goHome.matches(text)) return AssistantIntent.GoHome
++        if (goParking.matches(text)) return AssistantIntent.GoParking
++        if (weatherQ.containsMatchIn(text)) return AssistantIntent.Weather
++        if (timeQ.containsMatchIn(text)) return AssistantIntent.Time
++        if (dateQ.containsMatchIn(text)) return AssistantIntent.Date
++
++        // Điều khiển phát: chỉ nhận cả câu, tránh nuốt tên bài hát
++        if (pause.matches(text)) return AssistantIntent.Pause
++        if (resume.matches(text)) return AssistantIntent.Resume
++        if (next.matches(text)) return AssistantIntent.Next
++        if (previous.matches(text)) return AssistantIntent.Previous
++        if (volUp.matches(text)) return AssistantIntent.VolumeUp
++        if (volDown.matches(text)) return AssistantIntent.VolumeDown
++
++        // Dẫn đường / tìm quanh đây
++        navigate.find(text)?.let { m ->
++            val g = m.groups[1] ?: return@let
++            val place = originalTail.safeSlice(g.range.first, g.range.last + 1).trim()
++            if (place.isNotBlank()) {
++                nearbyOf(fold1to1(place))?.let { return AssistantIntent.Nearby(it.first, it.second) }
++                return AssistantIntent.Navigate(place)
++            }
++        }
++        nearbyCue.matchEntire(text)?.let { m ->
++            val hasCue = m.groupValues[1].isNotEmpty() || m.groupValues[3].isNotEmpty()
++            val core = m.groupValues[2]
++            // Cần có động từ tìm/đi hoặc từ "gần nhất": tránh bắt nhầm tên bài hát như "cà phê muối".
++            if (hasCue && core.split(' ').size <= 4) {
++                nearbyOf(core)?.let { return AssistantIntent.Nearby(it.first, it.second) }
++            }
++        }
++
++        // Mở ứng dụng: việc khớp đúng tên app do AssistantResolver quyết định
++        openApp.find(text)?.let { m ->
++            val g = m.groups[1] ?: return@let
++            val spoken = originalTail.safeSlice(g.range.first, g.range.last + 1).trim()
++            if (spoken.isNotBlank()) return AssistantIntent.OpenApp(spoken)
++        }
++        return AssistantIntent.None
++    }
++
++    private fun nearbyOf(foldedCore: String): Pair<String, String>? {
++        val core = foldedCore.trim()
++        for ((rx, label) in nearbyCategories) if (rx.containsMatchIn(core)) return label
++        return null
++    }
++
++    private fun String.safeSlice(from: Int, toExclusive: Int): String =
++        substring(from.coerceIn(0, length), toExclusive.coerceIn(0, length))
++
++    private fun collapseSpaces(s: String) = s.replace(Regex("""\s+"""), " ").trim()
++}
++
++/** Khớp tên app nói ra với danh sách app trong lưới (id, tên). Trả null nếu không chắc. */
++internal object AssistantAppResolver {
++    private val aliases = mapOf(
++        "youtube" to listOf("youtube", "you tube", "diu tup", "yutub", "youtube pro"),
++        "tiktok" to listOf("tiktok", "tik tok", "tich tok", "tit tok"),
++        "web" to listOf("trinh duyet", "web", "google", "chrome", "duyet web"),
++        "maps" to listOf("ban do", "google maps", "maps", "gu gon map"),
++        "zing" to listOf("zing", "zing mp3"),
++        "spotify" to listOf("spotify", "sa po ti phai"),
++        "tv360" to listOf("tv360", "tv 360", "ti vi 360"),
++        "vtvgo" to listOf("vtv go", "vtvgo", "ve te ve go")
++    )
++
++    fun resolve(spoken: String, apps: List<Pair<String, String>>): String? {
++        val q = AssistantIntentParser.fold1to1(spoken).replace(Regex("""\s+"""), " ").trim()
++        if (q.isBlank()) return null
++        // TV/IPTV đã có luồng riêng (kênh VTV...), không chặn ở đây.
++        if (q.contains("truyen hinh") || q == "tv" || q == "tivi" || q == "ti vi" || q.startsWith("kenh")) return null
++        val ids = apps.map { it.first }.toSet()
++        for ((id, names) in aliases) if (id in ids && names.any { it == q }) return id
++        apps.firstOrNull { AssistantIntentParser.fold1to1(it.second).trim() == q }?.let { return it.first }
++        // khớp chứa tên (ví dụ "mở tik tok đi" đã bị cắt đuôi) nhưng yêu cầu tên đủ dài
++        apps.firstOrNull {
++            val n = AssistantIntentParser.fold1to1(it.second).trim()
++            n.length >= 4 && (n.contains(q) && q.length >= 4 || q.contains(n))
++        }?.let { return it.first }
++        return null
++    }
++}
+diff -ruN '--exclude=.git' '--exclude=.kotlin' a/app/src/main/java/com/carhud/aaproxy/AssistantNavigator.kt b/app/src/main/java/com/carhud/aaproxy/AssistantNavigator.kt
+--- a/app/src/main/java/com/carhud/aaproxy/AssistantNavigator.kt	1970-01-01 00:00:00.000000000 +0000
++++ b/app/src/main/java/com/carhud/aaproxy/AssistantNavigator.kt	2026-10-29 07:59:49.709873586 +0000
+@@ -0,0 +1,75 @@
++package com.carhud.aaproxy
++
++import android.app.ActivityOptions
++import android.app.PendingIntent
++import android.content.Context
++import android.content.Intent
++import android.net.Uri
++import android.os.Build
++
++/** Mở app dẫn đường (Waze / Google Maps) với đích đến bằng tên hoặc toạ độ. */
++internal object AssistantNavigator {
++    private val wazePackages = listOf("com.waze.mod", "com.waze")
++    private const val GMAPS = "com.google.android.apps.maps"
++
++    private fun installed(c: Context, pkg: String) =
++        try { c.packageManager.getLaunchIntentForPackage(pkg) != null } catch (_: Throwable) { false }
++
++    private fun wazePkg(c: Context) = wazePackages.firstOrNull { installed(c, it) }
++
++    /** destination = tên/địa chỉ; hoặc truyền lat/lon. walking = đi bộ tới xe. */
++    fun navigate(c: Context, destination: String? = null, lat: Double? = null, lon: Double? = null, walking: Boolean = false): Boolean {
++        val pref = AssistantConfig.navApp(c)
++        val waze = wazePkg(c)
++        val gmaps = installed(c, GMAPS)
++        val order = when (pref) {
++            "waze" -> listOf("waze", "gmaps")
++            "gmaps" -> listOf("gmaps", "waze")
++            else -> if (walking) listOf("gmaps", "waze") else listOf("waze", "gmaps") // Waze không có chế độ đi bộ
++        }
++        for (which in order) {
++            val intent = when {
++                which == "waze" && waze != null -> wazeIntent(waze, destination, lat, lon)
++                which == "gmaps" && gmaps -> gmapsIntent(destination, lat, lon, walking)
++                else -> null
++            } ?: continue
++            if (launch(c, intent)) return true
++        }
++        // Không có app nào: để hệ thống chọn app bản đồ
++        val geo = if (lat != null && lon != null) "geo:$lat,$lon?q=$lat,$lon" else "geo:0,0?q=" + Uri.encode(destination.orEmpty())
++        return launch(c, Intent(Intent.ACTION_VIEW, Uri.parse(geo)))
++    }
++
++    private fun wazeIntent(pkg: String, dest: String?, lat: Double?, lon: Double?): Intent {
++        val uri = if (lat != null && lon != null) "waze://?ll=$lat,$lon&navigate=yes" else "waze://?q=" + Uri.encode(dest.orEmpty()) + "&navigate=yes"
++        return Intent(Intent.ACTION_VIEW, Uri.parse(uri)).setPackage(pkg)
++    }
++
++    private fun gmapsIntent(dest: String?, lat: Double?, lon: Double?, walking: Boolean): Intent {
++        val mode = if (walking) "&mode=w" else ""
++        val q = if (lat != null && lon != null) "$lat,$lon" else Uri.encode(dest.orEmpty())
++        return Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=$q$mode")).setPackage(GMAPS)
++    }
++
++    private fun launch(c: Context, intent: Intent): Boolean {
++        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++        return try {
++            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
++                val opts = ActivityOptions.makeBasic().apply {
++                    setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
++                }
++                c.startActivity(intent, opts.toBundle())
++            } else {
++                c.startActivity(intent)
++            }
++            true
++        } catch (_: Throwable) {
++            try {
++                PendingIntent.getActivity(c, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE).send()
++                true
++            } catch (_: Throwable) {
++                false
++            }
++        }
++    }
++}
+diff -ruN '--exclude=.git' '--exclude=.kotlin' a/app/src/main/java/com/carhud/aaproxy/AssistantStore.kt b/app/src/main/java/com/carhud/aaproxy/AssistantStore.kt
+--- a/app/src/main/java/com/carhud/aaproxy/AssistantStore.kt	1970-01-01 00:00:00.000000000 +0000
++++ b/app/src/main/java/com/carhud/aaproxy/AssistantStore.kt	2026-10-29 07:59:49.709860717 +0000
+@@ -0,0 +1,90 @@
++package com.carhud.aaproxy
++
++import android.content.Context
++import android.location.Geocoder
++import android.location.Location
++import android.os.Handler
++import android.os.Looper
++import java.util.Locale
++
++/** Nơi lưu "chỗ đỗ xe" và "nhà". Dùng commit() vì process có thể bị kill ngay khi rút cáp. */
++internal object AssistantStore {
++    data class Spot(val lat: Double, val lon: Double, val savedAt: Long, val label: String?)
++
++    private const val PREFS = "assistant_store"
++
++    private fun p(c: Context) = c.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
++
++    private fun save(c: Context, key: String, loc: Location, label: String?) {
++        p(c).edit()
++            .putLong("${key}_lat", java.lang.Double.doubleToRawLongBits(loc.latitude))
++            .putLong("${key}_lon", java.lang.Double.doubleToRawLongBits(loc.longitude))
++            .putLong("${key}_at", System.currentTimeMillis())
++            .putString("${key}_label", label)
++            .commit()
++    }
++
++    private fun read(c: Context, key: String): Spot? {
++        val sp = p(c)
++        if (!sp.contains("${key}_lat")) return null
++        return Spot(
++            java.lang.Double.longBitsToDouble(sp.getLong("${key}_lat", 0L)),
++            java.lang.Double.longBitsToDouble(sp.getLong("${key}_lon", 0L)),
++            sp.getLong("${key}_at", 0L),
++            sp.getString("${key}_label", null)
++        )
++    }
++
++    private fun setLabel(c: Context, key: String, label: String) {
++        if (p(c).contains("${key}_lat")) p(c).edit().putString("${key}_label", label).apply()
++    }
++
++    fun saveParking(c: Context, loc: Location, label: String? = null) = save(c, "parking", loc, label)
++    fun parking(c: Context): Spot? = read(c, "parking")
++    fun setParkingLabel(c: Context, label: String) = setLabel(c, "parking", label)
++
++    fun saveHome(c: Context, loc: Location, label: String? = null) = save(c, "home", loc, label)
++    fun home(c: Context): Spot? = read(c, "home")
++    fun setHomeLabel(c: Context, label: String) = setLabel(c, "home", label)
++}
++
++/** Lưu vị trí đỗ khi rút cáp / Android Auto ngắt kết nối. Gọi ĐỒNG BỘ trước khi app thoát. */
++internal object AssistantParking {
++    private const val MAX_FIX_AGE_MS = 15 * 60 * 1000L
++
++    fun autoSaveOnDisconnect(context: Context) {
++        try {
++            if (!AssistantConfig.isEnabled(context) || !AssistantConfig.autoSaveParking(context)) return
++            val loc = GpsSpeedManager.lastLocation.value ?: return
++            if (System.currentTimeMillis() - loc.time > MAX_FIX_AGE_MS) return
++            AssistantStore.saveParking(context, loc, null)
++        } catch (_: Throwable) {
++        }
++    }
++}
++
++/** Đổi toạ độ → địa chỉ ngắn. Có thể thất bại (không mạng / máy không có Geocoder) → trả null. */
++internal object AssistantGeocoder {
++    fun reverse(context: Context, lat: Double, lon: Double, done: (String?) -> Unit) {
++        val app = context.applicationContext
++        Thread {
++            val result = try {
++                if (!Geocoder.isPresent()) null else {
++                    @Suppress("DEPRECATION")
++                    val a = Geocoder(app, Locale("vi", "VN")).getFromLocation(lat, lon, 1)?.firstOrNull()
++                    a?.takeIf { it.maxAddressLineIndex >= 0 }?.getAddressLine(0)?.let { shorten(it) }
++                        ?: listOfNotNull(a?.thoroughfare, a?.subLocality, a?.locality).joinToString(", ").takeIf { it.isNotBlank() }
++                }
++            } catch (_: Throwable) {
++                null
++            }
++            Handler(Looper.getMainLooper()).post { done(result) }
++        }.start()
++    }
++
++    /** "25 Trần Duy Hưng, Trung Hòa, Cầu Giấy, Hà Nội, Việt Nam" → "25 Trần Duy Hưng, Trung Hòa, Cầu Giấy" */
++    fun shorten(full: String): String? {
++        val parts = full.split(',').map { it.trim() }.filter { it.isNotEmpty() && !it.equals("Việt Nam", true) && !it.equals("Vietnam", true) }
++        return parts.take(3).joinToString(", ").takeIf { it.isNotBlank() }
++    }
++}
+diff -ruN '--exclude=.git' '--exclude=.kotlin' a/app/src/main/java/com/carhud/aaproxy/CarAppShutdownManager.kt b/app/src/main/java/com/carhud/aaproxy/CarAppShutdownManager.kt
+--- a/app/src/main/java/com/carhud/aaproxy/CarAppShutdownManager.kt	2026-10-29 07:59:49.580571954 +0000
++++ b/app/src/main/java/com/carhud/aaproxy/CarAppShutdownManager.kt	2026-10-29 07:59:49.695837623 +0000
+@@ -26,6 +26,9 @@
+         CarDisconnectWatchdog.resetAfterShutdown()
+         Log.i(TAG, "Shutting down application completely. Reason: $reason")
+ 
++        // 0. Nhớ chỗ đỗ xe cho trợ lý (đồng bộ, vì process sắp bị kill)
++        AssistantParking.autoSaveOnDisconnect(context)
++
+         try {
+             // 1. Stop Audio Playback and Release WakeLocks
+             try {
+diff -ruN '--exclude=.git' '--exclude=.kotlin' a/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt b/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
+--- a/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt	2026-10-29 07:59:49.581163598 +0000
++++ b/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt	2026-10-29 07:59:49.696363235 +0000
+@@ -360,6 +360,33 @@
+         }
+     )
+ 
++    // ---- Trợ lý TTube -------------------------------------------------------------------------
++    private var assistantBannerUntil = 0L
++
++    private val assistantHost = object : TtubeAssistant.Host {
++        override val hostContext: Context get() = this@CarPresentation.context
++        override fun show(text: String) { mainHandler.post { showAssistantBanner(text) } }
++        override fun openApp(appId: String): Boolean {
++            val app = WebAppManager.getAllApps(context).find { it.id == appId } ?: return false
++            mainHandler.post { switchWebApp(app, embedded = isDashboardShowing) }
++            return true
++        }
++        override fun appCatalog(): List<Pair<String, String>> =
++            WebAppManager.getEnabledApps(context).map { it.id to it.name }
++    }
++
++    private fun showAssistantBanner(text: String) {
++        val showMs = (3000L + text.length * 55L).coerceAtMost(9000L)
++        assistantBannerUntil = SystemClock.uptimeMillis() + showMs
++        voiceBannerHideHandler.removeCallbacks(hideVoiceBannerRunnable)
++        statusBanner.text = "✨ $text"
++        statusBanner.background = rounded(Color.parseColor("#EE102032"), 16f, Color.parseColor("#A78BFA"), 2)
++        statusBanner.visibility = View.VISIBLE
++        statusBanner.alpha = 1f
++        statusBanner.bringToFront()
++        voiceBannerHideHandler.postDelayed(hideVoiceBannerRunnable, showMs)
++    }
++
+     private val voiceListener: (VoiceSearchManager.State, String) -> Unit = { state, text ->
+         mainHandler.post {
+             updateVoiceState(state, text)
+@@ -1550,7 +1577,10 @@
+             }
+             if (showMic) {
+                 if (hasPrev) addView(createDivider(iconSizeDp, isHorizontal))
+-                micBtn = createBarIcon(R.drawable.ic_bar_mic, iconSizeDp) { startVoiceSearch() }
++                micBtn = createBarIcon(
++                    if (AssistantConfig.isEnabled(context)) R.drawable.ic_bar_assistant else R.drawable.ic_bar_mic,
++                    iconSizeDp
++                ) { startVoiceSearch() }
+                 addView(micBtn)
+                 hasPrev = true
+             }
+@@ -2257,6 +2287,13 @@
+     private fun handleVoiceQuery(query: String) {
+         cancelSystemVoiceRequest()
+ 
++        // Trợ lý đi trước luồng cũ. Ở TikTok/trình duyệt giọng nói là ô tìm kiếm nên cần gọi tên trợ lý.
++        val voiceIsSearchBox = !isDashboardShowing && (currentActiveAppId == "tiktok" || isBrowserApp())
++        if (TtubeAssistant.handle(assistantHost, query, requireWake = voiceIsSearchBox)) {
++            hideSearchOverlay()
++            return
++        }
++
+         if (currentActiveAppId == "tiktok" && !isDashboardShowing) {
+             YouTubePlayerHelper.setDuckingVolume(web, 1.0f)
+             val app = WebAppManager.getAllApps(context).find { it.id == "tiktok" }
+@@ -4493,7 +4530,7 @@
+         val isDay = isDayMode()
+         when (state) {
+             VoiceSearchManager.State.IDLE -> {
+-                statusBanner.visibility = View.GONE
++                if (SystemClock.uptimeMillis() >= assistantBannerUntil) statusBanner.visibility = View.GONE
+                 micBtn?.background = null
+                 if (isDay) micBtn?.setColorFilter(Color.parseColor("#1E293B")) else micBtn?.clearColorFilter()
+             }
+diff -ruN '--exclude=.git' '--exclude=.kotlin' a/app/src/main/java/com/carhud/aaproxy/CarTtsManager.kt b/app/src/main/java/com/carhud/aaproxy/CarTtsManager.kt
+--- a/app/src/main/java/com/carhud/aaproxy/CarTtsManager.kt	2026-10-29 07:59:49.581344404 +0000
++++ b/app/src/main/java/com/carhud/aaproxy/CarTtsManager.kt	2026-10-29 07:59:49.698709086 +0000
+@@ -466,6 +466,13 @@
+         }
+     }
+ 
++    /** Đọc câu trả lời của trợ lý (ưu tiên cao, tự giảm nhạc nền như cảnh báo). */
++    fun speakAssistant(context: Context, text: String) {
++        appContext = context.applicationContext
++        init(context)
++        speakAlert(text, isPriority = true)
++    }
++
+     fun speakTestWarning(
+         context: Context,
+         warningType: VietmapWarningType,
+diff -ruN '--exclude=.git' '--exclude=.kotlin' a/app/src/main/java/com/carhud/aaproxy/TtubeAssistant.kt b/app/src/main/java/com/carhud/aaproxy/TtubeAssistant.kt
+--- a/app/src/main/java/com/carhud/aaproxy/TtubeAssistant.kt	1970-01-01 00:00:00.000000000 +0000
++++ b/app/src/main/java/com/carhud/aaproxy/TtubeAssistant.kt	2026-10-29 07:59:49.709890424 +0000
+@@ -0,0 +1,215 @@
++package com.carhud.aaproxy
++
++import android.content.Context
++import android.location.Location
++import android.media.AudioManager
++import java.util.Calendar
++import java.util.Locale
++
++/**
++ * Trợ lý giọng nói của TTube.
++ *
++ * Cách hoạt động: VoiceSearchManager nhận giọng → CarPresentation.handleVoiceQuery gọi [handle] TRƯỚC
++ * luồng cũ. Trả true = trợ lý đã xử lý; false = giữ nguyên hành vi cũ (tìm nhạc, mở kênh TV, web...).
++ * Vì vậy bật/tắt trợ lý không làm hỏng các lệnh đang chạy tốt.
++ */
++internal object TtubeAssistant {
++
++    /** CarPresentation cung cấp các thao tác phụ thuộc giao diện xe. */
++    interface Host {
++        val hostContext: Context
++        fun show(text: String)
++        fun openApp(appId: String): Boolean
++        fun appCatalog(): List<Pair<String, String>>
++    }
++
++    fun isEnabled(c: Context) = AssistantConfig.isEnabled(c)
++
++    /**
++     * @param requireWake true khi đang ở TikTok/trình duyệt: lúc đó giọng nói là ô tìm kiếm,
++     * chỉ nhận lệnh trợ lý nếu người dùng gọi tên ("Hey Mimi, ...").
++     */
++    fun handle(host: Host, query: String, requireWake: Boolean = false): Boolean {
++        val c = host.hostContext
++        if (!AssistantConfig.isEnabled(c)) return false
++        val name = AssistantConfig.name(c)
++        if (requireWake && !AssistantIntentParser.hasWake(query, name)) return false
++
++        return when (val intent = AssistantIntentParser.parse(query, name)) {
++            AssistantIntent.None -> false
++            AssistantIntent.Greeting -> { say(host, greeting(c)); true }
++            AssistantIntent.Help -> { say(host, helpText(name)); true }
++            AssistantIntent.Time -> { say(host, timeText()); true }
++            AssistantIntent.Date -> { say(host, dateText()); true }
++            AssistantIntent.Weather -> { say(host, weatherText(c, query)); true }
++            AssistantIntent.SaveParking -> { saveParking(host); true }
++            AssistantIntent.QueryParking -> { queryParking(host); true }
++            AssistantIntent.GoParking -> { goParking(host); true }
++            AssistantIntent.SaveHome -> { saveHome(host); true }
++            AssistantIntent.GoHome -> { goHome(host); true }
++            is AssistantIntent.Navigate -> { navigateTo(host, intent.place); true }
++            is AssistantIntent.Nearby -> { nearby(host, intent); true }
++            AssistantIntent.Pause -> { CarMediaManager.pausePlayback(); host.show("⏸ Đã tạm dừng"); true }
++            AssistantIntent.Resume -> { CarMediaManager.userWantsPlayback = true; CarMediaManager.resumePlayback(); host.show("▶ Tiếp tục phát"); true }
++            AssistantIntent.Next -> { CarMediaManager.playNext(); host.show("⏭ Bài/kênh kế tiếp"); true }
++            AssistantIntent.Previous -> { CarMediaManager.playPrevious(); host.show("⏮ Bài/kênh trước"); true }
++            AssistantIntent.VolumeUp -> { volume(c, up = true); host.show("🔊 Đã tăng âm lượng"); true }
++            AssistantIntent.VolumeDown -> { volume(c, up = false); host.show("🔉 Đã giảm âm lượng"); true }
++            is AssistantIntent.OpenApp -> {
++                val id = AssistantAppResolver.resolve(intent.spoken, host.appCatalog())
++                if (id == null) false else {
++                    val ok = host.openApp(id)
++                    if (ok) host.show("Đang mở ${host.appCatalog().firstOrNull { it.first == id }?.second ?: intent.spoken}")
++                    ok
++                }
++            }
++        }
++    }
++
++    // ---- trả lời: hiện chữ + đọc to -------------------------------------------------------------
++
++    private fun say(host: Host, text: String) {
++        host.show(text)
++        val c = host.hostContext
++        if (AssistantConfig.speakReply(c)) CarTtsManager.speakAssistant(c, text)
++    }
++
++    private fun greeting(c: Context): String {
++        val h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
++        val part = when (h) { in 5..10 -> "buổi sáng"; in 11..13 -> "buổi trưa"; in 14..17 -> "buổi chiều"; else -> "buổi tối" }
++        return "Chào $part! Mình là ${AssistantConfig.name(c)}. Bạn cần mình giúp gì?"
++    }
++
++    private fun helpText(name: String) =
++        "Mình là $name. Bạn có thể nói: mấy giờ rồi, thời tiết, dẫn đường đến một địa chỉ, về nhà, " +
++            "tìm cây xăng gần nhất, nhớ chỗ đỗ xe, xe tôi đỗ ở đâu, bài sau, tạm dừng, hoặc mở YouTube."
++
++    private fun period(h: Int) = when (h) { in 5..10 -> "sáng"; in 11..12 -> "trưa"; in 13..17 -> "chiều"; in 18..21 -> "tối"; else -> "đêm" }
++
++    private fun timeText(now: Calendar = Calendar.getInstance()): String {
++        val h = now.get(Calendar.HOUR_OF_DAY)
++        val m = now.get(Calendar.MINUTE)
++        val h12 = (h % 12).let { if (it == 0) 12 else it }
++        return if (m == 0) "Bây giờ là $h12 giờ đúng ${period(h)}." else "Bây giờ là $h12 giờ $m phút ${period(h)}."
++    }
++
++    private fun dateText(now: Calendar = Calendar.getInstance()): String {
++        val d = now.get(Calendar.DAY_OF_MONTH)
++        val m = now.get(Calendar.MONTH) + 1
++        val y = now.get(Calendar.YEAR)
++        val dow = VietnameseLunarHelper.getFormattedSolarDate(now).substringBefore(',')
++        val lunar = try {
++            val (ld, lm) = VietnameseLunarHelper.convertSolar2Lunar(d, m, y)
++            " Âm lịch là ngày $ld tháng $lm."
++        } catch (_: Throwable) { "" }
++        return "Hôm nay là $dow, ngày $d tháng $m năm $y.$lunar"
++    }
++
++    private fun weatherText(c: Context, query: String): String {
++        WeatherManager.start(c)
++        val w = WeatherManager.weatherState.value
++        if (!w.isLoaded) return "Mình chưa có dữ liệu thời tiết. Hãy kiểm tra mạng và định vị rồi hỏi lại nhé."
++        val folded = AssistantIntentParser.fold1to1(query)
++        val future = Regex("""\b(?:ngay mai|mai|tuan nay|tuan sau|cuoi tuan|toi nay|chieu nay)\b""").containsMatchIn(folded)
++        val where = w.location.takeIf { it.isNotBlank() && !it.startsWith("Đang") }?.let { "Ở $it, " }.orEmpty()
++        val head = if (future) "Mình chỉ xem được thời tiết hiện tại. " else ""
++        val body = "hiện ${w.tempC} độ, ${w.conditionText.lowercase(Locale("vi"))}. Độ ẩm ${w.humidity} phần trăm, gió ${w.windSpeedKmh} ki lô mét trên giờ."
++        return head + if (where.isNotEmpty()) where + body else body.replaceFirstChar { it.uppercase() }
++    }
++
++    // ---- chỗ đỗ xe / nhà -----------------------------------------------------------------------
++
++    private fun currentFix(): Location? = GpsSpeedManager.lastLocation.value
++
++    private fun saveParking(host: Host) {
++        val c = host.hostContext
++        val loc = currentFix() ?: return say(host, "Mình chưa có vị trí GPS. Hãy bật định vị rồi nói lại nhé.")
++        AssistantStore.saveParking(c, loc, null)
++        say(host, "Đã nhớ chỗ đỗ xe.")
++        AssistantGeocoder.reverse(c, loc.latitude, loc.longitude) { label -> label?.let { AssistantStore.setParkingLabel(c, it) } }
++    }
++
++    private fun queryParking(host: Host) {
++        val c = host.hostContext
++        val spot = AssistantStore.parking(c)
++            ?: return say(host, "Mình chưa nhớ chỗ đỗ xe nào. Khi đỗ xe, hãy nói: nhớ chỗ đỗ xe.")
++        fun reply(label: String?) {
++            val whenText = whenText(spot.savedAt)
++            val distText = currentFix()?.let { loc ->
++                val r = FloatArray(1)
++                Location.distanceBetween(loc.latitude, loc.longitude, spot.lat, spot.lon, r)
++                ", cách bạn ${distanceText(r[0])}"
++            }.orEmpty()
++            val place = label?.let { "ở $it" } ?: "ở vị trí đã lưu"
++            say(host, "Xe bạn đỗ $place, $whenText$distText. Nói “dẫn đường đến xe” để mình chỉ đường nhé.")
++        }
++        if (spot.label != null) return reply(spot.label)
++        AssistantGeocoder.reverse(c, spot.lat, spot.lon) { label ->
++            label?.let { AssistantStore.setParkingLabel(c, it) }
++            reply(label)
++        }
++    }
++
++    private fun goParking(host: Host) {
++        val c = host.hostContext
++        val spot = AssistantStore.parking(c)
++            ?: return say(host, "Mình chưa nhớ chỗ đỗ xe nào để dẫn đường.")
++        say(host, "Đang chỉ đường tới chỗ đỗ xe.")
++        if (!AssistantNavigator.navigate(c, lat = spot.lat, lon = spot.lon, walking = true)) host.show("Không mở được app bản đồ.")
++    }
++
++    private fun saveHome(host: Host) {
++        val c = host.hostContext
++        val loc = currentFix() ?: return say(host, "Mình chưa có vị trí GPS. Hãy bật định vị rồi nói lại nhé.")
++        AssistantStore.saveHome(c, loc, null)
++        say(host, "Đã đặt vị trí này là nhà của bạn.")
++        AssistantGeocoder.reverse(c, loc.latitude, loc.longitude) { label -> label?.let { AssistantStore.setHomeLabel(c, it) } }
++    }
++
++    private fun goHome(host: Host) {
++        val c = host.hostContext
++        val home = AssistantStore.home(c)
++            ?: return say(host, "Bạn chưa đặt nhà. Khi đang ở nhà, hãy nói: đặt nhà ở đây.")
++        say(host, "Đang dẫn đường về nhà.")
++        if (!AssistantNavigator.navigate(c, lat = home.lat, lon = home.lon)) host.show("Không mở được app dẫn đường.")
++    }
++
++    // ---- dẫn đường -----------------------------------------------------------------------------
++
++    private fun navigateTo(host: Host, place: String) {
++        say(host, "Đang dẫn đường đến $place.")
++        if (!AssistantNavigator.navigate(host.hostContext, destination = place)) host.show("Không mở được app dẫn đường.")
++    }
++
++    private fun nearby(host: Host, n: AssistantIntent.Nearby) {
++        say(host, "Đang tìm ${n.label} gần nhất.")
++        if (!AssistantNavigator.navigate(host.hostContext, destination = n.query + " gần nhất")) host.show("Không mở được app dẫn đường.")
++    }
++
++    // ---- tiện ích ------------------------------------------------------------------------------
++
++    private fun volume(c: Context, up: Boolean) {
++        try {
++            val am = c.getSystemService(Context.AUDIO_SERVICE) as AudioManager
++            val dir = if (up) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
++            repeat(2) { am.adjustStreamVolume(AudioManager.STREAM_MUSIC, dir, if (it == 1) AudioManager.FLAG_SHOW_UI else 0) }
++        } catch (_: Throwable) {
++        }
++    }
++
++    private fun distanceText(meters: Float): String =
++        if (meters < 1000f) "${(meters / 10).toInt() * 10} mét" else String.format(Locale.US, "%.1f", meters / 1000f).replace('.', ',') + " ki lô mét"
++
++    private fun whenText(savedAt: Long): String {
++        val saved = Calendar.getInstance().apply { timeInMillis = savedAt }
++        val now = Calendar.getInstance()
++        val h = saved.get(Calendar.HOUR_OF_DAY)
++        val m = saved.get(Calendar.MINUTE)
++        val clock = if (m == 0) "$h giờ" else "$h giờ $m"
++        val sameDay = saved.get(Calendar.YEAR) == now.get(Calendar.YEAR) && saved.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR)
++        if (sameDay) return "lúc $clock"
++        val yesterday = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -1) }
++        val wasYesterday = saved.get(Calendar.YEAR) == yesterday.get(Calendar.YEAR) && saved.get(Calendar.DAY_OF_YEAR) == yesterday.get(Calendar.DAY_OF_YEAR)
++        return if (wasYesterday) "hôm qua lúc $clock" else "lúc $clock ngày ${saved.get(Calendar.DAY_OF_MONTH)} tháng ${saved.get(Calendar.MONTH) + 1}"
++    }
++}
+diff -ruN '--exclude=.git' '--exclude=.kotlin' a/app/src/main/java/com/carhud/aaproxy/VoiceQueryResolver.kt b/app/src/main/java/com/carhud/aaproxy/VoiceQueryResolver.kt
+--- a/app/src/main/java/com/carhud/aaproxy/VoiceQueryResolver.kt	2026-10-29 07:59:49.583865238 +0000
++++ b/app/src/main/java/com/carhud/aaproxy/VoiceQueryResolver.kt	2026-10-29 07:59:49.704932892 +0000
+@@ -138,7 +138,9 @@
+         listOf(
+             "VTV1", "VTV2", "VTV3", "VTV4", "VTV5", "VTV6", "VTV7", "VTV8", "VTV9",
+             "HTV7", "HTV9", "VTC1", "THVL1", "K+ SPORT 1", "K+ SPORT 2",
+-            "mở kênh", "phát", "nghe", "tìm kiếm", "YouTube", "IPTV"
++            "mở kênh", "phát", "nghe", "tìm kiếm", "YouTube", "IPTV",
++            "Mimi", "thời tiết", "mấy giờ rồi", "dẫn đường", "chỉ đường", "về nhà",
++            "nhớ chỗ đỗ xe", "xe tôi đỗ ở đâu", "cây xăng gần nhất", "bài sau", "tạm dừng"
+         ).forEach(out::add)
+ 
+         val channelLimit = if (active == "iptv") 64 else 28
+diff -ruN '--exclude=.git' '--exclude=.kotlin' a/app/src/main/res/drawable/ic_bar_assistant.xml b/app/src/main/res/drawable/ic_bar_assistant.xml
+--- a/app/src/main/res/drawable/ic_bar_assistant.xml	1970-01-01 00:00:00.000000000 +0000
++++ b/app/src/main/res/drawable/ic_bar_assistant.xml	2026-10-29 07:59:49.749680674 +0000
+@@ -0,0 +1,43 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Mặt trợ lý: đầu tròn có 2 tai, 2 mắt, ăng-ten. Màu trắng để hệ thống tô theo ngày/đêm như các icon thanh bên. -->
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <!-- ăng-ten -->
++    <path
++        android:fillColor="#FFFFFF"
++        android:pathData="M11.25,1.5h1.5v2.2h-1.5z" />
++    <path
++        android:fillColor="#FFFFFF"
++        android:pathData="M12,0.6m-1.1,0a1.1,1.1 0,1 1,2.2 0a1.1,1.1 0,1 1,-2.2 0" />
++
++    <!-- tai -->
++    <path
++        android:fillColor="#FFFFFF"
++        android:pathData="M1.5,10.2h1.8v5h-1.8z" />
++    <path
++        android:fillColor="#FFFFFF"
++        android:pathData="M20.7,10.2h1.8v5h-1.8z" />
++
++    <!-- đầu (viền rỗng) -->
++    <path
++        android:fillColor="#FFFFFF"
++        android:fillType="evenOdd"
++        android:pathData="M6,4.2h12a3.2,3.2 0,0 1,3.2 3.2v10.6a3.2,3.2 0,0 1,-3.2 3.2H6a3.2,3.2 0,0 1,-3.2 -3.2V7.4A3.2,3.2 0,0 1,6 4.2zM6,5.9a1.5,1.5 0,0 0,-1.5 1.5v10.6A1.5,1.5 0,0 0,6 19.5h12a1.5,1.5 0,0 0,1.5 -1.5V7.4A1.5,1.5 0,0 0,18 5.9z" />
++
++    <!-- mắt -->
++    <path
++        android:fillColor="#FFFFFF"
++        android:pathData="M9,12.6m-1.7,0a1.7,1.7 0,1 1,3.4 0a1.7,1.7 0,1 1,-3.4 0" />
++    <path
++        android:fillColor="#FFFFFF"
++        android:pathData="M15,12.6m-1.7,0a1.7,1.7 0,1 1,3.4 0a1.7,1.7 0,1 1,-3.4 0" />
++
++    <!-- miệng -->
++    <path
++        android:fillColor="#FFFFFF"
++        android:pathData="M9.2,16.3h5.6v1.3h-5.6z" />
++</vector>
+diff -ruN '--exclude=.git' '--exclude=.kotlin' a/app/src/test/java/com/carhud/aaproxy/AssistantIntentParserTest.kt b/app/src/test/java/com/carhud/aaproxy/AssistantIntentParserTest.kt
+--- a/app/src/test/java/com/carhud/aaproxy/AssistantIntentParserTest.kt	1970-01-01 00:00:00.000000000 +0000
++++ b/app/src/test/java/com/carhud/aaproxy/AssistantIntentParserTest.kt	2026-10-29 07:59:49.751487410 +0000
+@@ -0,0 +1,108 @@
++package com.carhud.aaproxy
++
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertNull
++import org.junit.Test
++
++class AssistantIntentParserTest {
++    private val cases: List<Pair<String, AssistantIntent>> = listOf(
++        "mấy giờ rồi" to AssistantIntent.Time,
++        "Hey Mimi, mấy giờ rồi?" to AssistantIntent.Time,
++        "Mi mi ơi bây giờ là mấy giờ" to AssistantIntent.Time,
++        "hôm nay thứ mấy" to AssistantIntent.Date,
++        "hôm nay ngày bao nhiêu" to AssistantIntent.Date,
++        "thời tiết hôm nay thế nào" to AssistantIntent.Weather,
++        "hôm nay trời có mưa không" to AssistantIntent.Weather,
++        "nhiệt độ bao nhiêu" to AssistantIntent.Weather,
++        "nhớ chỗ đỗ xe" to AssistantIntent.SaveParking,
++        "tôi vừa đỗ xe ở đây" to AssistantIntent.SaveParking,
++        "đánh dấu chỗ đỗ xe" to AssistantIntent.SaveParking,
++        "xe tôi đỗ ở đâu" to AssistantIntent.QueryParking,
++        "tôi đã đỗ xe ở đâu" to AssistantIntent.QueryParking,
++        "tìm xe của tôi" to AssistantIntent.QueryParking,
++        "dẫn đường đến xe" to AssistantIntent.GoParking,
++        "về nhà" to AssistantIntent.GoHome,
++        "dẫn đường về nhà" to AssistantIntent.GoHome,
++        "đặt nhà ở đây" to AssistantIntent.SaveHome,
++        "dẫn đường đến 25 Trần Duy Hưng" to AssistantIntent.Navigate("25 Trần Duy Hưng"),
++        "chỉ đường tới sân bay Nội Bài" to AssistantIntent.Navigate("sân bay Nội Bài"),
++        "Hey Mimi dẫn đường đến Vincom Bà Triệu đi" to AssistantIntent.Navigate("Vincom Bà Triệu"),
++        "tìm cây xăng gần nhất" to AssistantIntent.Nearby("cây xăng", "cây xăng"),
++        "chỉ đường đến cây xăng gần nhất" to AssistantIntent.Nearby("cây xăng", "cây xăng"),
++        "ATM gần nhất" to AssistantIntent.Nearby("ATM", "ATM"),
++        "tìm quán cà phê gần đây" to AssistantIntent.Nearby("quán cà phê", "quán cà phê"),
++        "tìm nhà thuốc gần nhất" to AssistantIntent.Nearby("nhà thuốc", "nhà thuốc"),
++        "tạm dừng" to AssistantIntent.Pause,
++        "dừng lại" to AssistantIntent.Pause,
++        "tiếp tục" to AssistantIntent.Resume,
++        "phát tiếp" to AssistantIntent.Resume,
++        "bài sau" to AssistantIntent.Next,
++        "bài tiếp theo đi" to AssistantIntent.Next,
++        "bài trước" to AssistantIntent.Previous,
++        "tăng âm lượng" to AssistantIntent.VolumeUp,
++        "to lên" to AssistantIntent.VolumeUp,
++        "giảm âm lượng" to AssistantIntent.VolumeDown,
++        "nhỏ xuống" to AssistantIntent.VolumeDown,
++        "mở YouTube" to AssistantIntent.OpenApp("YouTube"),
++        "mở ứng dụng TikTok" to AssistantIntent.OpenApp("TikTok"),
++        "Mimi" to AssistantIntent.Greeting,
++        "xin chào" to AssistantIntent.Greeting,
++        "bạn làm được gì" to AssistantIntent.Help,
++        "phát nhạc Sơn Tùng" to AssistantIntent.None,
++        "mở bài Nơi này có anh" to AssistantIntent.OpenApp("bài Nơi này có anh"),
++        "bài hát Mưa trên phố" to AssistantIntent.None,
++        "nghe nhạc trẻ" to AssistantIntent.None,
++        "VTV1" to AssistantIntent.None,
++        "phát VTV3" to AssistantIntent.None,
++        "mở kênh HTV7" to AssistantIntent.OpenApp("kênh HTV7"),
++        "cà phê muối" to AssistantIntent.None,
++        "Tiếng gọi nơi hoang vu" to AssistantIntent.None,
++        "dừng chân bên em" to AssistantIntent.None,
++        "Đi về nhà" to AssistantIntent.GoHome,
++        "về nhà nhé" to AssistantIntent.GoHome,
++        "có cây xăng nào gần đây không" to AssistantIntent.Nearby("cây xăng", "cây xăng"),
++        "đi ăn cơm" to AssistantIntent.Nearby("quán ăn", "quán ăn"),
++        "tìm lại bầu trời" to AssistantIntent.None,
++        "bật nhạc cà phê" to AssistantIntent.OpenApp("nhạc cà phê"),
++    )
++
++    @Test
++    fun `parse tung cau noi`() {
++        for ((spoken, expected) in cases) {
++            assertEquals("Câu: $spoken", expected, AssistantIntentParser.parse(spoken, "Mimi"))
++        }
++    }
++
++    @Test
++    fun `ten bai hat va kenh TV khong bi tro ly nuot mat`() {
++        listOf("phát nhạc Sơn Tùng", "bài hát Mưa trên phố", "nghe nhạc trẻ", "VTV1", "phát VTV3", "cà phê muối", "dừng chân bên em", "tìm lại bầu trời")
++            .forEach { assertEquals("Câu: $it", AssistantIntent.None, AssistantIntentParser.parse(it, "Mimi")) }
++    }
++
++    @Test
++    fun `resolver chi nhan dung app va bo qua kenh TV`() {
++        val apps = listOf("youtube" to "YouTube Pro", "iptv" to "IPTV Truyền hình", "web" to "Trình duyệt Web", "tiktok" to "TikTok", "vtvgo" to "VTV Go")
++        assertEquals("youtube", AssistantAppResolver.resolve("YouTube", apps))
++        assertEquals("tiktok", AssistantAppResolver.resolve("tik tok", apps))
++        assertEquals("web", AssistantAppResolver.resolve("trình duyệt", apps))
++        assertEquals("vtvgo", AssistantAppResolver.resolve("VTV Go", apps))
++        assertNull(AssistantAppResolver.resolve("kênh HTV7", apps))
++        assertNull(AssistantAppResolver.resolve("bài Nơi này có anh", apps))
++        assertNull(AssistantAppResolver.resolve("truyền hình", apps))
++    }
++
++    @Test
++    fun `wake word`() {
++        assertEquals(true, AssistantIntentParser.hasWake("Hey Mimi, mấy giờ rồi", "Mimi"))
++        assertEquals(true, AssistantIntentParser.hasWake("Mi mi ơi thời tiết", "Mimi"))
++        assertEquals(false, AssistantIntentParser.hasWake("mấy giờ rồi", "Mimi"))
++        assertEquals("mấy giờ rồi", AssistantIntentParser.stripWake("Hey Mimi, mấy giờ rồi", "Mimi"))
++    }
++
++    @Test
++    fun `fold giu nguyen do dai`() {
++        val s = "Đường Trần Duy Hưng"
++        assertEquals(s.length, AssistantIntentParser.fold1to1(s).length)
++        assertEquals("duong tran duy hung", AssistantIntentParser.fold1to1(s))
++    }
++}

@@ -1,0 +1,15 @@
+--- a/app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt
++++ b/app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt
+@@ -16,7 +16,12 @@
+     private fun prefs(c: Context) = c.applicationContext.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
+ 
+     fun isEnabled(c: Context) = prefs(c).getBoolean(PREF_ENABLED, true)
+-    fun name(c: Context): String = prefs(c).getString(PREF_NAME, DEFAULT_NAME)?.trim().orEmpty().ifBlank { DEFAULT_NAME }
++    fun name(c: Context): String {
++        val stored = prefs(c).getString(PREF_NAME, DEFAULT_NAME)?.trim().orEmpty()
++        // Migrate the old default while retaining any user-customized name.
++        return if (stored.isBlank() || stored.equals("Tubi", ignoreCase = true) ||
++            stored.equals("Tu bi", ignoreCase = true)) DEFAULT_NAME else stored
++    }
+     fun speakReply(c: Context) = prefs(c).getBoolean(PREF_SPEAK, true)
+     fun navApp(c: Context): String = prefs(c).getString(PREF_NAV_APP, "auto") ?: "auto"
