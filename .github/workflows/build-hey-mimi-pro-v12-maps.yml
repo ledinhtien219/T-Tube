@@ -88,7 +88,34 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base64 --decode ci/hey-mimi/v12-maps.patch.gz.b64 | gzip -dc | patch --batch --forward -p1
+          base64 --decode ci/hey-mimi/v12-maps.patch.gz.b64 | gzip -dc > /tmp/maps-v12.patch
+          # In CI v11's postpatch, the surrounding voice-route comments are
+          # different from the exported v11 source ZIP. Extract the exact new
+          # block and insert it at the stable afterWake anchor instead.
+          python3 - <<'PY'
+          from pathlib import Path
+          patch = Path('/tmp/maps-v12.patch')
+          text = patch.read_text()
+          start = text.index('@@ -2356,6 +2357,32 @@')
+          end = text.index('--- a/app/build.gradle.kts', start)
+          hunk = text[start:end]
+          inserted = '\n'.join(row[1:] for row in hunk.splitlines()
+                               if row.startswith('+') and not row.startswith('+++')) + '\n'
+          assert 'MimiMapsCommandRouter.wantsMaps' in inserted
+          Path('/tmp/maps-v12-voice-route.txt').write_text(inserted)
+          patch.write_text(text[:start] + text[end:])
+          PY
+          patch --batch --forward -p1 < /tmp/maps-v12.patch
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/com/carhud/aaproxy/CarPresentation.kt')
+          s = p.read_text()
+          anchor = '        val afterWake = heyMimiConversation.consume(now) || mimiTapSession.also { mimiTapSession = false }\n'
+          assert s.count(anchor) == 1, 'v11 route marker not found exactly once'
+          inserted = Path('/tmp/maps-v12-voice-route.txt').read_text()
+          assert 'MimiMapsCommandRouter.wantsMaps' not in s
+          p.write_text(s.replace(anchor, anchor + '\n' + inserted, 1))
+          PY
           grep -q 'versionCode = 313' app/build.gradle.kts
           grep -q 'versionName = "1.1.15"' app/build.gradle.kts
           test -s app/src/main/java/com/carhud/aaproxy/MimiMapsCommandRouter.kt
