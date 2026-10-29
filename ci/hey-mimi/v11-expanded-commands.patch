@@ -1,0 +1,348 @@
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -12,8 +12,8 @@
+         applicationId = "com.ledinhtien.ttube"
+         minSdk = 29
+         targetSdk = 36
+-        versionCode = 311
+-        versionName = "1.1.13"
++        versionCode = 312
++        versionName = "1.1.14"
+ 
+         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+     }
+--- a/app/src/main/java/com/carhud/aaproxy/AssistantIntent.kt
++++ b/app/src/main/java/com/carhud/aaproxy/AssistantIntent.kt
+@@ -54,21 +54,27 @@
+ 
+     private val greeting = Regex("""^(?:xin chao|chao|hello|hi|alo|chao buoi (?:sang|trua|chieu|toi))(?:\s+ban)?$""")
+     private val help = Regex("""\b(?:ban|em|tro ly)\s+(?:lam|biet)\s+(?:duoc\s+)?(?:gi|nhung gi)\b|\b(?:huong dan|tro giup)\b|\bgiup duoc gi\b""")
+-    private val timeQ = Regex("""\bmay gio\b|\bgio hien tai\b|\bxem gio\b|\bbao nhieu gio\b""")
+-    private val dateQ = Regex("""\bhom nay\s+(?:la\s+)?(?:thu may|ngay may|ngay bao nhieu)\b|\bngay bao nhieu\b|\bthu may\b|\bam lich\b|\bngay thang\b""")
+-    private val weatherQ = Regex("""\bthoi tiet\b|\bnhiet do\b|\btroi\s+(?:co\s+)?(?:mua|nang|nong|lanh|ret)\b|\bbao nhieu do\b|\bnong khong\b|\blanh khong\b|\bco mua khong\b""")
++    private val timeQ = Regex("""\bmay gio\b|\bgio hien tai\b|\bxem gio\b|\bbao nhieu gio\b|\bbay gio la may gio\b|\bxem dong ho\b|\bgio nay la may gio\b""")
++    private val dateQ = Regex("""\bhom nay\s+(?:la\s+)?(?:thu may|ngay may|ngay bao nhieu|ngay gi)\b|\bngay bao nhieu\b|\bthu may\b|\bam lich\b|\bngay thang\b|\bduong lich\b|\bhom nay ngay gi\b""")
++    private val weatherQ = Regex("""\bthoi tiet\b|\bnhiet do\b|\btroi\s+(?:co\s+)?(?:mua|nang|nong|lanh|ret)\b|\bbao nhieu do\b|\bnong khong\b|\blanh khong\b|\bco mua khong\b|\bthoi tiet ben ngoai\b|\bco phai mang ao mua khong\b|\btroi dang the nao\b""")
+ 
+     private val queryParking = Regex("""\b(?:(?:xe|cho do xe|vi tri do xe)\s+(?:cua\s+)?(?:toi|minh)\s+(?:dang\s+)?(?:do\s+)?(?:o\s+)?dau|(?:toi|minh)\s+(?:da\s+)?do xe\s+(?:o|tai)\s+dau|tim xe(?:\s+(?:cua\s+)?(?:toi|minh))?|cho do xe\s+(?:o\s+)?dau|xe\s+(?:o\s+)?dau)\b""")
+     private val saveParking = Regex("""\b(?:(?:nho|luu|danh dau|ghi nho)\s+(?:giup\s+(?:toi|minh)\s+)?(?:cho do xe|vi tri do xe|vi tri xe|noi do xe|cho nay|vi tri nay|day)|(?:toi|minh)\s+(?:vua\s+|dang\s+)?do xe\s+(?:o|tai)\s+day|do xe\s+(?:o|tai)\s+day|xe\s+(?:o|tai)\s+day)\b""")
+ 
+     private val saveHome = Regex("""\b(?:dat|luu|dung|chon|nho)\s+(?:day\s+la\s+nha|nha\s+(?:o|tai)\s+day|vi tri nay la nha)\b|\bnha\s+(?:toi|minh)\s+(?:o|tai)\s+day\b""")
+-    private val goHome = Regex("""^(?:(?:dan duong|chi duong|di|cho toi di|dua toi)\s+)?(?:ve|toi|den)\s+nha(?:\s+(?:toi|minh))?$|^(?:ve nha)$""")
++    private val goHome = Regex("""^(?:(?:dan duong|chi duong|di|cho toi di|dua toi|dua minh|dan minh|cho minh di|dua ve)\s+)?(?:ve|toi|den)\s+nha(?:\s+(?:toi|minh))?$|^(?:ve nha|ve nha thoi|tro ve nha)$""")
+ 
+     private val goParking = Regex("""^(?:dan duong|chi duong|dan toi|dan den|dua toi|chi toi|di)\s*(?:toi|den|ve|ra)?\s+(?:cho do xe|vi tri do xe|xe cua toi|xe cua minh|xe toi|xe minh|xe)$""")
+-    private val navigate = Regex("""^(?:dan duong|chi duong|dan toi|dan den|di toi|di den|tim duong|tim duong di|chi toi|dua toi|navigate to|dan duong den|dan duong toi|chi duong den|chi duong toi)\s*(?:toi|den|ra|qua|vao|ve)?\s+(.+)$""")
++    private val navigate = Regex("""^(?:dan duong|chi duong|dan toi|dan den|di toi|di den|tim duong|tim duong di|chi toi|dua toi|dua minh|dan minh|cho toi den|cho minh den|dua toi di|dua minh di|navigate to|dan duong den|dan duong toi|chi duong den|chi duong toi)\s*(?:toi|den|ra|qua|vao|ve)?\s+(.+)$""")
+ 
+     private val nearbyCategories = listOf(
+-        Regex("""cay xang|tram xang|do xang""") to ("cây xăng" to "cây xăng"),
++        Regex("""cay xang|tram xang|do xang|tram do xang""") to ("cây xăng" to "cây xăng"),
++        Regex("""rua xe|tiem rua xe|cham soc xe""") to ("tiệm rửa xe" to "rửa xe"),
++        Regex("""cua hang lop|va lop|va sam|thay lop""") to ("tiệm sửa lốp" to "tiệm sửa lốp"),
++        Regex("""tru so cong an|don cong an|tram canh sat""") to ("công an" to "công an"),
++        Regex("""ngan hang|phong giao dich""") to ("ngân hàng" to "ngân hàng"),
++        Regex("""cua hang tap hoa|tap hoa""") to ("cửa hàng tạp hóa" to "cửa hàng tạp hóa"),
++        Regex("""quan bun|quan pho|quan com""") to ("quán ăn" to "quán ăn"),
+         Regex("""\batm\b|cay atm|may atm""") to ("ATM" to "ATM"),
+         Regex("""tram sac|sac xe dien|tram sac xe""") to ("trạm sạc" to "trạm sạc xe điện"),
+         Regex("""bai do xe|cho do xe gan|noi do xe|gui xe""") to ("bãi đỗ xe" to "bãi đỗ xe"),
+@@ -84,14 +90,14 @@
+     )
+     private val nearbyCue = Regex("""^(?:((?:tim|chi duong|dan duong|di|dan toi|dan den|chi toi|cho toi biet|co)\s*(?:toi|den|ra|qua|vao)?)\s+)?(?:(?:mot|1)\s+)?(.+?)(\s+(?:gan nhat|gan day|gan toi|gan do|o gan day|quanh day|gan minh)(?:\s+khong)?)?$""")
+ 
+-    private val pause = Regex("""^(?:tam dung|dung lai|dung nhac|dung phat|dung video|dung|pause|tat nhac|tat tieng nhac|ngung phat|ngung)$""")
+-    private val resume = Regex("""^(?:tiep tuc|phat tiep|choi tiep|tiep tuc phat|bat lai|resume|play tiep)$""")
+-    private val next = Regex("""^(?:bai (?:sau|tiep|ke tiep|tiep theo)|chuyen bai|bai khac|next|kenh (?:sau|tiep|ke tiep|tiep theo)|chuyen kenh)$""")
+-    private val previous = Regex("""^(?:bai truoc|bai vua roi|quay lai bai|quay lai|lui lai|previous|kenh truoc)$""")
+-    private val volUp = Regex("""^(?:(?:tang|to|lon)\s+(?:am luong|tieng|volume)(?:\s+(?:len|hon))?|to (?:len|hon)|lon (?:len|hon)|tang am|tang len|to tieng)$""")
+-    private val volDown = Regex("""^(?:(?:giam|nho|be)\s+(?:am luong|tieng|volume)(?:\s+(?:xuong|di|hon))?|nho (?:xuong|hon|lai)|be (?:xuong|hon|lai)|giam am|giam xuong|nho tieng)$""")
+-
+-    private val openApp = Regex("""^(?:mo|bat|vao|chuyen sang|chuyen qua|open|chay)\s+(?:ung dung|app)?\s*(.+)$""")
++    private val pause = Regex("""^(?:tam dung|tam ngung|dung lai|dung nhac|dung phat|dung video|dung|pause|tat nhac|tat tieng nhac|ngung phat|ngung|dung bai hat|dung nhac mot chut|ngung nhac|dung video lai|dung phat nhac|dung phat video|dung phat di)$""")
++    private val resume = Regex("""^(?:tiep tuc|phat tiep|choi tiep|tiep tuc phat|bat lai|resume|play tiep|mo lai nhac|phat nhac tiep|phat tiep di|tiep tuc video|phat lai tiep)$""")
++    private val next = Regex("""^(?:bai (?:sau|tiep|ke tiep|tiep theo)|chuyen bai|bai khac|next|next bai|bai nua|bo qua bai nay|skip|chuyen bai khac|video ke tiep|video tiep theo|phat bai tiep|kenh (?:sau|tiep|ke tiep|tiep theo)|chuyen kenh)$""")
++    private val previous = Regex("""^(?:bai truoc|bai vua roi|quay lai bai|quay lai|lui lai|previous|kenh truoc|phat bai truoc|video truoc|bai hat truoc|quay ve bai cu)$""")
++    private val volUp = Regex("""^(?:(?:tang|to|lon)\s+(?:am luong|tieng|volume)(?:\s+(?:len|hon|mot chut|mot ti))?|to (?:len|hon|mot chut)|lon (?:len|hon)|tang am|tang len|to tieng|tang volume|cho nhac to hon)$""")
++    private val volDown = Regex("""^(?:(?:giam|nho|be)\s+(?:am luong|tieng|volume)(?:\s+(?:xuong|di|hon|mot chut|mot ti))?|nho (?:xuong|hon|lai|mot chut)|be (?:xuong|hon|lai)|giam am|giam xuong|nho tieng|giam volume|cho nhac nho lai)$""")
++
++    private val openApp = Regex("""^(?:mo|bat|vao|chuyen sang|chuyen qua|chuyen den|doi sang|open|chay)\s+(?:ung dung|app)?\s*(.+)$""")
+ 
+     private fun nfc(s: String) = Normalizer.normalize(s, Normalizer.Form.NFC)
+ 
+@@ -125,6 +131,19 @@
+         val originalTail = collapseSpaces(original).let { if (headCut <= it.length) it.substring(headCut) else it }
+         if (text.isBlank()) return AssistantIntent.None
+ 
++        // Drive-mode intentions should win over an accidental media search.
++        if (Regex("""^(?:toi can do xang|sap het xang|het xang roi|tim cho do xang)$""").matches(raw))
++            return AssistantIntent.Nearby("cây xăng", "cây xăng")
++        if (Regex("""^(?:toi can sac xe|xe can sac|tim cho sac xe|sap het pin xe dien)$""").matches(raw))
++            return AssistantIntent.Nearby("trạm sạc", "trạm sạc xe điện")
++        if (Regex("""^(?:toi doi qua|minh doi qua|tim cho an|tim gi do an|tim quan an)$""").matches(raw))
++            return AssistantIntent.Nearby("quán ăn", "quán ăn")
++        if (Regex("""^(?:can nghi chan|tim cho nghi chan|tim tram dung chan)$""").matches(raw))
++            return AssistantIntent.Nearby("trạm dừng chân", "trạm dừng chân")
++        if (Regex("""^(?:xe bi thung lop|can va lop|tim cho va lop)$""").matches(raw))
++            return AssistantIntent.Nearby("tiệm sửa lốp", "tiệm sửa lốp")
++        if (Regex("""^(?:can sua xe|tim gara|tim cho sua xe)$""").matches(raw))
++            return AssistantIntent.Nearby("tiệm sửa xe", "tiệm sửa xe")
+         if (greeting.matches(text)) return AssistantIntent.Greeting
+         if (help.containsMatchIn(text)) return AssistantIntent.Help
+ 
+@@ -134,10 +153,13 @@
+         if (saveHome.containsMatchIn(text)) return AssistantIntent.SaveHome
+         if (goHome.matches(text)) return AssistantIntent.GoHome
+         if (goParking.matches(text)) return AssistantIntent.GoParking
+-        if (weatherQ.containsMatchIn(text)) return AssistantIntent.Weather
++        if (weatherQ.containsMatchIn(raw)) return AssistantIntent.Weather
+         if (timeQ.containsMatchIn(text)) return AssistantIntent.Time
+         if (dateQ.containsMatchIn(text)) return AssistantIntent.Date
+ 
++        // Imperative negatives are NOT requests to play anything.
++        if (Regex("""^(?:dung|dung co|dung|khong|khoi) (?:phat|mo|bat|choi) (?:nhac|video|bai hat)(?: nua)?$""").matches(text))
++            return AssistantIntent.Pause
+         // Điều khiển phát: chỉ nhận cả câu, tránh nuốt tên bài hát
+         if (pause.matches(text)) return AssistantIntent.Pause
+         if (resume.matches(text)) return AssistantIntent.Resume
+--- a/app/src/main/java/com/carhud/aaproxy/MimiProPolicy.kt
++++ b/app/src/main/java/com/carhud/aaproxy/MimiProPolicy.kt
+@@ -7,11 +7,11 @@
+         val s = AssistantIntentParser.fold1to1(text).lowercase()
+             .replace(Regex("""[!?.,]+"""), "").replace(Regex("""\s+"""), " ").trim()
+         return when (s) {
+-            "im lang", "dung noi", "mimi im lang", "ngung doc", "thoi khong noi nua", "dung tra loi" -> Action.STOP
+-            "nhac lai", "noi lai", "lap lai", "doc lai cau tra loi", "noi lai cau vua roi" -> Action.REPEAT
++            "im lang", "dung noi", "mimi im lang", "ngung doc", "thoi khong noi nua", "dung tra loi", "dung noi nua", "mimi dung noi nua", "ngung tra loi", "dung doc" -> Action.STOP
++            "nhac lai", "noi lai", "lap lai", "doc lai cau tra loi", "noi lai cau vua roi", "nhac lai mot lan nua", "noi lai di", "lap lai cau vua roi", "nhac lai cau truoc" -> Action.REPEAT
+             "tat giong mimi", "tat doc tra loi", "tat giong noi", "im lang luon" -> Action.MUTE
+             "bat giong mimi", "bat doc tra loi", "bat giong noi", "cho mimi noi" -> Action.UNMUTE
+-            "trang thai mimi", "mimi co san sang khong", "kiem tra mimi", "mimi pro", "pro", "co san sang khong" -> Action.STATUS
++            "trang thai mimi", "mimi co san sang khong", "kiem tra mimi", "mimi pro", "pro", "co san sang khong", "mimi da san sang chua", "mimi dang lam gi", "co ket noi ai khong" -> Action.STATUS
+             "mimi co gui vi tri khong", "co gui vi tri khong", "du lieu cua toi di dau", "mimi co theo doi toi khong", "co theo doi toi khong" -> Action.PRIVACY
+             else -> Action.NONE
+         }
+--- a/app/src/main/java/com/carhud/aaproxy/MimiEverydayPhrases.kt
++++ b/app/src/main/java/com/carhud/aaproxy/MimiEverydayPhrases.kt
+@@ -0,0 +1,29 @@
++package com.carhud.aaproxy
++
++/**
++ * Deterministic, on-device phrases: no network, no fake vehicle capabilities.
++ * Only used for an explicitly addressed request or a deliberately armed second turn.
++ */
++internal object MimiEverydayPhrases {
++    fun reply(text: String): String? {
++        val s = AssistantIntentParser.fold1to1(text)
++            .replace(Regex("""[.!?,;:]+"""), " ").replace(Regex("""\s+"""), " ").trim()
++        return when {
++            Regex("""^(?:cam on|cam on mimi|thank you|thanks|tot lam|gioi qua)(?: nhe| nha| rat nhieu)?$""").matches(s) ->
++                "Mimi luôn sẵn sàng giúp bạn. Chúc bạn lái xe an toàn!"
++            Regex("""^(?:tam biet|hen gap lai|bye bye|chao nhe)(?: mimi)?$""").matches(s) ->
++                "Tạm biệt! Chúc bạn có chuyến đi an toàn."
++            Regex("""^(?:ban ten gi|em ten gi|ten ban la gi|mimi la ai|ban la ai|em la ai)$""").matches(s) ->
++                "Mình là Mimi, trợ lý giọng nói của T-Tube trên Android Auto."
++            Regex("""^(?:toi met qua|minh met qua|buon ngu qua|toi dang buon ngu|toi muon nghi mot chut|met qua)$""").matches(s) ->
++                "Nếu đang lái xe và thấy mệt hoặc buồn ngủ, hãy tìm nơi dừng an toàn để nghỉ. Mimi có thể giúp tìm trạm dừng chân."
++            Regex("""^(?:co can ket noi mang khong|co can mang khong|mimi co can mang khong|mimi co hoat dong offline khong)$""").matches(s) ->
++                "Lệnh giờ, ngày và điều khiển phát có thể dùng không cần AI. Hỏi đáp AI cần kết nối máy chủ HTTPS."
++            Regex("""^(?:mimi co nghe toi khong|ban co nghe khong|nghe ro khong|mimi dang nghe khong)$""").matches(s) ->
++                "Mimi đã nhận được lời bạn nói. Bạn hãy cho mình một yêu cầu nhé."
++            Regex("""^(?:goi cap cuu|goi 115|goi canh sat|goi 113|goi cuu hoa|goi 114|goi cuu ho|goi dien cho ai do)$""").matches(s) ->
++                "Mimi chưa thể tự thực hiện cuộc gọi. Nếu khẩn cấp, hãy dừng xe ở nơi an toàn và dùng điện thoại gọi số cứu hộ phù hợp."
++            else -> null
++        }
++    }
++}
+--- a/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
++++ b/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
+@@ -354,6 +354,7 @@
+                         searchInput.hint = "🎙️ Đang nhận diện: $text"
+                     }
+                 } else if (state == VoiceSearchManager.State.ERROR) {
++                    mimiTapSession = false
+                     // The follow-up failed (permission, network, busy recognizer, etc.).
+                     // Do not leave a stale wake session that could capture another query.
+                     cancelHeyMimiFollowUp()
+@@ -369,6 +370,8 @@
+     private val mimiSmartAssistant = MimiSmartAssistant(context)
+     private var mimiLastAnswer = ""
+     private val heyMimiConversation = HeyMimiConversation()
++    // A deliberate tap on Mimi is an addressed request even inside TikTok/browser.
++    private var mimiTapSession = false
+     private val heyMimiListenRunnable = Runnable {
+         if (AssistantConfig.isEnabled(context) && AssistantConfig.twoTurnWake(context) &&
+             heyMimiConversation.isArmed(SystemClock.uptimeMillis())) {
+@@ -1068,7 +1071,7 @@
+         // 8. Floating Modern Vietmap/Waze HUD Overlay (Styles #1 to #4)
+         setupHudOverlay()
+         // In-projection assistant card + movable mini-avatar; no SYSTEM_ALERT_WINDOW.
+-        mimiPanel = MimiAssistantPanel(context) { startVoiceSearch() }.also { panel ->
++        mimiPanel = MimiAssistantPanel(context) { startMimiVoiceSearch() }.also { panel ->
+             root.addView(panel, FrameLayout.LayoutParams(
+                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+             ))
+@@ -2351,14 +2354,17 @@
+             mainHandler.postDelayed(heyMimiListenRunnable, 500L)
+             return
+         }
+-        val afterWake = heyMimiConversation.consume(now)
++        val afterWake = heyMimiConversation.consume(now) || mimiTapSession.also { mimiTapSession = false }
+ 
+         // App switching must win over the active app's *search box* even if
+         // SpeechRecognizer misses "Hey Mimi". A definite "mở YouTube" must
+         // never turn into a TikTok video search. Deliberately do not intercept
+         // "tìm video YouTube" or an unqualified "YouTube" without wake word.
+         if (AssistantConfig.isEnabled(context)) {
+-            val appId = MimiAppSwitchRouter.target(query, AssistantConfig.name(context))
++            val appId = MimiAppSwitchRouter.target(
++                if (afterWake && !AssistantIntentParser.hasWake(query, AssistantConfig.name(context))) "Mimi $query" else query,
++                AssistantConfig.name(context)
++            )
+             if (appId != null) {
+                 cancelHeyMimiFollowUp()
+                 hideSearchOverlay()
+@@ -2430,9 +2436,28 @@
+         }
+         val explicitMedia = addressed && (
+             Regex("""^(?:vtv\d+|htv\d+|vtc\d+)(?:\b|$)""").containsMatchIn(folded) ||
+-            Regex("""^(?:cho |hay )?(?:phat|mo|bat|xem|nghe|tim|choi) (?:cho )?(?:nhac|bai|video|clip|youtube|kenh|tivi|truyen hinh|vtv\d*|htv\d*)\b""").containsMatchIn(folded)
++            Regex("""^(?:cho |hay |giup toi |giup minh )?(?:phat|mo|bat|xem|nghe|tim|choi|tim kiem|cho toi xem) (?:cho )?(?:nhac|bai|video|clip|youtube|kenh|tivi|truyen hinh|vtv\d*|htv\d*)\b""").containsMatchIn(folded)
+         )
++        // Small offline replies are safe and never open an unrelated video.
++        if (addressed && AssistantConfig.isEnabled(context) && !explicitMedia) {
++            MimiEverydayPhrases.reply(commandText)?.let { answer ->
++                showAssistantBanner(answer)
++                if (AssistantConfig.speakReply(context)) CarTtsManager.speakAssistant(context, answer)
++                hideSearchOverlay()
++                return
++            }
++        }
+         if (!explicitMedia && mimiSmartAssistant.tryHandle(query, addressed) { answer -> showAssistantBanner(answer) }) {
++            hideSearchOverlay()
++            return
++        }
++        // An explicit conversation with Mimi must not fall through to TikTok or
++        // YouTube search. When offline / AI is not configured, say so clearly.
++        if (addressed && AssistantConfig.isEnabled(context) && !explicitMedia) {
++            val answer = if (AssistantConfig.aiEnabled(context))
++                "Mimi chưa xử lý được câu này. Bạn hãy thử diễn đạt rõ hơn."
++            else "Mimi hiểu bạn đang hỏi. Để trả lời câu hỏi mở, hãy bật AI và cấu hình máy chủ HTTPS trong Cài đặt Mimi."
++            showAssistantBanner(answer)
+             hideSearchOverlay()
+             return
+         }
+@@ -4738,9 +4763,18 @@
+ 
+     fun startVoiceSearch() = startVoiceSearchInternal(fromHeyMimi = false)
+ 
++    private fun startMimiVoiceSearch() {
++        // Tapping Mimi means the driver is speaking to the assistant; no wake word needed.
++        mimiTapSession = true
++        startVoiceSearchInternal(fromHeyMimi = true)
++    }
++
+     private fun startVoiceSearchInternal(fromHeyMimi: Boolean) {
+         // A fresh manual voice request cancels any pending two-turn conversation.
+-        if (!fromHeyMimi) cancelHeyMimiFollowUp()
++        if (!fromHeyMimi) {
++            mimiTapSession = false
++            cancelHeyMimiFollowUp()
++        }
+         cancelSystemVoiceRequest()
+         CarMediaManager.cancelPendingSteeringNext()
+         hideSearchOverlay()
+--- a/app/src/main/java/com/carhud/aaproxy/TtubeAssistant.kt
++++ b/app/src/main/java/com/carhud/aaproxy/TtubeAssistant.kt
+@@ -82,7 +82,8 @@
+ 
+     private fun helpText(name: String) =
+         "Mình là $name. Bạn có thể nói: mấy giờ rồi, thời tiết, dẫn đường đến một địa chỉ, về nhà, " +
+-            "tìm cây xăng gần nhất, nhớ chỗ đỗ xe, xe tôi đỗ ở đâu, bài sau, tạm dừng, hoặc mở YouTube."
++            "tìm cây xăng, trạm sạc, quán ăn hoặc gara gần đây; nhớ chỗ đỗ xe, xe tôi ở đâu; " +
++            "bài sau, tạm dừng, tăng âm lượng, chuyển sang YouTube. Hỏi đáp tự nhiên cần bật kết nối AI."
+ 
+     private fun period(h: Int) = when (h) { in 5..10 -> "sáng"; in 11..12 -> "trưa"; in 13..17 -> "chiều"; in 18..21 -> "tối"; else -> "đêm" }
+ 
+--- a/app/src/test/java/com/carhud/aaproxy/MimiExtendedLanguageTest.kt
++++ b/app/src/test/java/com/carhud/aaproxy/MimiExtendedLanguageTest.kt
+@@ -0,0 +1,49 @@
++package com.carhud.aaproxy
++
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertNull
++import org.junit.Assert.assertNotNull
++import org.junit.Test
++
++class MimiExtendedLanguageTest {
++    @Test fun `extra native driving requests in Vietnamese`() {
++        val examples = listOf(
++            "Mimi tôi cần đổ xăng" to AssistantIntent.Nearby("cây xăng", "cây xăng"),
++            "Mimi sắp hết pin xe điện" to AssistantIntent.Nearby("trạm sạc", "trạm sạc xe điện"),
++            "Mimi tìm quán ăn" to AssistantIntent.Nearby("quán ăn", "quán ăn"),
++            "Mimi tôi đói quá" to AssistantIntent.Nearby("quán ăn", "quán ăn"),
++            "Mimi tìm trạm dừng chân" to AssistantIntent.Nearby("trạm dừng chân", "trạm dừng chân"),
++            "Mimi xe bị thủng lốp" to AssistantIntent.Nearby("tiệm sửa lốp", "tiệm sửa lốp"),
++            "Mimi cần sửa xe" to AssistantIntent.Nearby("tiệm sửa xe", "tiệm sửa xe"),
++            "Mimi về nhà thôi" to AssistantIntent.GoHome,
++            "Mimi bỏ qua bài này" to AssistantIntent.Next,
++            "Mimi video tiếp theo" to AssistantIntent.Next,
++            "Mimi phát bài trước" to AssistantIntent.Previous,
++            "Mimi ngừng nhạc" to AssistantIntent.Pause,
++            "Mimi phát nhạc tiếp" to AssistantIntent.Resume,
++            "Mimi cho nhạc to hơn" to AssistantIntent.VolumeUp,
++            "Mimi cho nhạc nhỏ lại" to AssistantIntent.VolumeDown,
++            "Mimi bây giờ là mấy giờ" to AssistantIntent.Time,
++            "Mimi hôm nay ngày gì" to AssistantIntent.Date,
++            "Mimi trời đang thế nào" to AssistantIntent.Weather,
++            "Mimi chỉ đường tới 123 Hoàng Quốc Việt" to AssistantIntent.Navigate("123 Hoàng Quốc Việt"),
++            "Mimi đưa mình đến sân bay Nội Bài" to AssistantIntent.Navigate("sân bay Nội Bài"),
++        )
++        for ((spoken, expected) in examples) assertEquals(spoken, expected, AssistantIntentParser.parse(spoken, "Mimi"))
++    }
++
++    @Test fun `offline social and emergency replies never fake a phone call`() {
++        for (input in listOf("cảm ơn", "bạn tên gì", "tôi mệt quá", "Mimi có cần mạng không", "gọi cấp cứu", "nghe rõ không")) {
++            val text = input.removePrefix("Mimi ")
++            assertNotNull(input, MimiEverydayPhrases.reply(text))
++        }
++        assertNull(MimiEverydayPhrases.reply("phát bài hát em của ngày hôm qua"))
++        assertNull(MimiEverydayPhrases.reply("mở YouTube"))
++    }
++
++    @Test fun `music and videos stay in the media path`() {
++        listOf("Mimi phát nhạc Sơn Tùng", "Mimi tìm video học lái xe", "Mimi mở video phượt", "Mimi nghe bài Nơi này có anh")
++            .forEach { assertNull(it, MimiEverydayPhrases.reply(AssistantIntentParser.stripWake(it, "Mimi"))) }
++        assertEquals(AssistantIntent.None, AssistantIntentParser.parse("Mimi phát nhạc Sơn Tùng", "Mimi"))
++    }
++}
+--- a/tests/hey-mimi-pro-v11-conversation-regression.test.cjs
++++ b/tests/hey-mimi-pro-v11-conversation-regression.test.cjs
+@@ -0,0 +1,27 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs=require('fs');
++const path=require('path');
++const root=path.join(__dirname,'..');
++const car=fs.readFileSync(path.join(root,'app/src/main/java/com/carhud/aaproxy/CarPresentation.kt'),'utf8');
++const phrases=fs.readFileSync(path.join(root,'app/src/main/java/com/carhud/aaproxy/MimiEverydayPhrases.kt'),'utf8');
++test('tapping Mimi is an addressed request even in TikTok',()=>{
++ assert.match(car,/MimiAssistantPanel\(context\) \{ startMimiVoiceSearch\(\) \}/);
++ assert.match(car,/mimiTapSession = true/);
++ assert.match(car,/heyMimiConversation\.consume\(now\) \|\| mimiTapSession/);
++});
++test('addressed conversation cannot fall through to video search',()=>{
++ const posAssistant=car.indexOf('mimiSmartAssistant.tryHandle(query, addressed)');
++ const posFallback=car.indexOf('Mimi hiểu bạn đang hỏi');
++ const posTikTok=car.indexOf('currentActiveAppId == "tiktok" && !isDashboardShowing && !explicitMedia');
++ assert.ok(posAssistant>0 && posAssistant<posFallback && posFallback<posTikTok);
++ assert.match(car,/if \(addressed && AssistantConfig\.isEnabled\(context\) && !explicitMedia\)/);
++});
++test('offline replies do not claim to place emergency calls',()=>{
++ assert.match(phrases,/Mimi chưa thể tự thực hiện cuộc gọi/);
++ assert.match(phrases,/Mimi có thể giúp tìm trạm dừng chân/);
++});
++test('native commands preserve explicit media route',()=>{
++ assert.match(car,/val explicitMedia = addressed/);
++ assert.match(car,/!explicitMedia && mimiSmartAssistant.tryHandle/);
++});
