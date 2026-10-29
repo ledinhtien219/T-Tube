@@ -1,0 +1,209 @@
+--- a/app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt
++++ b/app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt
+@@ -10,6 +10,7 @@
+     const val PREF_SPEAK = "assistant_speak_reply"
+     const val PREF_NAV_APP = "assistant_nav_app" // auto | waze | gmaps
+     const val PREF_AUTO_PARK = "assistant_auto_save_parking"
++    const val PREF_TWO_TURN_WAKE = "assistant_two_turn_wake"
+ 
+     private fun prefs(c: Context) = c.applicationContext.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
+ 
+@@ -18,4 +19,5 @@
+     fun speakReply(c: Context) = prefs(c).getBoolean(PREF_SPEAK, true)
+     fun navApp(c: Context): String = prefs(c).getString(PREF_NAV_APP, "auto") ?: "auto"
+     fun autoSaveParking(c: Context) = prefs(c).getBoolean(PREF_AUTO_PARK, true)
++    fun twoTurnWake(c: Context) = prefs(c).getBoolean(PREF_TWO_TURN_WAKE, true)
+ }
+--- a/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
++++ b/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
+@@ -353,6 +353,9 @@
+                         searchInput.hint = "🎙️ Đang nhận diện: $text"
+                     }
+                 } else if (state == VoiceSearchManager.State.ERROR) {
++                    // The follow-up failed (permission, network, busy recognizer, etc.).
++                    // Do not leave a stale wake session that could capture another query.
++                    cancelHeyTubiFollowUp()
+                     searchInput.hint = "⚠️ $text - Gõ bàn phím bên dưới để tìm"
+                 }
+                 CarMediaManager.notifyVoiceState(state, text)
+@@ -362,6 +365,21 @@
+ 
+     // ---- Trợ lý TTube -------------------------------------------------------------------------
+     private var assistantBannerUntil = 0L
++    private val heyTubiConversation = HeyTubiConversation()
++    private val heyTubiListenRunnable = Runnable {
++        if (AssistantConfig.isEnabled(context) && AssistantConfig.twoTurnWake(context) &&
++            heyTubiConversation.isArmed(SystemClock.uptimeMillis())) {
++            startVoiceSearchInternal(fromHeyTubi = true)
++        } else {
++            heyTubiConversation.cancel()
++        }
++    }
++
++    private fun cancelHeyTubiFollowUp() {
++        mainHandler.removeCallbacks(heyTubiListenRunnable)
++        heyTubiConversation.cancel()
++    }
++
+ 
+     private val assistantHost = object : TtubeAssistant.Host {
+         override val hostContext: Context get() = this@CarPresentation.context
+@@ -2287,9 +2305,25 @@
+     private fun handleVoiceQuery(query: String) {
+         cancelSystemVoiceRequest()
+ 
+-        // Trợ lý đi trước luồng cũ. Ở TikTok/trình duyệt giọng nói là ô tìm kiếm nên cần gọi tên trợ lý.
++        // Two-turn activation works only AFTER the driver presses mic/steering voice.
++        // We do not keep a background microphone open or restart recognition forever.
++        val now = SystemClock.uptimeMillis()
++        if (AssistantConfig.isEnabled(context) && AssistantConfig.twoTurnWake(context) &&
++            heyTubiConversation.isWakeOnly(query, AssistantConfig.name(context))) {
++            heyTubiConversation.arm(now)
++            hideSearchOverlay()
++            showAssistantBanner("🎙️ ${AssistantConfig.name(context)} đang nghe. Hãy nói yêu cầu của bạn.")
++            mainHandler.removeCallbacks(heyTubiListenRunnable)
++            // Allow the previous SpeechRecognizer session to release its mic first.
++            mainHandler.postDelayed(heyTubiListenRunnable, 500L)
++            return
++        }
++        val afterWake = heyTubiConversation.consume(now)
++
++        // Trợ lý đi trước luồng cũ. Ở TikTok/trình duyệt, giọng nói bình thường
++        // vẫn là tìm kiếm; riêng câu sau "Hey Tubi" là lệnh trợ lý.
+         val voiceIsSearchBox = !isDashboardShowing && (currentActiveAppId == "tiktok" || isBrowserApp())
+-        if (TtubeAssistant.handle(assistantHost, query, requireWake = voiceIsSearchBox)) {
++        if (TtubeAssistant.handle(assistantHost, query, requireWake = voiceIsSearchBox && !afterWake)) {
+             hideSearchOverlay()
+             return
+         }
+@@ -4577,7 +4611,11 @@
+         }
+     }
+ 
+-    fun startVoiceSearch() {
++    fun startVoiceSearch() = startVoiceSearchInternal(fromHeyTubi = false)
++
++    private fun startVoiceSearchInternal(fromHeyTubi: Boolean) {
++        // A fresh manual voice request cancels any pending two-turn conversation.
++        if (!fromHeyTubi) cancelHeyTubiFollowUp()
+         cancelSystemVoiceRequest()
+         CarMediaManager.cancelPendingSteeringNext()
+         hideSearchOverlay()
+@@ -4585,6 +4623,7 @@
+         updateVoiceState(
+             VoiceSearchManager.State.LISTENING,
+             when {
++                fromHeyTubi -> "${AssistantConfig.name(context)} đang nghe. Hãy nói lệnh của bạn"
+                 isBrowserApp() && !isDashboardShowing -> "Đang lắng nghe... Nói từ khóa hoặc địa chỉ web"
+                 currentActiveAppId == "iptv" -> "Đang lắng nghe... Nói tên kênh"
+                 else -> "Đang lắng nghe... Nói tên bài hát, ca sĩ hoặc kênh"
+@@ -5403,6 +5442,7 @@
+     }
+ 
+     override fun onStop() {
++        cancelHeyTubiFollowUp()
+         autoHideHandler.removeCallbacks(hideBarsRunnable)
+         // Snapshot the current browser/YouTube session before Android Auto hides
+         // this app. The live WebView is still kept running below, while this
+@@ -5461,6 +5501,7 @@
+     private var inputCallbacksDetached = false
+     private fun detachInputCallbacks() {
+         if (inputCallbacksDetached) return
++        cancelHeyTubiFollowUp()
+         inputCallbacksDetached = true
+         appTransitions.begin("")
+         pendingNavigationRecovery?.let { web.removeCallbacks(it) }
+--- a/app/src/main/java/com/carhud/aaproxy/HeyTubiConversation.kt
++++ b/app/src/main/java/com/carhud/aaproxy/HeyTubiConversation.kt
+@@ -0,0 +1,31 @@
++package com.carhud.aaproxy
++
++/**
++ * Two-turn wake phrase for the EXISTING push-to-talk recognition session.
++ *
++ * This class never opens the microphone. The presentation may open one more
++ * short voice session after hearing only the assistant name. This is NOT an
++ * always-on or background hotword detector.
++ */
++internal class HeyTubiConversation(private val timeoutMs: Long = 20_000L) {
++    private var armedUntilMs: Long? = null
++
++    fun isWakeOnly(phrase: String, name: String): Boolean {
++        if (!AssistantIntentParser.hasWake(phrase, name)) return false
++        val rest = AssistantIntentParser.stripWake(phrase, name)
++        return rest.all { it.isWhitespace() || it in ".,?!:;…-–—" }
++    }
++
++    fun arm(nowMs: Long) {
++        armedUntilMs = nowMs + timeoutMs
++    }
++
++    fun isArmed(nowMs: Long): Boolean = armedUntilMs?.let { nowMs <= it } ?: false
++
++    /** Only the immediately following recognized utterance can bypass wake requirements. */
++    fun consume(nowMs: Long): Boolean = isArmed(nowMs).also { cancel() }
++
++    fun cancel() {
++        armedUntilMs = null
++    }
++}
+--- a/app/src/main/java/com/carhud/aaproxy/SettingsActivity.kt
++++ b/app/src/main/java/com/carhud/aaproxy/SettingsActivity.kt
+@@ -892,6 +892,22 @@
+                     }
+                 ))
+                 content.addView(createSwitchRow("Nút Tìm kiếm giọng nói (🎙️)", "Kích hoạt micro nói tên bài hát / kênh", KEY_SHOW_VOICE_SEARCH, true))
++                content.addView(createSeparator())
++                content.addView(createSwitchRow(
++                    "Trợ lý Tubi",
++                    "Hiểu giờ, thời tiết, dẫn đường, chỗ đỗ xe và điều khiển nhạc",
++                    AssistantConfig.PREF_ENABLED, true
++                ))
++                content.addView(createSwitchRow(
++                    "Gọi Hey Tubi rồi nói lệnh",
++                    "Sau khi bấm micro, nói 'Hey Tubi' để tự nghe thêm một lượt. Không nghe nền liên tục.",
++                    AssistantConfig.PREF_TWO_TURN_WAKE, true
++                ))
++                content.addView(createSwitchRow(
++                    "Tubi đọc câu trả lời",
++                    "Phát câu trả lời qua loa (có thể tắt khi lái xe)",
++                    AssistantConfig.PREF_SPEAK, true
++                ))
+             }
+         )
+ 
+--- a/app/src/test/java/com/carhud/aaproxy/HeyTubiConversationTest.kt
++++ b/app/src/test/java/com/carhud/aaproxy/HeyTubiConversationTest.kt
+@@ -0,0 +1,32 @@
++package com.carhud.aaproxy
++
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++class HeyTubiConversationTest {
++    @Test fun `wake only accepts names but not a whole command`() {
++        val c = HeyTubiConversation()
++        listOf("Hey Tubi", "Tubi ơi", "Tu bi ơi!", "OK Tubi...", "hey tubi?")
++            .forEach { assertTrue("Wake: $it", c.isWakeOnly(it, "Tubi")) }
++        listOf("mấy giờ rồi", "phát nhạc Tubi", "Hey Tubi, mấy giờ rồi", "Tubi yêu nhạc")
++            .forEach { assertFalse("Not wake-only: $it", c.isWakeOnly(it, "Tubi")) }
++    }
++
++    @Test fun `next recognition consumes the wake once`() {
++        val c = HeyTubiConversation(timeoutMs = 10_000L)
++        c.arm(1_000L)
++        assertTrue(c.isArmed(9_000L))
++        assertTrue(c.consume(9_000L))
++        assertFalse(c.consume(9_001L))
++    }
++
++    @Test fun `expiry and cancellation do not capture later search`() {
++        val c = HeyTubiConversation(timeoutMs = 10_000L)
++        c.arm(1_000L)
++        assertFalse(c.consume(11_001L))
++        c.arm(12_000L)
++        c.cancel()
++        assertFalse(c.consume(12_500L))
++    }
++}
