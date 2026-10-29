@@ -87,28 +87,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
-          script: |
-            set -euo pipefail
-            mkdir -p smoke-artifacts
-            apk="$(find app/build/outputs/apk/debug -name '*.apk' | head -1)"
-            test -s "$apk"
-            adb install -r "$apk"
-            adb shell pm clear com.ledinhtien.ttube
-            adb logcat -c
-            adb shell am start -W -n com.ledinhtien.ttube/com.carhud.aaproxy.MainActivity | tee smoke-artifacts/launch.txt
-            sleep 12
-            adb logcat -b crash -d > smoke-artifacts/crash.log
-            adb shell dumpsys activity activities > smoke-artifacts/activities.txt
-            adb exec-out screencap -p > smoke-artifacts/phone-screen.png || true
-            if grep -E 'FATAL EXCEPTION|ActivityNotFoundException|ClassNotFoundException|Unable to start activity' smoke-artifacts/crash.log; then
-              echo 'FAIL: fatal exception on phone startup'
-              exit 1
-            fi
-            if ! grep -F 'com.carhud.aaproxy.ActivationActivity' smoke-artifacts/activities.txt; then
-              echo 'FAIL: expected activation screen was not visible on fresh sideload install'
-              exit 1
-            fi
-            echo 'PASS: startup did not crash; activation screen is registered and visible'
+          script: bash ci/hey-mimi/phone-startup-smoke.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
