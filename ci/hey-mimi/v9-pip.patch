@@ -1,0 +1,384 @@
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -12,8 +12,8 @@
+         applicationId = "com.ledinhtien.ttube"
+         minSdk = 29
+         targetSdk = 36
+-        versionCode = 309
+-        versionName = "1.1.11"
++        versionCode = 310
++        versionName = "1.1.12"
+ 
+         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+     }
+--- a/app/src/main/java/com/carhud/aaproxy/YouTubePlayerHelper.kt
++++ b/app/src/main/java/com/carhud/aaproxy/YouTubePlayerHelper.kt
+@@ -1023,27 +1023,196 @@
+         // reach more results when YouTube owns that separate scrolling column.
+         var carhudRecommendationRoot = null;
+         function findRecommendationRoot() {
++            // YouTube desktop and mobile renderers have changed repeatedly.
++            // Use the real native suggestions if found, but accept a temporarily
++            // empty shell while related videos are lazy-loading.
+             var selectors = [
+                 'ytd-watch-flexy #secondary',
+                 'ytd-watch-grid #secondary',
++                'ytd-watch-flexy #related',
+                 'ytd-watch-next-secondary-results-renderer',
+-                'ytd-watch-flexy #related',
++                'ytd-rich-grid-renderer',
+                 'ytm-watch .watch-below-the-fold',
+                 'ytm-watch ytm-item-section-renderer',
+-                '.watch-below-the-fold'
++                '.watch-below-the-fold',
++                '#secondary'
+             ];
++            var fallback = null;
+             for (var i = 0; i < selectors.length; i++) {
+                 var node = document.querySelector(selectors[i]);
+                 if (!node || !node.getBoundingClientRect) continue;
+-                // Skip empty shells; use the real DOM holding native links.
+-                var hasCards = node.querySelector(
++                if (!fallback) fallback = node;
++                if (node.querySelector(
+                     'a[href*="/watch"], ytd-compact-video-renderer, ' +
+-                    'ytm-compact-video-renderer, ytm-video-with-context-renderer, ' +
+-                    '.yt-lockup-view-model, .compact-media-item'
++                    'ytm-compact-video-renderer, ytd-rich-item-renderer, ' +
++                    'yt-lockup-view-model, ytd-rich-grid-media, ' +
++                    'ytm-video-with-context-renderer, .yt-lockup-view-model'
++                )) return node;
++            }
++            return fallback;
++        }
++
++        // Independent native-link chooser for YouTube watch layouts where
++        // #secondary is not painted or exposes just one giant recommendation.
++        // No new video, iframe, endpoint, or fabricated recommendations.
++        // Cards always link to YouTube's original /watch URLs.
++        var carhudPipChooser = null;
++        var carhudPipChooserGrid = null;
++        var carhudPipChooserSearch = null;
++        var carhudPipChooserSig = '';
++        function collectPipSuggestions() {
++            var roots = [carhudRecommendationRoot];
++            var extra = document.querySelectorAll(
++                'ytd-watch-flexy #secondary, ytd-watch-next-secondary-results-renderer, ' +
++                '#related, ytm-watch .watch-below-the-fold, ' +
++                'ytd-rich-grid-renderer, ytm-item-section-renderer'
++            );
++            for (var i = 0; i < extra.length; i++) roots.push(extra[i]);
++            // Scan the whole document last for layouts without a dedicated related rail.
++            roots.push(document);
++            var cards = [];
++            var seen = {};
++            var current = '';
++            try { current = new URL(location.href).searchParams.get('v') || ''; } catch(e) {}
++            for (var r = 0; r < roots.length && cards.length < 36; r++) {
++                var root = roots[r];
++                if (!root || !root.querySelectorAll) continue;
++                var nodes = root.querySelectorAll(
++                    'ytd-compact-video-renderer, ytm-compact-video-renderer, ' +
++                    'ytm-video-with-context-renderer, ytd-rich-item-renderer, ' +
++                    'ytd-rich-grid-media, yt-lockup-view-model, .yt-lockup-view-model'
+                 );
+-                if (hasCards) return node;
+-            }
+-            return null;
++                for (var j = 0; j < nodes.length && cards.length < 36; j++) {
++                    var item = nodes[j];
++                    if (!item.querySelector) continue;
++                    var link = item.querySelector('a[href*="/watch"]');
++                    if (!link) continue;
++                    var href = link.getAttribute('href') || link.href || '';
++                    var parsed = null;
++                    try { parsed = new URL(href, location.href); } catch(e) {}
++                    if (!parsed || !/(^|\.)youtube\.com$/.test(parsed.hostname) ||
++                        parsed.pathname !== '/watch') continue;
++                    var id = parsed.searchParams.get('v') || '';
++                    if (!id || id === current || seen[id]) continue;
++                    var titleEl = item.querySelector(
++                        '#video-title, h3, .yt-lockup-metadata-view-model__title, ' +
++                        '.compact-media-item-headline, .media-item-headline'
++                    );
++                    var title = ((titleEl && titleEl.textContent) ||
++                        link.getAttribute('aria-label') || link.title ||
++                        item.getAttribute('aria-label') || 'Video YouTube').trim().slice(0, 125);
++                    var img = item.querySelector('img');
++                    var thumb = img && (img.currentSrc || img.getAttribute('src') ||
++                        img.getAttribute('data-src')) || '';
++                    seen[id] = true;
++                    cards.push({id:id, href:'/watch?v=' + encodeURIComponent(id),
++                        title:title || 'Video YouTube', thumb:thumb});
++                }
++            }
++            return cards;
++        }
++
++        function makePipChooser() {
++            if (carhudPipChooser) {
++                if (!carhudPipChooser.isConnected && document.documentElement)
++                    document.documentElement.appendChild(carhudPipChooser);
++                return;
++            }
++            var host = document.createElement('div');
++            host.id = 'carhud-pip-video-chooser';
++            // This is a visual layer above the original related rail, below
++            // the pinned video and the car's native toolbars.
++            host.style.cssText = 'position:fixed!important;top:56px!important;' +
++                'left:max(104px,7vw)!important;right:clamp(184px,34vw,344px)!important;' +
++                'bottom:8px!important;z-index:3200!important;display:block!important;' +
++                'pointer-events:auto!important;contain:layout style!important;';
++            var shadow = host.attachShadow({mode:'open'});
++            var style = document.createElement('style');
++            style.textContent = ':host{all:initial} .wrap{height:100%;overflow-y:auto;' +
++                'background:#0c1018;color:white;border-radius:12px;padding:10px;' +
++                'font:14px Arial,sans-serif;box-sizing:border-box;touch-action:pan-y}' +
++                '.head{display:flex;align-items:center;gap:8px;margin-bottom:8px}' +
++                '.title{font-weight:bold;flex:1}.search{display:flex;gap:6px;margin-bottom:10px}' +
++                '.search input{min-width:0;flex:1;background:#222b39;border:1px solid #48576d;' +
++                'border-radius:7px;color:#fff;padding:8px;font:inherit}' +
++                '.search button{background:#0f839c;border:0;border-radius:7px;color:white;' +
++                'padding:7px 10px;font:inherit}' +
++                '.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));' +
++                'gap:12px;align-content:start}' +
++                '.card{display:block;text-decoration:none;color:#fff;border-radius:9px;' +
++                'overflow:hidden;background:#18202b;touch-action:manipulation}' +
++                '.card img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block}' +
++                '.card span{display:block;padding:6px 7px;line-height:1.3;max-height:3.6em;' +
++                'overflow:hidden;word-break:break-word}.empty{padding:10px;color:#cbd5e1}' +
++                '@media(max-width:680px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}' +
++                '.search input{width:80px}}';
++            shadow.appendChild(style);
++            var wrap = document.createElement('section');
++            wrap.className = 'wrap';
++            var head = document.createElement('div'); head.className = 'head';
++            var label = document.createElement('span'); label.className = 'title';
++            label.textContent = 'Chọn video tiếp theo'; head.appendChild(label);
++            wrap.appendChild(head);
++            var search = document.createElement('form'); search.className = 'search';
++            var input = document.createElement('input'); input.type = 'search';
++            input.placeholder = 'Tìm thêm video';
++            input.setAttribute('aria-label', 'Tìm video YouTube khác');
++            var submit = document.createElement('button'); submit.type = 'submit';
++            submit.textContent = 'Tìm';
++            search.appendChild(input); search.appendChild(submit);
++            search.addEventListener('submit', function(e) {
++                e.preventDefault();
++                var q = input.value.trim();
++                if (!q) return;
++                // Navigate only on explicit search request; selecting a video
++                // from the normal grid remains one tap.
++                var anchor = document.createElement('a');
++                anchor.href = '/results?search_query=' + encodeURIComponent(q);
++                anchor.style.display = 'none'; host.appendChild(anchor);
++                anchor.click(); anchor.remove();
++            });
++            wrap.appendChild(search);
++            var grid = document.createElement('div'); grid.className = 'grid';
++            wrap.appendChild(grid);
++            shadow.appendChild(wrap);
++            document.documentElement.appendChild(host);
++            carhudPipChooser = host;
++            carhudPipChooserGrid = grid;
++            carhudPipChooserSearch = input;
++        }
++
++        function updatePipChooser(enabled) {
++            if (!enabled) {
++                if (carhudPipChooser) carhudPipChooser.remove();
++                carhudPipChooser = carhudPipChooserGrid = carhudPipChooserSearch = null;
++                carhudPipChooserSig = '';
++                return;
++            }
++            if (!document.documentElement || !document.createElement) return;
++            makePipChooser();
++            var cards = collectPipSuggestions();
++            var signature = cards.map(function(c) { return c.id; }).join('|');
++            if (signature === carhudPipChooserSig && carhudPipChooserGrid.firstChild) return;
++            carhudPipChooserSig = signature;
++            var grid = carhudPipChooserGrid;
++            while (grid.firstChild) grid.removeChild(grid.firstChild);
++            if (!cards.length) {
++                var empty = document.createElement('p'); empty.className = 'empty';
++                empty.textContent = 'YouTube chưa tải gợi ý. Hãy tìm video khác ở ô trên.';
++                grid.appendChild(empty);
++            }
++            cards.forEach(function(card) {
++                var link = document.createElement('a'); link.className = 'card';
++                link.href = card.href;
++                link.setAttribute('aria-label', card.title);
++                if (card.thumb) {
++                    var image = document.createElement('img'); image.src = card.thumb;
++                    image.alt = ''; image.loading = 'lazy';
++                    link.appendChild(image);
++                }
++                var title = document.createElement('span'); title.textContent = card.title;
++                link.appendChild(title); grid.appendChild(link);
++            });
+         }
+ 
+         function syncRecommendationPane(enabled) {
+@@ -1051,16 +1220,19 @@
+                 if (carhudRecommendationRoot)
+                     carhudRecommendationRoot.removeAttribute('data-carhud-rec-scroll');
+                 carhudRecommendationRoot = null;
++                updatePipChooser(false);
+                 return;
+             }
+             var node = findRecommendationRoot();
+-            if (!node) return;
+             if (carhudRecommendationRoot !== node) {
+                 if (carhudRecommendationRoot)
+                     carhudRecommendationRoot.removeAttribute('data-carhud-rec-scroll');
+                 carhudRecommendationRoot = node;
+-                node.setAttribute('data-carhud-rec-scroll', '1');
+-            }
++                if (node) node.setAttribute('data-carhud-rec-scroll', '1');
++            }
++            // A fixed native-like chooser makes the options visible even if
++            // YouTube's desktop column refuses to stretch on this WebView.
++            updatePipChooser(true);
+         }
+ 
+         // In some car touch stacks the native WebView scroll lands on the
+--- /dev/null
++++ b/tests/youtube-pip-chooser-pro-regression.test.cjs
+@@ -0,0 +1,89 @@
++const {test} = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const src = fs.readFileSync('app/src/main/java/com/carhud/aaproxy/YouTubePlayerHelper.kt','utf8');
++const block = src.match(/val JS_CLEANUP_AND_ADBLOCK: String = """([\s\S]*?)"""\.trimIndent\(\)/);
++assert.ok(block,'Missing YouTube JavaScript injection');
++const js=block[1];
++new Function(js);
++const a = js.indexOf('var carhudRecommendationRoot = null;');
++const b = js.indexOf('// In some car touch stacks',a);
++assert.ok(a>=0&&b>a);
++const isolated=js.slice(a,b);
++
++class Element {
++  constructor(tag='div') { this.tag=tag; this.children=[]; this.style={}; this.attributes={}; this.isConnected=false; this.className=''; this.textContent=''; this.value=''; this.shadowRoot=null; }
++  appendChild(n){this.children.push(n);n.parent=this;n.isConnected=this.isConnected;return n;}
++  get firstChild(){return this.children[0]??null;}
++  removeChild(n){const i=this.children.indexOf(n);if(i>=0)this.children.splice(i,1);}
++  remove(){this.parent?.removeChild(this);this.isConnected=false;}
++  attachShadow(){const sh=new Element('shadow');sh.isConnected=true;this.shadowRoot=sh;return sh;}
++  setAttribute(k,v){this.attributes[k]=v;}
++  removeAttribute(k){delete this.attributes[k];}
++  getAttribute(k){return this.attributes[k]??null;}
++  addEventListener(t,fn){this['on_'+t]=fn;}
++  click(){this.clicked=true;}
++}
++function setup(items){
++ const pane = new Element('related');pane.isConnected=true;pane.getBoundingClientRect=()=>({width:200,height:200});
++ pane.querySelector=()=>items.length?items[0]:null;
++ pane.querySelectorAll=()=>items;
++ const root=new Element('html');root.isConnected=true;
++ const doc={documentElement:root,
++   createElement(tag){return new Element(tag);},
++   querySelector(selector){return selector==='ytd-watch-flexy #secondary'?pane:null;},
++   querySelectorAll(){return [pane];}};
++ const location={href:'https://www.youtube.com/watch?v=abc123'};
++ const api=new Function('document','location','URL','encodeURIComponent',isolated+ '\nreturn {findRecommendationRoot,collectPipSuggestions,updatePipChooser};')(doc,location,URL,encodeURIComponent);
++ return {api,doc,pane,root};
++}
++function item(href,id,thumb){
++ const link={href,getAttribute(k){return k==='href'?href:k==='aria-label'?'Video '+id:null;},title:''};
++ const img={currentSrc:thumb,getAttribute(){return thumb;}};
++ return {querySelector(s){if(s.includes('a[href'))return link;if(s.includes('img'))return img;return {textContent:'Video '+id};},getAttribute(){return null;}};
++}
++test('PiP uses real YouTube recommendation URLs, removes duplicates, current video and offsite links',()=>{
++ const {api}=setup([
++   item('/watch?v=abc123','current',''),
++   item('/watch?v=first','first','https://i.ytimg.com/vi/first/hqdefault.jpg'),
++   item('https://www.youtube.com/watch?v=second','second',''),
++   item('/watch?v=first','duplicate',''),
++   item('https://evil.example/watch?v=unsafe','unsafe','')
++ ]);
++ api.findRecommendationRoot();
++ const cards=api.collectPipSuggestions();
++ assert.deepEqual(cards.map(c=>c.id),['first','second']);
++ assert.equal(cards[0].href,'/watch?v=first');
++});
++test('PiP displays scrollable multiple selection cards and removes chooser on close',()=>{
++ const {api,root,pane}=setup([item('/watch?v=first','first',''),item('/watch?v=second','second','')]);
++ api.findRecommendationRoot();
++ api.updatePipChooser(true);
++ const host=root.children.find(c=>c.id==='carhud-pip-video-chooser');
++ assert.ok(host,'Mini PiP chooser appears even if YouTube desktop column is narrow');
++ const wrap=host.shadowRoot.children.find(n=>n.tag==='section');
++ const grid=wrap.children.find(n=>n.className==='grid');
++ assert.equal(grid.children.length,2);
++ assert.deepEqual(grid.children.map(c=>c.href),['/watch?v=first','/watch?v=second']);
++ const stylesheet=host.shadowRoot.children.find(n=>n.tag==='style').textContent;
++ assert.match(stylesheet,/overflow-y:auto/);
++ assert.match(stylesheet,/grid-template-columns:repeat\(auto-fill,minmax\(145px,1fr\)\)/);
++ api.updatePipChooser(false);
++ assert.equal(root.children.length,0);
++});
++test('When YouTube has zero recommendations, offer honest search fallback',()=>{
++ const {api,root}=setup([]);
++ api.updatePipChooser(true);
++ const host=root.children[0];
++ const wrap=host.shadowRoot.children.find(n=>n.tag==='section');
++ const form=wrap.children.find(n=>n.tag==='form');
++ const grid=wrap.children.find(n=>n.className==='grid');
++ assert.match(grid.children[0].textContent,/chưa tải gợi ý/);
++ assert.ok(form && form.children.some(n=>n.tag==='input'));
++});
++test('Chooser uses neither a second video nor unrelated remote service, and refreshes on PiP updates',()=>{
++ assert.doesNotMatch(isolated,/createElement\(['"](?:video|iframe)['"]\)/);
++ assert.match(js,/syncRecommendationPane\(pip\)/);
++ assert.match(isolated,/updatePipChooser\(true\)/);
++ assert.match(isolated,/updatePipChooser\(false\)/);
++});
+--- a/tests/youtube-mini-pip.test.cjs
++++ b/tests/youtube-mini-pip.test.cjs
+@@ -9,8 +9,8 @@
+ const js = jsMatch[1];
+ new Function(js);
+ 
+-assert.match(gradle,/versionCode = 306/);
+-assert.match(gradle,/versionName = "1\.1\.8"/);
++assert.match(gradle,/versionCode = 310/);
++assert.match(gradle,/versionName = "1\.1\.12"/);
+ assert.match(js,/window\.__carhudSetPipMode = function\(enabled\)/);
+ assert.match(js,/window\.__carhudPipMode = newMode/);
+ assert.match(js,/window\.__carhudBrowseMode = newMode/);
+--- a/tests/youtube-browse-mode.test.cjs
++++ b/tests/youtube-browse-mode.test.cjs
+@@ -6,8 +6,8 @@
+ const min = fs.readFileSync('app/src/main/res/drawable/ic_bar_minimize.xml','utf8');
+ const max = fs.readFileSync('app/src/main/res/drawable/ic_bar_expand.xml','utf8');
+ 
+-assert.match(gradle, /versionCode = 306/);
+-assert.match(gradle, /versionName = "1\.1\.8"/);
++assert.match(gradle, /versionCode = 310/);
++assert.match(gradle, /versionName = "1\.1\.12"/);
+ assert.match(presentation, /fun toolButton\(iconRes: Int, label: String\?,/);
+ assert.match(presentation, /contentDescription = label/);
+ assert.ok(!presentation.includes('if (label != null) {'), 'Cinema toolbar should not show labels');
+--- /dev/null
++++ b/docs/HEY_MIMI_PRO_V9_PIP_FIX.md
+@@ -0,0 +1,19 @@
++# Hey Mimi Pro v9 — YouTube Mini PiP: choose videos reliably
++
++- Version 1.1.12 / versionCode 310.
++- When Mini PiP is enabled, show a separate scrollable **Chọn video tiếp theo** grid.
++- Reuse only real watch links and thumbnails already present on the YouTube page, no duplicate player or fabricated video.
++- Supports desktop/mobile modern YouTube related cards, excludes the current video and duplicates.
++- When YouTube returns no suggestions, show a message and an explicit **Tìm thêm video** search field rather than a black screen.
++- Reset the chooser when exiting PiP, refresh it when YouTube loads new suggestions.
++- Android Auto/DHU real-device interaction still needs checking. Only use video display while parked and as permitted by Android Auto.
++
++## Tests
++
++```
++node --test tests/youtube-pip-chooser-pro-regression.test.cjs tests/youtube-mini-pip-scroll.test.cjs tests/youtube-cinema-ui.test.cjs tests/hey-mimi-pro-regression.test.cjs
++```
++
++## Deployment
++
++Apply the patch to the Hey Mimi Pro v8 source with `patch -p1 < HeyMimi_Pro_v9_PiP_Selector_Fix.patch`. The `.aab` requires the registered Play upload signing key; do not commit this key or password to GitHub.
