@@ -1,0 +1,402 @@
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -12,8 +12,8 @@
+         applicationId = "com.ledinhtien.ttube"
+         minSdk = 29
+         targetSdk = 36
+-        versionCode = 308
+-        versionName = "1.1.10"
++        versionCode = 309
++        versionName = "1.1.11"
+ 
+         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+     }
+--- a/app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt
++++ b/app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt
+@@ -14,6 +14,7 @@
+     const val PREF_AI_ENABLED = "assistant_ai_enabled"
+     const val PREF_AI_ENDPOINT = "assistant_ai_endpoint"
+     const val PREF_AI_TOKEN = "assistant_ai_proxy_token"
++    const val PREF_CONTEXT_ENABLED = "assistant_ai_context_enabled"
+ 
+     private fun prefs(c: Context) = c.applicationContext.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
+ 
+@@ -31,4 +32,5 @@
+     fun aiEnabled(c: Context) = prefs(c).getBoolean(PREF_AI_ENABLED, false)
+     fun aiEndpoint(c: Context) = prefs(c).getString(PREF_AI_ENDPOINT, "")?.trim().orEmpty()
+     fun aiProxyToken(c: Context) = prefs(c).getString(PREF_AI_TOKEN, "").orEmpty()
++    fun contextEnabled(c: Context) = prefs(c).getBoolean(PREF_CONTEXT_ENABLED, false)
+ }
+--- a/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
++++ b/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
+@@ -367,6 +367,7 @@
+     // ---- Trợ lý TTube -------------------------------------------------------------------------
+     private var assistantBannerUntil = 0L
+     private val mimiSmartAssistant = MimiSmartAssistant(context)
++    private var mimiLastAnswer = ""
+     private val heyMimiConversation = HeyMimiConversation()
+     private val heyMimiListenRunnable = Runnable {
+         if (AssistantConfig.isEnabled(context) && AssistantConfig.twoTurnWake(context) &&
+@@ -396,6 +397,7 @@
+     }
+ 
+     private fun showAssistantBanner(text: String) {
++        if (text.isNotBlank() && text != "Mimi đang tìm câu trả lời…") mimiLastAnswer = text.take(340)
+         if (AssistantConfig.isEnabled(context) && mimiPanel != null) {
+             mimiPanel?.showAnswer(text)
+             return
+@@ -2364,6 +2366,46 @@
+         val commandText = if (afterWake) query.trim()
+             else AssistantIntentParser.stripWake(query, AssistantConfig.name(context)).trim()
+         val folded = AssistantIntentParser.fold1to1(commandText)
++        if (addressed && AssistantConfig.isEnabled(context)) {
++            when (MimiProPolicy.action(commandText)) {
++                MimiProPolicy.Action.STOP -> {
++                    mimiSmartAssistant.cancel()
++                    CarTtsManager.stopAssistantSpeech()
++                    mimiPanel?.collapse()
++                    hideSearchOverlay()
++                    return
++                }
++                MimiProPolicy.Action.REPEAT -> {
++                    val last = mimiLastAnswer.ifBlank { "Mimi chưa có câu trả lời nào để nhắc lại." }
++                    showAssistantBanner(last)
++                    if (AssistantConfig.speakReply(context)) CarTtsManager.speakAssistant(context, last)
++                    hideSearchOverlay()
++                    return
++                }
++                MimiProPolicy.Action.MUTE, MimiProPolicy.Action.UNMUTE -> {
++                    val enabled = MimiProPolicy.action(commandText) == MimiProPolicy.Action.UNMUTE
++                    context.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
++                        .edit().putBoolean(AssistantConfig.PREF_SPEAK, enabled).apply()
++                    if (!enabled) CarTtsManager.stopAssistantSpeech()
++                    showAssistantBanner(if (enabled) "Mimi đã bật đọc câu trả lời." else "Mimi đã tắt giọng đọc.")
++                    hideSearchOverlay()
++                    return
++                }
++                MimiProPolicy.Action.STATUS -> {
++                    val ai = if (AssistantConfig.aiEnabled(context) && MimiAiPolicy.validEndpoint(AssistantConfig.aiEndpoint(context)))
++                        "đã bật kết nối AI" else "chưa kết nối AI"
++                    showAssistantBanner("Mimi Pro đang hoạt động, $ai. Chạm Mimi hoặc bấm nút vô lăng để nói lệnh.")
++                    hideSearchOverlay()
++                    return
++                }
++                MimiProPolicy.Action.PRIVACY -> {
++                    showAssistantBanner("Mimi không tự ghi âm liên tục. AI chỉ gửi câu hỏi khi bật và cấu hình proxy; ngữ cảnh mặc định tắt.")
++                    hideSearchOverlay()
++                    return
++                }
++                MimiProPolicy.Action.NONE -> Unit
++            }
++        }
+         val explicitMedia = addressed && (
+             Regex("""^(?:vtv\d+|htv\d+|vtc\d+)(?:\b|$)""").containsMatchIn(folded) ||
+             Regex("""^(?:cho |hay )?(?:phat|mo|bat|xem|nghe|tim|choi) (?:cho )?(?:nhac|bai|video|clip|youtube|kenh|tivi|truyen hinh|vtv\d*|htv\d*)\b""").containsMatchIn(folded)
+@@ -5504,6 +5546,7 @@
+ 
+     override fun onStop() {
+         mimiSmartAssistant.cancel()
++        mimiLastAnswer = ""
+         cancelHeyMimiFollowUp()
+         mimiPanel?.collapse()
+         autoHideHandler.removeCallbacks(hideBarsRunnable)
+@@ -5565,6 +5608,7 @@
+     private fun detachInputCallbacks() {
+         if (inputCallbacksDetached) return
+         mimiSmartAssistant.cancel()
++        mimiLastAnswer = ""
+         cancelHeyMimiFollowUp()
+         mimiPanel?.release()
+         mimiPanel = null
+--- a/app/src/main/java/com/carhud/aaproxy/CarTtsManager.kt
++++ b/app/src/main/java/com/carhud/aaproxy/CarTtsManager.kt
+@@ -473,6 +473,12 @@
+         speakAlert(text, isPriority = true)
+     }
+ 
++    /** Stop only at explicit driver request; do not disable future navigation alerts. */
++    fun stopAssistantSpeech() {
++        try { tts?.stop() } catch (_: Exception) {}
++        CarMediaManager.endNavigationDucking()
++    }
++
+     fun speakTestWarning(
+         context: Context,
+         warningType: VietmapWarningType,
+--- a/app/src/main/java/com/carhud/aaproxy/MimiAssistantPanel.kt
++++ b/app/src/main/java/com/carhud/aaproxy/MimiAssistantPanel.kt
+@@ -99,7 +99,7 @@
+         }
+         header.addView(face, LinearLayout.LayoutParams(d(59), d(59)).apply { marginEnd = d(12) })
+         val titles = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+-        heading.text = "MIMI  •  TRỢ LÝ TRÊN XE"
++        heading.text = "MIMI PRO  •  TRỢ LÝ TRÊN XE"
+         stateLine.text = "Mimi sẵn sàng"
+         titles.addView(heading)
+         titles.addView(stateLine)
+--- a/app/src/main/java/com/carhud/aaproxy/MimiProPolicy.kt
++++ b/app/src/main/java/com/carhud/aaproxy/MimiProPolicy.kt
+@@ -0,0 +1,27 @@
++package com.carhud.aaproxy
++
++/** Deterministic Pro voice shortcuts. Never interpret a quoted song title as a control. */
++internal object MimiProPolicy {
++    enum class Action { NONE, STOP, REPEAT, MUTE, UNMUTE, STATUS, PRIVACY }
++    fun action(text: String): Action {
++        val s = AssistantIntentParser.fold1to1(text).lowercase()
++            .replace(Regex("""[!?.,]+"""), "").replace(Regex("""\s+"""), " ").trim()
++        return when (s) {
++            "im lang", "dung noi", "mimi im lang", "ngung doc", "thoi khong noi nua", "dung tra loi" -> Action.STOP
++            "nhac lai", "noi lai", "lap lai", "doc lai cau tra loi", "noi lai cau vua roi" -> Action.REPEAT
++            "tat giong mimi", "tat doc tra loi", "tat giong noi", "im lang luon" -> Action.MUTE
++            "bat giong mimi", "bat doc tra loi", "bat giong noi", "cho mimi noi" -> Action.UNMUTE
++            "trang thai mimi", "mimi co san sang khong", "kiem tra mimi", "mimi pro", "pro", "co san sang khong" -> Action.STATUS
++            "mimi co gui vi tri khong", "co gui vi tri khong", "du lieu cua toi di dau", "mimi co theo doi toi khong", "co theo doi toi khong" -> Action.PRIVACY
++            else -> Action.NONE
++        }
++    }
++
++    /** A spoken question without punctuation should not silently turn into a YouTube search. */
++    fun conversational(text: String): Boolean {
++        val s = AssistantIntentParser.fold1to1(text).lowercase().trim()
++        if (s.length !in 4..500) return false
++        if (Regex("""^(phat|mo|bat|tim|xem|nghe|choi|chuyen|dung|tam dung|tiep tuc|tang|giam|dan duong|chi duong|ve nha)\b""").containsMatchIn(s)) return false
++        return Regex("""^(tai sao|vi sao|giai thich|la gi|nhu the nao|co the|cho toi biet|ke cho|mimi nghi|the nao|bao nhieu|hom nay co|ban co biet|giup toi hieu)\b""").containsMatchIn(s) || s.contains('?')
++    }
++}
+--- a/app/src/main/java/com/carhud/aaproxy/MimiSmartAssistant.kt
++++ b/app/src/main/java/com/carhud/aaproxy/MimiSmartAssistant.kt
+@@ -4,6 +4,7 @@
+ import android.os.Handler
+ import android.os.Looper
+ import org.json.JSONObject
++import org.json.JSONArray
+ import java.net.HttpURLConnection
+ import java.net.URL
+ import java.util.concurrent.atomic.AtomicInteger
+@@ -16,13 +17,16 @@
+ internal class MimiSmartAssistant(private val context: Context) {
+     private val main = Handler(Looper.getMainLooper())
+     private val generation = AtomicInteger()
++    // Only in-memory context of the current projection. Never persisted or uploaded by default.
++    private val recent = ArrayDeque<Pair<String, String>>()
+ 
+-    /** Invalidates network callbacks when projection is no longer visible. */
+-    fun cancel() { generation.incrementAndGet() }
++    /** Invalidates pending calls and erases transient chat context on disconnect. */
++    fun cancel() { generation.incrementAndGet(); recent.clear() }
+ 
+     /** Return true only if this addressed utterance was fully consumed. */
+     fun tryHandle(query: String, addressed: Boolean, show: (String) -> Unit): Boolean {
+         if (!addressed || !AssistantConfig.isEnabled(context)) return false
++        if (!AssistantConfig.contextEnabled(context)) recent.clear()
+         val utterance = AssistantIntentParser.stripWake(query, AssistantConfig.name(context)).trim()
+         if (utterance.isBlank() || !MimiAiPolicy.allowedFallback(utterance)) return false
+ 
+@@ -42,8 +46,7 @@
+         }
+ 
+         if (!AssistantConfig.aiEnabled(context)) {
+-            val s = AssistantIntentParser.fold1to1(utterance).trim()
+-            if (s.endsWith("?") || Regex("""^(tai sao|vi sao|giai thich|la gi|nhu the nao|co the|cho toi biet|ke cho)\b""").containsMatchIn(s)) {
++            if (MimiProPolicy.conversational(utterance)) {
+                 reply(show, "Mimi chưa bật hội thoại AI. Hãy bật AI trong Cài đặt trợ lý trên điện thoại.")
+                 return true
+             }
+@@ -55,13 +58,21 @@
+             return true
+         }
+         val ticket = generation.incrementAndGet()
++        val useContext = AssistantConfig.contextEnabled(context)
++        val history = if (useContext) recent.toList() else emptyList()
+         show("Mimi đang tìm câu trả lời…")
+         Thread({
+-            val answer = try { request(endpoint, utterance) }
+-                catch (_: Exception) { "Mimi chưa kết nối được máy chủ AI. Bạn thử lại khi có mạng nhé." }
++            val result = try { Result.success(request(endpoint, utterance, history)) }
++                catch (_: Exception) { Result.failure<String>(IllegalStateException("AI unavailable")) }
+             main.post {
+-                if (ticket == generation.get() && AssistantConfig.aiEnabled(context) && AssistantConfig.isEnabled(context))
+-                    reply(show, MimiAiPolicy.shortReply(answer))
++                if (ticket == generation.get() && AssistantConfig.aiEnabled(context) && AssistantConfig.isEnabled(context)) {
++                    val answer = result.getOrNull()
++                    if (answer != null && useContext && AssistantConfig.contextEnabled(context)) {
++                        recent.addLast(utterance to MimiAiPolicy.shortReply(answer))
++                        while (recent.size > 2) recent.removeFirst()
++                    } else if (!useContext || !AssistantConfig.contextEnabled(context)) recent.clear()
++                    reply(show, MimiAiPolicy.shortReply(answer ?: "Mimi chưa kết nối được máy chủ AI. Bạn thử lại khi có mạng nhé."))
++                }
+             }
+         }, "mimi-ai-https").start()
+         return true
+@@ -72,7 +83,7 @@
+         if (AssistantConfig.speakReply(context)) CarTtsManager.speakAssistant(context, message)
+     }
+ 
+-    private fun request(endpoint: String, message: String): String {
++    private fun request(endpoint: String, message: String, history: List<Pair<String,String>>): String {
+         val connection = (URL(endpoint).openConnection() as HttpURLConnection)
+         try {
+             connection.requestMethod = "POST"
+@@ -84,8 +95,13 @@
+             connection.setRequestProperty("Accept", "application/json")
+             val token = AssistantConfig.aiProxyToken(context)
+             if (token.isNotBlank()) connection.setRequestProperty("X-Mimi-Token", token)
++            val turns = JSONArray()
++            for ((question, answer) in history.takeLast(2)) {
++                turns.put(JSONObject().put("q", question.take(240)).put("a", answer.take(300)))
++            }
+             val bytes = JSONObject().put("message", message.take(500)).put("mode", "driving")
+-                .put("locale", "vi-VN").toString().toByteArray(Charsets.UTF_8)
++                .put("locale", "vi-VN").put("history", turns)
++                .toString().toByteArray(Charsets.UTF_8)
+             connection.outputStream.use { it.write(bytes) }
+             if (connection.responseCode != 200) throw IllegalStateException("AI HTTP failure")
+             val body = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText().take(12_000) }
+--- a/app/src/main/java/com/carhud/aaproxy/SettingsActivity.kt
++++ b/app/src/main/java/com/carhud/aaproxy/SettingsActivity.kt
+@@ -914,6 +914,11 @@
+                     "Chỉ gửi câu gọi Mimi rõ ràng tới máy chủ HTTPS riêng. Mặc định TẮT.",
+                     AssistantConfig.PREF_AI_ENABLED, false
+                 ))
++                content.addView(createSwitchRow(
++                    "Mimi Pro: nhớ ngữ cảnh ngắn",
++                    "Tùy chọn; chỉ giữ 2 lượt hỏi đáp trong RAM khi kết nối. Mặc định TẮT, xóa khi ngắt xe.",
++                    AssistantConfig.PREF_CONTEXT_ENABLED, false
++                ))
+                 content.addView(settingCard(
+                     title = "MÁY CHỦ MIMI AI",
+                     subtitle = "Cấu hình URL HTTPS của proxy AI riêng. Không nhập API key vào ứng dụng.",
+--- a/app/src/test/java/com/carhud/aaproxy/MimiProPolicyTest.kt
++++ b/app/src/test/java/com/carhud/aaproxy/MimiProPolicyTest.kt
+@@ -0,0 +1,27 @@
++package com.carhud.aaproxy
++
++import org.junit.Assert.*
++import org.junit.Test
++
++class MimiProPolicyTest {
++    @Test fun proControlsRequireExactUtterance() {
++        assertEquals(MimiProPolicy.Action.STOP, MimiProPolicy.action("im lặng"))
++        assertEquals(MimiProPolicy.Action.REPEAT, MimiProPolicy.action("nhắc lại"))
++        assertEquals(MimiProPolicy.Action.MUTE, MimiProPolicy.action("tắt giọng Mimi"))
++        assertEquals(MimiProPolicy.Action.UNMUTE, MimiProPolicy.action("bật giọng Mimi"))
++        assertEquals(MimiProPolicy.Action.STATUS, MimiProPolicy.action("Mimi Pro"))
++        assertEquals(MimiProPolicy.Action.STATUS, MimiProPolicy.action("Pro"))
++        assertEquals(MimiProPolicy.Action.PRIVACY, MimiProPolicy.action("Mimi có gửi vị trí không?"))
++        assertEquals(MimiProPolicy.Action.PRIVACY, MimiProPolicy.action("Có gửi vị trí không?"))
++    }
++    @Test fun mediaTitlesAreNeverControlCommands() {
++        listOf("phát nhạc Im Lặng", "mở video nhắc lại", "tìm nhạc bật giọng nói", "dẫn đường tới Mimi Pro")
++            .forEach { assertEquals(it, MimiProPolicy.Action.NONE, MimiProPolicy.action(it)) }
++    }
++    @Test fun conversationalLanguageDoesNotHijackMediaCommands() {
++        listOf("tại sao trời mưa", "giải thích hệ thống phanh ABS", "có thể kể cho tôi", "cho tôi biết đoạn đường này")
++            .forEach { assertTrue(it, MimiProPolicy.conversational(it)) }
++        listOf("phát nhạc Sơn Tùng", "mở TikTok", "tìm video mới", "dẫn đường về nhà")
++            .forEach { assertFalse(it, MimiProPolicy.conversational(it)) }
++    }
++}
+--- a/backend/mimi-proxy-policy.mjs
++++ b/backend/mimi-proxy-policy.mjs
+@@ -0,0 +1,8 @@
++/** Validate context from opt-in client. Never trust unknown fields from the network. */
++export function sanitizeHistory(input) {
++  if (!Array.isArray(input)) return [];
++  return input.slice(-2).filter(t =>
++    t && typeof t.q === 'string' && typeof t.a === 'string' &&
++    t.q.length <= 240 && t.a.length <= 300
++  ).map(({q,a})=>({q,a}));
++}
+--- a/backend/mimi-proxy-policy.test.mjs
++++ b/backend/mimi-proxy-policy.test.mjs
+@@ -0,0 +1,15 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import {sanitizeHistory} from './mimi-proxy-policy.mjs';
++test('empty or malformed history yields no context',()=>{
++ assert.deepEqual(sanitizeHistory(null),[]);
++ assert.deepEqual(sanitizeHistory([{q:'ok',a:123}, null]),[]);
++});
++test('context limited to last two short pairs',()=>{
++ const items=[{q:'one',a:'1'},{q:'two',a:'2'},{q:'three',a:'3'}];
++ assert.deepEqual(sanitizeHistory(items),items.slice(-2));
++});
++test('very long values and unexpected fields never reach AI',()=>{
++ assert.deepEqual(sanitizeHistory([{q:'x'.repeat(241),a:'a'}]),[]);
++ assert.deepEqual(sanitizeHistory([{q:'hello',a:'hi',gps:'10,20'}]),[{q:'hello',a:'hi'}]);
++});
+--- a/backend/mimi-proxy.mjs
++++ b/backend/mimi-proxy.mjs
+@@ -4,6 +4,7 @@
+  */
+ import http from 'node:http';
+ import crypto from 'node:crypto';
++import {sanitizeHistory} from './mimi-proxy-policy.mjs';
+ const key = process.env.OPENAI_API_KEY;
+ const secret = process.env.MIMI_SHARED_TOKEN;
+ if (!key || !secret) throw new Error('Configure OPENAI_API_KEY and MIMI_SHARED_TOKEN');
+@@ -23,7 +24,8 @@
+       body += chunk.toString('utf8');
+       if (body.length > 4096) {res.writeHead(413);res.end();return;}
+     }
+-    const {message,mode} = JSON.parse(body);
++    const {message,mode,history} = JSON.parse(body);
++    const safeHistory = sanitizeHistory(history);
+     if (typeof message !== 'string' || !message.trim() || message.length > 500) {
+       res.writeHead(400);res.end();return;
+     }
+@@ -34,7 +36,13 @@
+       body:JSON.stringify({
+         model, max_output_tokens: 180,
+         instructions: 'Bạn là Mimi, trợ lý tiếng Việt dùng trên xe. Trả lời ngắn gọn (tối đa 2 câu), không tạo ảo giác có dữ liệu giao thông hay GPS. Không hướng dẫn thao tác gây mất tập trung, không ra lệnh điều khiển xe. Khuyên dừng xe an toàn nếu cần xem điện thoại. Không đưa dữ liệu cá nhân vào câu trả lời.',
+-        input: message
++        input: [
++          ...safeHistory.flatMap(turn=>[
++            {role:'user', content: turn.q},
++            {role:'assistant', content: turn.a}
++          ]),
++          {role:'user',content:message}
++        ]
+       })
+     });
+     if(!upstream.ok)throw new Error('upstream_failure');
+--- a/tests/hey-mimi-pro-regression.test.cjs
++++ b/tests/hey-mimi-pro-regression.test.cjs
+@@ -0,0 +1,36 @@
++const {test} = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++const r=path.resolve(__dirname,'..');
++const read=p=>fs.readFileSync(path.join(r,p),'utf8');
++const src='app/src/main/java/com/carhud/aaproxy/';
++test('AI conversation memory is opt-in and not persisted',()=>{
++ const c=read(src+'AssistantConfig.kt');
++ const smart=read(src+'MimiSmartAssistant.kt');
++ assert.match(c,/PREF_CONTEXT_ENABLED/);
++ assert.match(c,/getBoolean\(PREF_CONTEXT_ENABLED, false\)/);
++ assert.match(smart,/private val recent = ArrayDeque/);
++ assert.match(smart,/recent\.clear\(\)/);
++ assert.match(smart,/while \(recent\.size > 2\)/);
++});
++test('Pro controls offer stop, replay and audio preference',()=>{
++ const car=read(src+'CarPresentation.kt');
++ const tts=read(src+'CarTtsManager.kt');
++ assert.match(car,/MimiProPolicy\.Action\.STOP/);
++ assert.match(car,/MimiProPolicy\.Action\.REPEAT/);
++ assert.match(car,/PREF_SPEAK/);
++ assert.match(tts,/fun stopAssistantSpeech\(\)/);
++});
++test('existing media remains deterministic and Pro answers are only addressed',()=>{
++ const car=read(src+'CarPresentation.kt');
++ assert.match(car,/if \(!explicitMedia && mimiSmartAssistant\.tryHandle/);
++ assert.match(car,/if \(addressed && AssistantConfig\.isEnabled\(context\)\)/);
++ assert.match(car,/if \(currentActiveAppId == "tiktok" && !isDashboardShowing && !explicitMedia\)/);
++});
++test('Pro UI remains compact and wake phrase does not mean continuous mic',()=>{
++ const panel=read(src+'MimiAssistantPanel.kt');
++ const hotword=read(src+'MimiHotwordEngine.kt');
++ assert.match(panel,/captureTimeout\(24_000L\)/);
++ assert.match(hotword,/None is shipped in v6|offline wake-word engine/);
++});
