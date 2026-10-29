@@ -1,0 +1,93 @@
+--- a/app/src/main/java/com/carhud/aaproxy/MimiAssistantPanel.kt
++++ b/app/src/main/java/com/carhud/aaproxy/MimiAssistantPanel.kt
+@@ -61,6 +61,9 @@
+         buildCard()
+         buildBubble()
+         visibility = View.GONE
++        // Keep this transparent full-screen parent on top of the dashboard/HUD.
++        // It is not clickable; only the Mimi card and bubble handle touches.
++        elevation = d(250).toFloat()
+     }
+ 
+     private fun d(value: Int) = (resources.displayMetrics.density * value).toInt()
+@@ -155,9 +158,9 @@
+             gravity = Gravity.CENTER
+         })
+         bubble.visibility = View.GONE
+-        addView(bubble, LayoutParams(d(66), d(81), Gravity.BOTTOM or Gravity.END).apply {
+-            bottomMargin = d(72)
+-            marginEnd = d(20)
++        // Center-right avoids the top search bar and bottom playback controls.
++        addView(bubble, LayoutParams(d(66), d(81), Gravity.CENTER_VERTICAL or Gravity.END).apply {
++            marginEnd = d(16)
+         })
+ 
+         var downRawX = 0f
+@@ -293,6 +296,22 @@
+         collapseLater(4_000L)
+     }
+ 
++    /** Show Mimi on the car home screen even before the first voice interaction.
++     * This is a passive button, not an always-on microphone.
++     */
++    fun showReadyBubble() {
++        if (released) return
++        if (mode != Mode.HIDDEN && mode != Mode.COLLAPSED) return
++        handler.removeCallbacks(autoCollapse)
++        mode = Mode.COLLAPSED
++        face.listening = false
++        wave.active = false
++        card.visibility = View.GONE
++        bubble.visibility = View.VISIBLE
++        visibility = View.VISIBLE
++        bringToFront()
++    }
++
+     fun collapse() {
+         if (released || mode == Mode.HIDDEN) return
+         handler.removeCallbacks(autoCollapse)
+--- a/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
++++ b/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
+@@ -1069,6 +1069,9 @@
+             root.addView(panel, FrameLayout.LayoutParams(
+                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+             ))
++            // v4 left Mimi HIDDEN until the first microphone session. Show its
++            // passive tap-to-talk bubble on the dashboard from the first frame.
++            if (AssistantConfig.isEnabled(context)) panel.showReadyBubble()
+         }
+         try {
+             hudPrefs.registerOnSharedPreferenceChangeListener(hudPrefsListener)
+@@ -1259,9 +1262,17 @@
+             key?.startsWith("car_layout_") == true || key?.startsWith("screen_profile_") == true) return
+         mainHandler.post {
+             if (key == SystemVoiceModule.PREF_ENABLED) cancelSystemVoiceRequest()
+-            if (key == AssistantConfig.PREF_ENABLED && !AssistantConfig.isEnabled(context)) {
+-                cancelHeyMimiFollowUp()
+-                mimiPanel?.hide()
++            if (key == AssistantConfig.PREF_ENABLED) {
++                if (AssistantConfig.isEnabled(context)) {
++                    mimiPanel?.showReadyBubble()
++                } else {
++                    cancelHeyMimiFollowUp()
++                    mimiPanel?.hide()
++                }
++                // Refresh the assistant/microphone icon when the toggle changes.
++                rebuildSidebar()
++                rebuildTopToolbar()
++                mimiPanel?.bringToFront()
+             }
+             if (key == SettingsActivity.KEY_DESKTOP_MODE && currentActiveAppId == "youtube") {
+                 applyDesktopMode(web)
+@@ -1791,7 +1802,10 @@
+ 
+             addView(toolButton(R.drawable.ic_bar_home, "Trang chủ") { showDashboard() })
+ 
+-            val youtubeMicButton = toolButton(R.drawable.ic_bar_mic, "Giọng nói") {
++            val youtubeMicButton = toolButton(
++                if (AssistantConfig.isEnabled(context)) R.drawable.ic_bar_assistant else R.drawable.ic_bar_mic,
++                if (AssistantConfig.isEnabled(context)) "Mimi - Trợ lý giọng nói" else "Giọng nói"
++            ) {
+                 startVoiceSearch()
+             }
+             micBtn = youtubeMicButton.getChildAt(0) as? ImageView

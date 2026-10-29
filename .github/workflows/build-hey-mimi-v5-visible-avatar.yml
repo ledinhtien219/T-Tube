@@ -1,0 +1,109 @@
+name: Build Hey Mimi v5 visible avatar test APK
+
+on:
+  push:
+    branches: ["test/hey-mimi-v5-visible-avatar"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hey-mimi-v5-visible-avatar-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply Hey Mimi v3 and v4 UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch --batch --forward -p1 < ci/hey-mimi/TTube_assistant_mimi.patch
+          patch --batch --forward -p1 < ci/hey-mimi/TTube_HeyMimi_v2.patch
+          patch --batch --forward -p1 < ci/hey-mimi/migrate-name.patch
+          base64 --decode ci/hey-mimi/v4/MimiAssistantPanel.kt.gz.b64 | gzip -dc > app/src/main/java/com/carhud/aaproxy/MimiAssistantPanel.kt
+          base64 --decode ci/hey-mimi/v4/CarPresentation.patch.gz.b64 | gzip -dc | patch --batch --forward -p1
+          base64 --decode ci/hey-mimi/v4/panel-ui.test.cjs.gz.b64 | gzip -dc > tests/hey-mimi-panel-ui.test.cjs
+          test -s app/src/main/java/com/carhud/aaproxy/MimiAssistantPanel.kt
+      - name: Enable persistent Mimi avatar on dashboard
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch --batch --forward -p1 < ci/hey-mimi/v5-visible-avatar.patch
+          node --test tests/hey-mimi-visible-avatar.test.cjs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android 16 SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools" -type f -name sdkmanager | head -1)"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Restore stable debug certificate
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: thtv-stable-debug-keystore-v1
+      - name: Ensure debug signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            echo "WARNING: New debug certificate; uninstall existing differently signed app before installing."
+            keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
+          fi
+      - name: Mimi panel regression
+        run: node --test tests/hey-mimi-panel-ui.test.cjs
+      - name: Phone startup manifest regression
+        run: node --test tests/hey-mimi-phone-startup.test.cjs
+      - name: Kotlin voice tests
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest --tests '*AssistantIntentParserTest' --tests '*HeyMimiConversationTest' --stacktrace --no-daemon
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -lh app/build/outputs/apk/debug/*.apk
+          sha256sum app/build/outputs/apk/debug/*.apk
+      - name: Enable KVM for Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+      - name: Smoke test fresh phone launch and capture crash log
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
+          script: bash ci/hey-mimi/phone-startup-smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TTube-Hey-Mimi-v4-phone-smoke-evidence
+          path: smoke-artifacts/**
+          retention-days: 7
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TTube-Hey-Mimi-v5-visible-avatar-debug-APK
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
