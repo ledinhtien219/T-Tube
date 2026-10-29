@@ -80,6 +80,7 @@ jobs:
         run: |
           set -euo pipefail
           patch --batch --forward -p1 < ci/hey-mimi/v11-expanded-commands.patch
+          python3 ci/hey-mimi/v11-postpatch.py
           grep -q 'versionCode = 312' app/build.gradle.kts
           grep -q 'versionName = "1.1.14"' app/build.gradle.kts
           node --test tests/hey-mimi-pro-v11-conversation-regression.test.cjs

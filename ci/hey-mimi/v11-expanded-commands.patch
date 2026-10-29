@@ -182,26 +182,6 @@
              root.addView(panel, FrameLayout.LayoutParams(
                  ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
              ))
-@@ -2351,14 +2354,17 @@
-             mainHandler.postDelayed(heyMimiListenRunnable, 500L)
-             return
-         }
--        val afterWake = heyMimiConversation.consume(now)
-+        val afterWake = heyMimiConversation.consume(now) || mimiTapSession.also { mimiTapSession = false }
- 
-         // App switching must win over the active app's *search box* even if
-         // SpeechRecognizer misses "Hey Mimi". A definite "mở YouTube" must
-         // never turn into a TikTok video search. Deliberately do not intercept
-         // "tìm video YouTube" or an unqualified "YouTube" without wake word.
-         if (AssistantConfig.isEnabled(context)) {
--            val appId = MimiAppSwitchRouter.target(query, AssistantConfig.name(context))
-+            val appId = MimiAppSwitchRouter.target(
-+                if (afterWake && !AssistantIntentParser.hasWake(query, AssistantConfig.name(context))) "Mimi $query" else query,
-+                AssistantConfig.name(context)
-+            )
-             if (appId != null) {
-                 cancelHeyMimiFollowUp()
-                 hideSearchOverlay()
 @@ -2430,9 +2436,28 @@
          }
          val explicitMedia = addressed && (
