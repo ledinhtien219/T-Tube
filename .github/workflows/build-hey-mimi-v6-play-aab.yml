@@ -1,4 +1,4 @@
-name: Build Hey Mimi v6 Play AAB (build 307)
+name: Build SIGNED Hey Mimi v6 Play AAB (build 307)
 on:
   push:
     branches:
@@ -23,6 +23,7 @@ jobs:
       PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
       PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
       PLAY_UPLOAD_KEYSTORE_PATH: ${{ github.workspace }}/.play/ttube-play-upload.jks
+      PLAY_UPLOAD_CERT_SHA256: ${{ secrets.PLAY_UPLOAD_CERT_SHA256 }}
     steps:
       - uses: actions/checkout@v4
       - name: Apply Hey Mimi v3, v4 and v5
@@ -63,17 +64,32 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Prepare optional Play upload signing key
+      - name: Require EXISTING Play upload signing key (never output unsigned)
         shell: bash
         run: |
           set -euo pipefail
-          if [ -n "${PLAY_UPLOAD_KEYSTORE_BASE64:-}" ]; then
-            mkdir -p "$(dirname "$PLAY_UPLOAD_KEYSTORE_PATH")"
-            printf '%s' "$PLAY_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$PLAY_UPLOAD_KEYSTORE_PATH"
-            chmod 600 "$PLAY_UPLOAD_KEYSTORE_PATH"
+          for key in PLAY_UPLOAD_KEYSTORE_BASE64 PLAY_UPLOAD_STORE_PASSWORD PLAY_UPLOAD_KEY_ALIAS PLAY_UPLOAD_KEY_PASSWORD; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error title=Play upload signing key missing::Set GitHub Actions secret $key. This workflow will not distribute an unsigned AAB."
+              exit 1
+            fi
+          done
+          mkdir -p "$(dirname "$PLAY_UPLOAD_KEYSTORE_PATH")"
+          printf '%s' "$PLAY_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$PLAY_UPLOAD_KEYSTORE_PATH"
+          chmod 600 "$PLAY_UPLOAD_KEYSTORE_PATH"
+          test -s "$PLAY_UPLOAD_KEYSTORE_PATH"
+          keytool -list -keystore "$PLAY_UPLOAD_KEYSTORE_PATH" -alias "$PLAY_UPLOAD_KEY_ALIAS" -storepass:env PLAY_UPLOAD_STORE_PASSWORD >/dev/null
+          actual_cert_sha="$(keytool -exportcert -keystore "$PLAY_UPLOAD_KEYSTORE_PATH" -alias "$PLAY_UPLOAD_KEY_ALIAS" -storepass:env PLAY_UPLOAD_STORE_PASSWORD | sha256sum | cut -d' ' -f1 | tr '[:lower:]' '[:upper:]')"
+          if [ -n "${PLAY_UPLOAD_CERT_SHA256:-}" ]; then
+            expected_cert_sha="$(printf '%s' "$PLAY_UPLOAD_CERT_SHA256" | tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]')"
+            if [ "$actual_cert_sha" != "$expected_cert_sha" ]; then
+              echo "::error title=Wrong upload certificate::Upload keystore does not match the SHA-256 fingerprint registered in Play Console."
+              exit 1
+            fi
           else
-            echo "No Play upload keystore configured: release AAB will be UNSIGNED."
+            echo "::warning::No PLAY_UPLOAD_CERT_SHA256 set. Confirm upload certificate fingerprint against Play Console before uploading."
           fi
+          echo "Upload certificate SHA-256: $actual_cert_sha"
       - name: Verify panel and startup regressions
         run: |
           node --test tests/hey-mimi-panel-ui.test.cjs
@@ -99,16 +115,17 @@ jobs:
           mkdir -p build-output
           cp "$aab" build-output/TTube-Hey-Mimi-v6-1.1.9-build307.aab
           sha256sum build-output/*.aab | tee build-output/SHA256SUMS.txt
-          if [ -f "$PLAY_UPLOAD_KEYSTORE_PATH" ]; then
-            jarsigner -verify -verbose -certs "$aab" >/dev/null
-            echo "SIGNED_WITH_PLAY_UPLOAD_KEY" > build-output/SIGNING_STATUS.txt
-          else
-            echo "UNSIGNED_AAB_REQUIRES_PLAY_UPLOAD_KEY" > build-output/SIGNING_STATUS.txt
+          verify_output="$(jarsigner -verify -verbose -certs "$aab" 2>&1)"
+          if ! grep -q 'jar verified\.' <<< "$verify_output"; then
+            echo "::error::AAB is unsigned or signature verification failed"
+            echo "$verify_output" | tail -35
+            exit 1
           fi
+          echo "SIGNED_WITH_PLAY_UPLOAD_KEY" > build-output/SIGNING_STATUS.txt
           printf 'versionName=1.1.9\nversionCode=307\nbranch=test/hey-mimi-v6-play-aab-build307\n' > build-output/BUILD_INFO.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: TTube-Hey-Mimi-v6-1.1.9-build307-Play-AAB
+          name: TTube-Hey-Mimi-v6-1.1.9-build307-SIGNED-Play-AAB
           path: build-output/*
           if-no-files-found: error
           retention-days: 14
