@@ -1,0 +1,384 @@
+--- a/app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt
++++ b/app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt
+@@ -11,6 +11,9 @@
+     const val PREF_NAV_APP = "assistant_nav_app" // auto | waze | gmaps
+     const val PREF_AUTO_PARK = "assistant_auto_save_parking"
+     const val PREF_TWO_TURN_WAKE = "assistant_two_turn_wake"
++    const val PREF_AI_ENABLED = "assistant_ai_enabled"
++    const val PREF_AI_ENDPOINT = "assistant_ai_endpoint"
++    const val PREF_AI_TOKEN = "assistant_ai_proxy_token"
+ 
+     private fun prefs(c: Context) = c.applicationContext.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
+ 
+@@ -25,4 +28,7 @@
+     fun navApp(c: Context): String = prefs(c).getString(PREF_NAV_APP, "auto") ?: "auto"
+     fun autoSaveParking(c: Context) = prefs(c).getBoolean(PREF_AUTO_PARK, true)
+     fun twoTurnWake(c: Context) = prefs(c).getBoolean(PREF_TWO_TURN_WAKE, true)
++    fun aiEnabled(c: Context) = prefs(c).getBoolean(PREF_AI_ENABLED, false)
++    fun aiEndpoint(c: Context) = prefs(c).getString(PREF_AI_ENDPOINT, "")?.trim().orEmpty()
++    fun aiProxyToken(c: Context) = prefs(c).getString(PREF_AI_TOKEN, "").orEmpty()
+ }
+--- a/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
++++ b/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
+@@ -366,6 +366,7 @@
+ 
+     // ---- Trợ lý TTube -------------------------------------------------------------------------
+     private var assistantBannerUntil = 0L
++    private val mimiSmartAssistant = MimiSmartAssistant(context)
+     private val heyMimiConversation = HeyMimiConversation()
+     private val heyMimiListenRunnable = Runnable {
+         if (AssistantConfig.isEnabled(context) && AssistantConfig.twoTurnWake(context) &&
+@@ -2354,6 +2355,13 @@
+         // vẫn là tìm kiếm; riêng câu sau "Hey Mimi" là lệnh trợ lý.
+         val voiceIsSearchBox = !isDashboardShowing && (currentActiveAppId == "tiktok" || isBrowserApp())
+         if (TtubeAssistant.handle(assistantHost, query, requireWake = voiceIsSearchBox && !afterWake)) {
++            hideSearchOverlay()
++            return
++        }
++        // Phase 1: explicitly addressed conversational/driver queries only.
++        // Never steal ordinary YouTube/TV/browser searches or silently send them to a server.
++        val addressed = afterWake || AssistantIntentParser.hasWake(query, AssistantConfig.name(context))
++        if (mimiSmartAssistant.tryHandle(query, addressed) { answer -> showAssistantBanner(answer) }) {
+             hideSearchOverlay()
+             return
+         }
+@@ -5486,6 +5494,7 @@
+     }
+ 
+     override fun onStop() {
++        mimiSmartAssistant.cancel()
+         cancelHeyMimiFollowUp()
+         mimiPanel?.collapse()
+         autoHideHandler.removeCallbacks(hideBarsRunnable)
+@@ -5546,6 +5555,7 @@
+     private var inputCallbacksDetached = false
+     private fun detachInputCallbacks() {
+         if (inputCallbacksDetached) return
++        mimiSmartAssistant.cancel()
+         cancelHeyMimiFollowUp()
+         mimiPanel?.release()
+         mimiPanel = null
+--- a/app/src/main/java/com/carhud/aaproxy/SettingsActivity.kt
++++ b/app/src/main/java/com/carhud/aaproxy/SettingsActivity.kt
+@@ -908,6 +908,64 @@
+                     "Phát câu trả lời qua loa (có thể tắt khi lái xe)",
+                     AssistantConfig.PREF_SPEAK, true
+                 ))
++                content.addView(createSeparator())
++                content.addView(createSwitchRow(
++                    "Mimi AI (tùy chọn)",
++                    "Chỉ gửi câu gọi Mimi rõ ràng tới máy chủ HTTPS riêng. Mặc định TẮT.",
++                    AssistantConfig.PREF_AI_ENABLED, false
++                ))
++                content.addView(settingCard(
++                    title = "MÁY CHỦ MIMI AI",
++                    subtitle = "Cấu hình URL HTTPS của proxy AI riêng. Không nhập API key vào ứng dụng.",
++                    badgeText = if (AssistantConfig.aiEndpoint(this@SettingsActivity).isBlank()) "Chưa cấu hình" else "Đã có URL",
++                    onClick = {
++                        val input = EditText(this@SettingsActivity).apply {
++                            hint = "https://your-domain.example/mimi"
++                            setSingleLine(true)
++                            setText(AssistantConfig.aiEndpoint(this@SettingsActivity))
++                            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
++                        }
++                        AlertDialog.Builder(this@SettingsActivity)
++                            .setTitle("Máy chủ Mimi AI")
++                            .setMessage("Chỉ dùng HTTPS của máy chủ bạn quản lý. Câu nói gửi tới máy chủ khi bật AI; không gửi tọa độ GPS.")
++                            .setView(input)
++                            .setNegativeButton("Hủy", null)
++                            .setPositiveButton("Lưu") { _, _ ->
++                                val url = input.text.toString().trim()
++                                if (url.isNotBlank() && !MimiAiPolicy.validEndpoint(url)) {
++                                    Toast.makeText(this@SettingsActivity, "Chỉ hỗ trợ URL HTTPS hợp lệ", Toast.LENGTH_LONG).show()
++                                } else {
++                                    prefs.edit().putString(AssistantConfig.PREF_AI_ENDPOINT, url).apply()
++                                    Toast.makeText(this@SettingsActivity, "Đã lưu URL Mimi AI", Toast.LENGTH_SHORT).show()
++                                }
++                            }.show()
++                    }
++                ))
++                content.addView(settingCard(
++                    title = "MÃ TRUY CẬP PROXY MIMI",
++                    subtitle = "Mã riêng của máy chủ AI (không phải OpenAI API key). Chỉ lưu trên điện thoại.",
++                    badgeText = if (AssistantConfig.aiProxyToken(this@SettingsActivity).isBlank()) "Chưa có" else "Đã đặt",
++                    onClick = {
++                        val input = EditText(this@SettingsActivity).apply {
++                            hint = "Token của proxy HTTPS"
++                            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
++                            setText(AssistantConfig.aiProxyToken(this@SettingsActivity))
++                        }
++                        AlertDialog.Builder(this@SettingsActivity)
++                            .setTitle("Mã truy cập proxy Mimi")
++                            .setView(input)
++                            .setNegativeButton("Hủy", null)
++                            .setPositiveButton("Lưu") { _, _ ->
++                                prefs.edit().putString(AssistantConfig.PREF_AI_TOKEN, input.text.toString().trim()).apply()
++                            }.show()
++                    }
++                ))
++                content.addView(settingCard(
++                    title = "GỌI HEY MIMI RẢNH TAY",
++                    subtitle = "Chưa kích hoạt: cần engine nhận hotword offline và sự đồng ý dùng micro. Nút Mimi và vô lăng vẫn hoạt động.",
++                    badgeText = "Sắp tới",
++                    onClick = { Toast.makeText(this@SettingsActivity, "Cần tích hợp hotword engine offline trước khi bật micro rảnh tay", Toast.LENGTH_LONG).show() }
++                ))
+             }
+         )
+ 
+--- /dev/null
++++ b/app/src/main/java/com/carhud/aaproxy/MimiSmartAssistant.kt
+@@ -0,0 +1,118 @@
++package com.carhud.aaproxy
++
++import android.content.Context
++import android.os.Handler
++import android.os.Looper
++import org.json.JSONObject
++import java.net.HttpURLConnection
++import java.net.URL
++import java.util.concurrent.atomic.AtomicInteger
++
++/**
++ * Safe opt-in conversational fallback. The existing deterministic commands keep priority.
++ * No API key, token, raw GPS coordinates, vehicle identifiers, or conversation history
++ * are sent by this Android client. Server owners must implement auth/rate limits.
++ */
++internal class MimiSmartAssistant(private val context: Context) {
++    private val main = Handler(Looper.getMainLooper())
++    private val generation = AtomicInteger()
++
++    /** Invalidates network callbacks when projection is no longer visible. */
++    fun cancel() { generation.incrementAndGet() }
++
++    /** Return true only if this addressed utterance was fully consumed. */
++    fun tryHandle(query: String, addressed: Boolean, show: (String) -> Unit): Boolean {
++        if (!addressed || !AssistantConfig.isEnabled(context)) return false
++        val utterance = AssistantIntentParser.stripWake(query, AssistantConfig.name(context)).trim()
++        if (utterance.isBlank() || !MimiAiPolicy.allowedFallback(utterance)) return false
++
++        MimiAiPolicy.drivingQuestion(utterance)?.let { prompt ->
++            val answer = when (prompt) {
++                "speed" -> {
++                    val loc = GpsSpeedManager.lastLocation.value
++                    if (loc != null && loc.hasSpeed() && System.currentTimeMillis() - loc.time in 0..15_000L)
++                        "Theo GPS, xe đang đi khoảng ${Math.round(loc.speed * 3.6f)} ki lô mét mỗi giờ."
++                    else "Mimi chưa có tốc độ GPS đủ mới. Hãy kiểm tra quyền định vị."
++                }
++                "traffic" -> "Mimi chưa có dữ liệu giao thông trực tiếp. Bạn có thể mở Waze hoặc Google Maps để kiểm tra đường đi."
++                else -> "Mimi sẽ ưu tiên câu trả lời ngắn khi bạn lái xe. Hãy tập trung quan sát đường."
++            }
++            reply(show, answer)
++            return true
++        }
++
++        if (!AssistantConfig.aiEnabled(context)) return false
++        val endpoint = AssistantConfig.aiEndpoint(context)
++        if (!MimiAiPolicy.validEndpoint(endpoint)) {
++            reply(show, "Chưa có máy chủ AI HTTPS hợp lệ. Hãy cài trong mục Trợ lý Mimi trên điện thoại.")
++            return true
++        }
++        val ticket = generation.incrementAndGet()
++        show("Mimi đang tìm câu trả lời…")
++        Thread({
++            val answer = try { request(endpoint, utterance) }
++                catch (_: Exception) { "Mimi chưa kết nối được máy chủ AI. Bạn thử lại khi có mạng nhé." }
++            main.post {
++                if (ticket == generation.get() && AssistantConfig.aiEnabled(context) && AssistantConfig.isEnabled(context))
++                    reply(show, MimiAiPolicy.shortReply(answer))
++            }
++        }, "mimi-ai-https").start()
++        return true
++    }
++
++    private fun reply(show: (String) -> Unit, message: String) {
++        show(message)
++        if (AssistantConfig.speakReply(context)) CarTtsManager.speakAssistant(context, message)
++    }
++
++    private fun request(endpoint: String, message: String): String {
++        val connection = (URL(endpoint).openConnection() as HttpURLConnection)
++        try {
++            connection.requestMethod = "POST"
++            connection.instanceFollowRedirects = false
++            connection.connectTimeout = 5_000
++            connection.readTimeout = 9_000
++            connection.doOutput = true
++            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
++            connection.setRequestProperty("Accept", "application/json")
++            val token = AssistantConfig.aiProxyToken(context)
++            if (token.isNotBlank()) connection.setRequestProperty("X-Mimi-Token", token)
++            val bytes = JSONObject().put("message", message.take(500)).put("mode", "driving")
++                .put("locale", "vi-VN").toString().toByteArray(Charsets.UTF_8)
++            connection.outputStream.use { it.write(bytes) }
++            if (connection.responseCode != 200) throw IllegalStateException("AI HTTP failure")
++            val body = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText().take(12_000) }
++            val response = JSONObject(body).optString("reply").trim()
++            if (response.isBlank()) throw IllegalStateException("AI response missing")
++            return response
++        } finally { connection.disconnect() }
++    }
++}
++
++/** Pure policy suitable for JVM tests; no cloud answer may launch apps or control vehicle. */
++internal object MimiAiPolicy {
++    private val media = Regex("""^(phat|mo nhac|nghe nhac|bat nhac|choi nhac|mo tv|mo kenh|play|tim video|tim bai hat)\b""", RegexOption.IGNORE_CASE)
++    fun allowedFallback(text: String): Boolean {
++        val normalized = AssistantIntentParser.fold1to1(text).trim()
++        if (text.length !in 2..500 || media.containsMatchIn(normalized)) return false
++        // Do not allow the AI to be used as an action executor.
++        return true
++    }
++    fun validEndpoint(text: String): Boolean = try {
++        val uri = java.net.URI(text)
++        uri.scheme.equals("https", true) && !uri.host.isNullOrBlank() && uri.userInfo == null &&
++            uri.fragment == null && uri.port in -1..65535 && uri.host != "localhost" &&
++            !uri.host!!.endsWith(".local", true)
++    } catch (_: Exception) { false }
++
++    fun drivingQuestion(text: String): String? {
++        val s = AssistantIntentParser.fold1to1(text)
++        return when {
++            Regex("(toc do|bao nhieu km|dang chay bao nhieu)").containsMatchIn(s) -> "speed"
++            Regex("(tac duong|ket xe|tinh hinh giao thong|canh bao tren duong)").containsMatchIn(s) -> "traffic"
++            Regex("(toi dang lai xe|che do lai xe|di xe an toan)").containsMatchIn(s) -> "drive"
++            else -> null
++        }
++    }
++    fun shortReply(text: String): String = text.trim().replace(Regex("""\s+"""), " ").take(340)
++}
+--- /dev/null
++++ b/app/src/main/java/com/carhud/aaproxy/MimiHotwordEngine.kt
+@@ -0,0 +1,24 @@
++package com.carhud.aaproxy
++
++/**
++ * Contract for a future offline wake-word engine. None is shipped in v6.
++ * Implementations must own mic permission, lifecycle, battery budget and audio focus.
++ * Never start from BOOT_COMPLETED or while backgrounded.
++ */
++internal interface MimiHotwordEngine {
++    val modelAvailable: Boolean
++    fun start(onWake: () -> Unit): Boolean
++    fun stop()
++}
++
++/** Prevent accidental microphone capture without visible UI and opt-in. */
++internal class MimiHotwordGate(private val engine: MimiHotwordEngine) {
++    private var active = false
++    fun update(visible: Boolean, permission: Boolean, optedIn: Boolean, onWake: () -> Unit): Boolean {
++        val mayRun = visible && permission && optedIn && engine.modelAvailable
++        if (!mayRun) { if (active) engine.stop(); active = false; return false }
++        if (!active) active = engine.start(onWake)
++        return active
++    }
++    fun stop() { if (active) engine.stop(); active = false }
++}
+--- /dev/null
++++ b/app/src/test/java/com/carhud/aaproxy/MimiAiPolicyTest.kt
+@@ -0,0 +1,24 @@
++package com.carhud.aaproxy
++
++import org.junit.Assert.*
++import org.junit.Test
++
++class MimiAiPolicyTest {
++    @Test fun keepsMediaRequestsInOriginalFlow() {
++        assertFalse(MimiAiPolicy.allowedFallback("phát nhạc Sơn Tùng"))
++        assertFalse(MimiAiPolicy.allowedFallback("mở nhạc bolero"))
++        assertTrue(MimiAiPolicy.allowedFallback("giải thích biểu tượng áp suất lốp là gì"))
++    }
++    @Test fun rejectsInsecureAiEndpoints() {
++        assertFalse(MimiAiPolicy.validEndpoint("http://example.com/ai"))
++        assertFalse(MimiAiPolicy.validEndpoint("https://user:pass@example.com/ai"))
++        assertFalse(MimiAiPolicy.validEndpoint("https://localhost/ai"))
++        assertTrue(MimiAiPolicy.validEndpoint("https://example.com/api/mimi"))
++    }
++    @Test fun answersOnlyGroundedDrivingInformation() {
++        assertEquals("speed", MimiAiPolicy.drivingQuestion("Xe đang chạy bao nhiêu km trên giờ"))
++        assertEquals("traffic", MimiAiPolicy.drivingQuestion("Đường phía trước có tắc đường không"))
++        assertNull(MimiAiPolicy.drivingQuestion("Bật phim YouTube"))
++        assertEquals(340, MimiAiPolicy.shortReply("x".repeat(500)).length)
++    }
++}
+--- /dev/null
++++ b/app/src/test/java/com/carhud/aaproxy/MimiHotwordGateTest.kt
+@@ -0,0 +1,25 @@
++package com.carhud.aaproxy
++
++import org.junit.Assert.*
++import org.junit.Test
++
++class MimiHotwordGateTest {
++    @Test fun neverStartsWithoutConsentPermissionVisibilityAndModel() {
++        val engine=object: MimiHotwordEngine {
++            var starts=0
++            var stops=0
++            override val modelAvailable=true
++            override fun start(onWake: () -> Unit): Boolean {starts++;return true}
++            override fun stop() {stops++}
++        }
++        val gate=MimiHotwordGate(engine)
++        assertFalse(gate.update(true,true,false) {})
++        assertFalse(gate.update(true,false,true) {})
++        assertFalse(gate.update(false,true,true) {})
++        assertEquals(0,engine.starts)
++        assertTrue(gate.update(true,true,true) {})
++        assertEquals(1,engine.starts)
++        assertFalse(gate.update(false,true,true) {})
++        assertEquals(1,engine.stops)
++    }
++}
+--- /dev/null
++++ b/backend/mimi-proxy.mjs
+@@ -0,0 +1,51 @@
++/** Minimal self-hosted HTTPS Mimi proxy. Run behind a TLS reverse proxy.
++ * Requires env OPENAI_API_KEY and MIMI_SHARED_TOKEN, optional OPENAI_MODEL.
++ * Never embed OPENAI_API_KEY in Android APK. Node >= 20.
++ */
++import http from 'node:http';
++import crypto from 'node:crypto';
++const key = process.env.OPENAI_API_KEY;
++const secret = process.env.MIMI_SHARED_TOKEN;
++if (!key || !secret) throw new Error('Configure OPENAI_API_KEY and MIMI_SHARED_TOKEN');
++const port = Number(process.env.PORT || 8080);
++const model = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
++const server = http.createServer(async (req,res) => {
++  res.setHeader('Cache-Control','no-store');
++  const expected = Buffer.from(secret);
++  const actual = Buffer.from(String(req.headers['x-mimi-token'] || ''));
++  if (req.method !== 'POST' || req.url !== '/mimi' ||
++      actual.length !== expected.length || !crypto.timingSafeEqual(actual,expected)) {
++    res.writeHead(403);res.end();return;
++  }
++  let body = '';
++  try {
++    for await (const chunk of req) {
++      body += chunk.toString('utf8');
++      if (body.length > 4096) {res.writeHead(413);res.end();return;}
++    }
++    const {message,mode} = JSON.parse(body);
++    if (typeof message !== 'string' || !message.trim() || message.length > 500) {
++      res.writeHead(400);res.end();return;
++    }
++    const abort = AbortSignal.timeout(14000);
++    const upstream = await fetch('https://api.openai.com/v1/responses',{
++      signal: abort, method:'POST',
++      headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
++      body:JSON.stringify({
++        model, max_output_tokens: 180,
++        instructions: 'Bạn là Mimi, trợ lý tiếng Việt dùng trên xe. Trả lời ngắn gọn (tối đa 2 câu), không tạo ảo giác có dữ liệu giao thông hay GPS. Không hướng dẫn thao tác gây mất tập trung, không ra lệnh điều khiển xe. Khuyên dừng xe an toàn nếu cần xem điện thoại. Không đưa dữ liệu cá nhân vào câu trả lời.',
++        input: message
++      })
++    });
++    if(!upstream.ok)throw new Error('upstream_failure');
++    const json=await upstream.json();
++    const reply=(json.output || []).flatMap(x=>(x.content||[]).filter(y=>y.type==='output_text').map(y=>y.text)).join(' ').trim();
++    if(!reply)throw new Error('empty_reply');
++    res.writeHead(200,{'Content-Type':'application/json; charset=utf-8'});
++    res.end(JSON.stringify({reply:reply.slice(0,700)}));
++  } catch(_) {
++    res.writeHead(503,{'Content-Type':'application/json'});
++    res.end(JSON.stringify({error:'temporarily_unavailable'}));
++  }
++});
++server.listen(port,'127.0.0.1',()=>console.log('Mimi proxy listening locally on',port));
