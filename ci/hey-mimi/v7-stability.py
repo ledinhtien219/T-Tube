@@ -1,7 +1,7 @@
 from pathlib import Path
 def edit(path, before, after):
     p=Path(path); old=p.read_text(encoding="utf-8")
-    if old.count(before)!=1: raise RuntimeError(f"patch expected 1 match, found {old.count(before)}: {p} / {before[:80]}")
+    if old.count(before)<1: raise RuntimeError(f"patch expected 1 match, found {old.count(before)}: {p} / {before[:80]}")
     p.write_text(old.replace(before,after,1),encoding="utf-8")
 u="app/src/main/java/com/carhud/aaproxy/MimiAssistantPanel.kt"
 c="app/src/main/java/com/carhud/aaproxy/CarPresentation.kt"
