@@ -7,9 +7,9 @@ if [ -z "$apk" ] || [ ! -s "$apk" ]; then
   exit 1
 fi
 adb install -r "$apk"
-adb shell pm clear com.ledinhtien.ttube
+adb shell pm clear com.ledinhtien.tubepro
 adb logcat -c
-adb shell am start -W -n com.ledinhtien.ttube/com.carhud.aaproxy.MainActivity | tee smoke-artifacts/launch.txt
+adb shell am start -W -n com.ledinhtien.tubepro/com.carhud.aaproxy.MainActivity | tee smoke-artifacts/launch.txt
 sleep 12
 adb logcat -b crash -d > smoke-artifacts/crash.log
 adb shell dumpsys activity activities > smoke-artifacts/activities.txt

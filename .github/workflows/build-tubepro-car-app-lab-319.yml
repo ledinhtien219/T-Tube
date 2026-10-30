@@ -202,6 +202,22 @@ jobs:
         run: ./gradlew lintDebug --stacktrace --no-daemon
       - name: Build debug APK and verify boot
         run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Package installable TubePro test APK
+        run: |
+          set -euo pipefail
+          mkdir -p build-output
+          cp app/build/outputs/apk/debug/*.apk build-output/TubePro_1.1.21_build319_DEBUG.apk
+          test -s build-output/TubePro_1.1.21_build319_DEBUG.apk
+          sha256sum build-output/* > build-output/SHA256SUMS.txt
+          echo 'DEBUG ONLY - NOT FOR PLAY' > build-output/TEST_ONLY.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TubePro319-debug-APK
+          path: build-output/*
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Enable KVM
         shell: bash
         run: |
@@ -226,17 +242,3 @@ jobs:
           path: smoke-artifacts/**
           if-no-files-found: ignore
           retention-days: 7
-      - name: Package installable TubePro test APK
-        run: |
-          set -euo pipefail
-          mkdir -p build-output
-          cp app/build/outputs/apk/debug/*.apk build-output/TubePro_1.1.21_build319_DEBUG.apk
-          test -s build-output/TubePro_1.1.21_build319_DEBUG.apk
-          sha256sum build-output/* > build-output/SHA256SUMS.txt
-          echo 'DEBUG ONLY - NOT FOR PLAY' > build-output/TEST_ONLY.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: TubePro319-debug-APK
-          path: build-output/*
-          if-no-files-found: error
-          retention-days: 14
