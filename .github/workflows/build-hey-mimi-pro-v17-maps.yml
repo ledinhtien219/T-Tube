@@ -1,4 +1,4 @@
-name: Hey Mimi Pro v17 build318 — Recover PiP video recommendations
+name: Hey Mimi Pro v17 build318 — Fix Google Maps voice routing
 on:
   push:
     branches:
@@ -140,7 +140,7 @@ jobs:
           set -euo pipefail
           base64 --decode ci/hey-mimi/v15-pip-recovery.tar.gz.b64 | tar -xz -C .
           python3 ci/hey-mimi/v15-apply.py
-          node --test tests/hey-mimi-pro-v17-pip-recovery.test.cjs
+          node --test tests/hey-mimi-pro-v15-pip-recovery.test.cjs
           grep -q 'versionCode = 316' app/build.gradle.kts
       - name: Apply v16 Pro natural-language and voice UX upgrades
         shell: bash
