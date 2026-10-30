@@ -1,0 +1,468 @@
+--- /dev/null
++++ b/HEY_MIMI_PRO_V16_README.md
+@@ -0,0 +1,5 @@
++# Hey Mimi Pro v16 — 1.1.19 (build 317)
++
++Tính năng triển khai: lệnh `Hỏi AI ...` tách khỏi tìm kiếm media; `Tìm nhạc ...` ưu tiên YouTube; chế độ hiển thị danh sách kết quả (mặc định không tự phát), bật/tắt phản hồi nhanh, kích thước avatar Mimi; bấm đúp Prev để gọi tìm kiếm giọng nói (mặc định tắt); `Mimi về trang chủ`.
++
++Giới hạn: bấm đúp Prev chỉ nhận trên đầu xe chuyển sự kiện KEYCODE_MEDIA_PREVIOUS/MediaSession. Lệnh `chia 2/3 màn hình` thông báo chưa hỗ trợ. Chưa tích hợp hotword offline thật. Cần xác nhận trên DHU khi xe đang đỗ. Giữ đúng upload key Google Play đã đăng ký; không bao giờ nhúng API key vào mã APK.
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -12,8 +12,8 @@
+         applicationId = "com.ledinhtien.ttube"
+         minSdk = 29
+         targetSdk = 36
+-        versionCode = 316
+-        versionName = "1.1.18"
++        versionCode = 317
++        versionName = "1.1.19"
+ 
+         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+     }
+--- a/app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt
++++ b/app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt
+@@ -15,6 +15,11 @@
+     const val PREF_AI_ENDPOINT = "assistant_ai_endpoint"
+     const val PREF_AI_TOKEN = "assistant_ai_proxy_token"
+     const val PREF_CONTEXT_ENABLED = "assistant_ai_context_enabled"
++    const val PREF_PREFER_YOUTUBE_MUSIC = "assistant_prefer_youtube_music"
++    const val PREF_VOICE_AUTOPLAY = "assistant_voice_autoplay_first"
++    const val PREF_FAST_REPLY = "assistant_fast_reply"
++    const val PREF_BUBBLE_SCALE = "assistant_bubble_scale"
++
+ 
+     private fun prefs(c: Context) = c.applicationContext.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
+ 
+@@ -33,4 +38,9 @@
+     fun aiEndpoint(c: Context) = prefs(c).getString(PREF_AI_ENDPOINT, "")?.trim().orEmpty()
+     fun aiProxyToken(c: Context) = prefs(c).getString(PREF_AI_TOKEN, "").orEmpty()
+     fun contextEnabled(c: Context) = prefs(c).getBoolean(PREF_CONTEXT_ENABLED, false)
++    fun preferYouTubeMusic(c: Context) = prefs(c).getBoolean(PREF_PREFER_YOUTUBE_MUSIC, true)
++    fun voiceAutoplay(c: Context) = prefs(c).getBoolean(PREF_VOICE_AUTOPLAY, false)
++    fun fastReply(c: Context) = prefs(c).getBoolean(PREF_FAST_REPLY, true)
++    fun bubbleScale(c: Context) = prefs(c).getInt(PREF_BUBBLE_SCALE, 100).coerceIn(70, 140)
++
+ }
+--- a/app/src/main/java/com/carhud/aaproxy/CarMediaBrowserService.kt
++++ b/app/src/main/java/com/carhud/aaproxy/CarMediaBrowserService.kt
+@@ -160,12 +160,7 @@
+                                         }
+                                     }
+                                     android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+-                                        val action = prefs.getString(SettingsActivity.KEY_STEERING_PREV_ACTION, "prev")
+-                                        if (action == "voice") {
+-                                            CarMediaManager.startGlobalVoiceSearch(this@CarMediaBrowserService)
+-                                        } else {
+-                                            CarMediaManager.playPrevious()
+-                                        }
++                                        CarMediaManager.handleSteeringPrevious(this@CarMediaBrowserService, ke)
+                                         return true
+                                     }
+                                     android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
+@@ -209,13 +204,7 @@
+                     }
+ 
+                     override fun onSkipToPrevious() {
+-                        val prefs = getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
+-                        val action = prefs.getString(SettingsActivity.KEY_STEERING_PREV_ACTION, "prev")
+-                        if (action == "voice") {
+-                            CarMediaManager.startGlobalVoiceSearch(this@CarMediaBrowserService)
+-                        } else {
+-                            CarMediaManager.playPrevious()
+-                        }
++                        CarMediaManager.handleSteeringPrevious(this@CarMediaBrowserService)
+                     }
+ 
+                     override fun onPlayFromMediaId(mediaId: String?, extras: Bundle?) {
+--- a/app/src/main/java/com/carhud/aaproxy/CarMediaManager.kt
++++ b/app/src/main/java/com/carhud/aaproxy/CarMediaManager.kt
+@@ -66,6 +66,15 @@
+             cancel
+         }
+     )
++    private val steeringPreviousHandler = SteeringNextPressHandler(
++        clock = { android.os.SystemClock.uptimeMillis() },
++        schedule = { delay, action ->
++            val task = Runnable { action() }
++            mainHandler.postDelayed(task, delay)
++            val cancel: () -> Unit = { mainHandler.removeCallbacks(task) }
++            cancel
++        }
++    )
+     private var wakeLock: PowerManager.WakeLock? = null
+ 
+     var isPlaying = false
+@@ -99,6 +108,7 @@
+         mediaOwnerGeneration += 1L
+         activeAppId = appId
+         cancelPendingSteeringNext()
++        steeringPreviousHandler.cancelPending()
+         // A delayed callback from the previous shared-WebView page must never own
+         // transport state after an app switch.
+         userWantsPlayback = false
+@@ -997,6 +1007,26 @@
+         else mainHandler.post { steeringNextHandler.cancelPending() }
+     }
+ 
++    internal fun handleSteeringPrevious(context: Context, event: android.view.KeyEvent? = null) {
++        val appContext = context.applicationContext
++        val source = if (event == null) SteeringNextPressHandler.Source.TRANSPORT else SteeringNextPressHandler.Source.KEY_EVENT
++        val handle = Runnable {
++            val prefs = appContext.getSharedPreferences(SettingsActivity.PREFS, Context.MODE_PRIVATE)
++            val appAtPress = activeAppId
++            steeringPreviousHandler.press(
++                source = source,
++                keyDownTime = event?.downTime,
++                repeatCount = event?.repeatCount ?: 0,
++                doubleClickVoice = prefs.getBoolean(SettingsActivity.KEY_STEERING_DOUBLE_PREV_MIMI, false),
++                windowMs = prefs.getInt(SettingsActivity.KEY_STEERING_DOUBLE_CLICK_SPEED, 500).toLong(),
++                singlePressVoice = prefs.getString(SettingsActivity.KEY_STEERING_PREV_ACTION, "prev") == "voice",
++                onSingle = { if (activeAppId == appAtPress) playPrevious() },
++                onVoice = { startGlobalVoiceSearch(appContext) }
++            )
++        }
++        if (Looper.myLooper() == Looper.getMainLooper()) handle.run() else mainHandler.post(handle)
++    }
++
+     fun playNext() {
+         mainHandler.post {
+             try {
+--- a/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
++++ b/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
+@@ -2356,6 +2356,36 @@
+             return
+         }
+         val afterWake = heyMimiConversation.consume(now) || mimiTapSession.also { mimiTapSession = false }
++        val proRoute = if (AssistantConfig.isEnabled(context)) MimiProVoiceRouter.route(
++            query, AssistantConfig.name(context), afterWake, AssistantConfig.preferYouTubeMusic(context)
++        ) else MimiProVoiceRouter.Route.None
++        when (proRoute) {
++            is MimiProVoiceRouter.Route.AskAi -> {
++                hideSearchOverlay()
++                if (proRoute.question.isBlank()) {
++                    showAssistantBanner("Bạn hãy nói: Hỏi AI, rồi đặt câu hỏi nhé.")
++                } else {
++                    // Explicit AI route is independent of current web app; never search TikTok.
++                    val addressedQuestion = "${AssistantConfig.name(context)} ${proRoute.question}"
++                    if (!mimiSmartAssistant.tryHandle(addressedQuestion, true) { showAssistantBanner(it) })
++                        showAssistantBanner("Mimi không xử lý được câu hỏi AI này.")
++                }
++                return
++            }
++            MimiProVoiceRouter.Route.Home -> {
++                hideSearchOverlay()
++                showDashboard()
++                showAssistantBanner("Đã trở về trang chủ T-Tube.")
++                return
++            }
++            MimiProVoiceRouter.Route.SplitUnavailable -> {
++                hideSearchOverlay()
++                showAssistantBanner("T-Tube chưa hỗ trợ chia nhiều màn hình trong phiên Android Auto này.")
++                return
++            }
++            else -> Unit
++        }
++        val proMusicSearch = (proRoute as? MimiProVoiceRouter.Route.SearchYouTube)?.query
+ 
+         // Maps is a native navigation app, NOT a WebAppItem. Handle the explicit
+         // command before any TikTok/browser search or generic web app routing.
+@@ -2411,7 +2441,7 @@
+         // Trợ lý đi trước luồng cũ. Ở TikTok/trình duyệt, giọng nói bình thường
+         // vẫn là tìm kiếm; riêng câu sau "Hey Mimi" là lệnh trợ lý.
+         val voiceIsSearchBox = !isDashboardShowing && (currentActiveAppId == "tiktok" || isBrowserApp())
+-        if (TtubeAssistant.handle(assistantHost, query, requireWake = voiceIsSearchBox && !afterWake)) {
++        if (proMusicSearch == null && TtubeAssistant.handle(assistantHost, query, requireWake = voiceIsSearchBox && !afterWake)) {
+             hideSearchOverlay()
+             return
+         }
+@@ -2464,7 +2494,7 @@
+         val explicitMedia = addressed && (
+             Regex("""^(?:vtv\d+|htv\d+|vtc\d+)(?:\b|$)""").containsMatchIn(folded) ||
+             Regex("""^(?:cho |hay |giup toi |giup minh )?(?:phat|mo|bat|xem|nghe|tim|choi|tim kiem|cho toi xem) (?:cho )?(?:nhac|bai|video|clip|youtube|kenh|tivi|truyen hinh|vtv\d*|htv\d*)\b""").containsMatchIn(folded)
+-        )
++        ) || proMusicSearch != null
+         // Small offline replies are safe and never open an unrelated video.
+         if (addressed && AssistantConfig.isEnabled(context) && !explicitMedia) {
+             MimiEverydayPhrases.reply(commandText)?.let { answer ->
+@@ -2541,7 +2571,8 @@
+ 
+         // Strip conversational media verbs ("phát", "mở bài hát", "nghe"...)
+         // before YouTube search so the result behaves more like Google Assistant.
+-        val mediaQuery = VoiceQueryResolver.cleanForMediaSearch(if (addressed) commandText else query)
++        val mediaQuery = proMusicSearch ?: VoiceQueryResolver.cleanForMediaSearch(if (addressed) commandText else query)
++        val voiceAutoplay = AssistantConfig.voiceAutoplay(context)
+ 
+         searchInput.setText(mediaQuery)
+         searchInput.setSelection(mediaQuery.length)
+@@ -2554,17 +2585,18 @@
+                 android.net.Uri.encode(mediaQuery)
+             switchWebApp(ytApp, embedded = isDashboardShowing, startUrl = target)
+             CarMediaManager.userWantsPlayback = true
+-            pendingVoiceYoutubeQuery = mediaQuery
+-            pendingVoiceYoutubeGeneration = appTransitions.generation
++            pendingVoiceYoutubeQuery = if (voiceAutoplay) mediaQuery else null
++            pendingVoiceYoutubeGeneration = if (voiceAutoplay) appTransitions.generation else -1L
+         } else {
+             CarMediaManager.userWantsPlayback = true
+             if (isDashboardShowing && (dashboardView?.isEmbeddedAppShowing() != true)) {
+                 showWebFullscreen()
+             }
+-            YouTubePlayerHelper.search(web, mediaQuery, autoPlayFirst = true)
+-        }
+-        CarMediaManager.notifyVoiceState(VoiceSearchManager.State.SUCCESS, "Đang phát: $mediaQuery")
+-        updateVoiceState(VoiceSearchManager.State.SUCCESS, "Đang phát: $mediaQuery")
++            YouTubePlayerHelper.search(web, mediaQuery, autoPlayFirst = voiceAutoplay)
++        }
++        val mediaStatus = if (voiceAutoplay) "Đang tìm và phát: $mediaQuery" else "Danh sách YouTube: $mediaQuery. Chạm chọn video."
++        CarMediaManager.notifyVoiceState(VoiceSearchManager.State.SUCCESS, mediaStatus)
++        updateVoiceState(VoiceSearchManager.State.SUCCESS, mediaStatus)
+         hideSearchOverlay()
+     }
+ 
+@@ -5557,7 +5589,7 @@
+                     return true
+                 }
+                 KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+-                    CarMediaManager.playPrevious()
++                    CarMediaManager.handleSteeringPrevious(context, event)
+                     return true
+                 }
+                 KeyEvent.KEYCODE_MEDIA_PLAY,
+--- a/app/src/main/java/com/carhud/aaproxy/MimiAssistantPanel.kt
++++ b/app/src/main/java/com/carhud/aaproxy/MimiAssistantPanel.kt
+@@ -164,6 +164,7 @@
+         addView(bubble, LayoutParams(d(66), d(81), Gravity.CENTER_VERTICAL or Gravity.END).apply {
+             marginEnd = d(16)
+         })
++        applyBubbleSize()
+ 
+         var downRawX = 0f
+         var downRawY = 0f
+@@ -203,6 +204,18 @@
+         }
+     }
+ 
++    private fun applyBubbleSize() {
++        val scale = AssistantConfig.bubbleScale(context) / 100f
++        val params = bubble.layoutParams as? LayoutParams ?: return
++        val width = d((66 * scale).toInt())
++        val height = d((81 * scale).toInt())
++        if (params.width != width || params.height != height) {
++            params.width = width
++            params.height = height
++            bubble.layoutParams = params
++        }
++    }
++
+     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+         super.onSizeChanged(w, h, oldw, oldh)
+         if (w > 0) {
+@@ -322,6 +335,7 @@
+      */
+     fun showReadyBubble() {
+         if (released) return
++        applyBubbleSize()
+         if (mode != Mode.HIDDEN && mode != Mode.COLLAPSED) return
+         handler.removeCallbacks(autoCollapse)
+         captureDeadlineMs = 0L
+--- /dev/null
++++ b/app/src/main/java/com/carhud/aaproxy/MimiProVoiceRouter.kt
+@@ -0,0 +1,43 @@
++package com.carhud.aaproxy
++
++/** V16: classify explicit AI vs media commands before TikTok/browser search routing.
++ * This only selects routing; remote model never executes app or vehicle commands.
++ */
++internal object MimiProVoiceRouter {
++    sealed class Route {
++        data class AskAi(val question: String) : Route()
++        data class SearchYouTube(val query: String) : Route()
++        object Home : Route()
++        object SplitUnavailable : Route()
++        object None : Route()
++    }
++
++    fun route(raw: String, assistantName: String, addressedByTap: Boolean, preferMusicYouTube: Boolean): Route {
++        val spoken = AssistantIntentParser.stripWake(raw.trim(), assistantName).trim()
++        val folded = AssistantIntentParser.fold1to1(spoken).lowercase()
++            .replace(Regex("""\s+"""), " ").trim()
++        val addressed = addressedByTap || AssistantIntentParser.hasWake(raw, assistantName)
++        // Deliberate 'Hỏi AI' is an unambiguous privacy opt-in, even inside TikTok.
++        val ai = Regex("""^(?:hoi ai|hoi tro ly ai|hoi mimi ai|tro chuyen voi ai|ai oi)\s*[:,]?\s*(.*)$""").matchEntire(folded)
++        if (ai != null) {
++            val start = ai.groups[1]?.range?.first ?: spoken.length
++            val question = spoken.substring(start.coerceIn(0, spoken.length)).trim().trimStart(',', ':', ' ')
++            return Route.AskAi(question)
++        }
++        if (addressed && Regex("""^(?:ve trang chu|quay ve trang chu|mo trang chu|ve t tube|quay lai dashboard)(?:\s+(?:di|nhe))?$""").matches(folded)) {
++            return Route.Home
++        }
++        if (addressed && Regex("""^(?:chia|mo)\s+(?:2|3|hai|ba)\s+man hinh(?:\s+(?:di|nhe))?$""").matches(folded)) {
++            return Route.SplitUnavailable
++        }
++        if (preferMusicYouTube || addressed) {
++            val media = Regex("""^(?:tim nhac|tim bai hat|tim ca khuc|tim video nhac|tim youtube)\s+(.+)$""").matchEntire(folded)
++            if (media != null) {
++                val start = media.groups[1]?.range?.first ?: spoken.length
++                val query = spoken.substring(start.coerceIn(0, spoken.length)).trim()
++                if (query.isNotBlank()) return Route.SearchYouTube(query)
++            }
++        }
++        return Route.None
++    }
++}
+--- a/app/src/main/java/com/carhud/aaproxy/MimiSmartAssistant.kt
++++ b/app/src/main/java/com/carhud/aaproxy/MimiSmartAssistant.kt
+@@ -76,7 +76,8 @@
+                         while (recent.size > 2) recent.removeFirst()
+                     } else if (!useContext || !AssistantConfig.contextEnabled(context)) recent.clear()
+                     val responseText = answer ?: MimiAiConnectionPolicy.messageForFailure(result.exceptionOrNull())
+-                    reply(show, MimiAiPolicy.shortReply(responseText))
++                    val maxChars = if (AssistantConfig.fastReply(context)) 190 else 340
++                    reply(show, MimiAiPolicy.shortReply(responseText).take(maxChars))
+                 }
+             }
+         }, "mimi-ai-https").start()
+--- a/app/src/main/java/com/carhud/aaproxy/SettingsActivity.kt
++++ b/app/src/main/java/com/carhud/aaproxy/SettingsActivity.kt
+@@ -68,6 +68,7 @@
+         const val KEY_STEERING_PREV_ACTION = "steering_prev_action" // "prev", "voice"
+         const val KEY_STEERING_DOUBLE_CLICK_VOICE = "steering_double_click_voice"
+         const val KEY_STEERING_DOUBLE_PLAY_VOICE = "steering_double_play_voice"
++        const val KEY_STEERING_DOUBLE_PREV_MIMI = "steering_double_prev_mimi"
+         const val KEY_STEERING_DOUBLE_CLICK_SPEED = "steering_double_click_speed" // 300, 500, 700 ms
+ 
+         // Theme Mode (Auto / Day / Night)
+@@ -910,6 +911,38 @@
+                 ))
+                 content.addView(createSeparator())
+                 content.addView(createSwitchRow(
++                    "Ưu tiên tìm nhạc trên YouTube",
++                    "Nói 'Tìm nhạc...' ngay cả khi đang ở TikTok; không mở nhầm tìm kiếm TikTok.",
++                    AssistantConfig.PREF_PREFER_YOUTUBE_MUSIC, true
++                ))
++                content.addView(createSwitchRow(
++                    "Tự phát kết quả YouTube đầu tiên",
++                    "Mặc định tắt: hiện danh sách video để chạm chọn, kể cả khi gọi Mimi.",
++                    AssistantConfig.PREF_VOICE_AUTOPLAY, false
++                ))
++                content.addView(createSwitchRow(
++                    "Mimi phản hồi nhanh",
++                    "Đọc câu trả lời AI ngắn hơn, giảm mất tập trung khi lái xe.",
++                    AssistantConfig.PREF_FAST_REPLY, true
++                ))
++                content.addView(settingCard(
++                    title = "KÍCH THƯỚC BONG BÓNG MIMI",
++                    subtitle = "Chỉnh 70%, 85%, 100%, 120% hoặc 140% trên màn hình xe.",
++                    badgeText = "${AssistantConfig.bubbleScale(this@SettingsActivity)}%",
++                    onClick = {
++                        val options = arrayOf("70% - Nhỏ", "85% - Gọn", "100% - Chuẩn", "120% - Lớn", "140% - Rất lớn")
++                        val values = intArrayOf(70, 85, 100, 120, 140)
++                        val index = values.indexOf(AssistantConfig.bubbleScale(this@SettingsActivity)).coerceAtLeast(0)
++                        AlertDialog.Builder(this@SettingsActivity)
++                            .setTitle("Kích thước bong bóng Mimi")
++                            .setSingleChoiceItems(options, index) { dialog, which ->
++                                prefs.edit().putInt(AssistantConfig.PREF_BUBBLE_SCALE, values[which]).apply()
++                                dialog.dismiss()
++                                recreate()
++                            }.setNegativeButton("Đóng", null).show()
++                    }
++                ))
++                content.addView(createSwitchRow(
+                     "Mimi AI (tùy chọn)",
+                     "Chỉ gửi câu gọi Mimi rõ ràng tới máy chủ HTTPS riêng. Mặc định TẮT.",
+                     AssistantConfig.PREF_AI_ENABLED, false
+@@ -1099,6 +1132,11 @@
+                     )
+                 )
+ 
++                content.addView(createSwitchRow(
++                    "Bấm đúp Prev để gọi Mimi (tùy chọn)",
++                    "Mặc định tắt để giữ hành vi lùi bài; bấm một lần vẫn lùi bài.",
++                    KEY_STEERING_DOUBLE_PREV_MIMI, false
++                ))
+                 content.addView(createSeparator())
+ 
+                 val currentSpeed = prefs.getInt(KEY_STEERING_DOUBLE_CLICK_SPEED, 500)
+--- /dev/null
++++ b/app/src/test/java/com/carhud/aaproxy/MimiProVoiceRouterTest.kt
+@@ -0,0 +1,28 @@
++package com.carhud.aaproxy
++
++import org.junit.Assert.*
++import org.junit.Test
++
++class MimiProVoiceRouterTest {
++    @Test fun explicitAiNeverGoesToTikTokOrYoutubeSearch() {
++        val a = MimiProVoiceRouter.route("Hỏi AI, giải thích cầu vồng", "Mimi", false, true)
++        assertTrue(a is MimiProVoiceRouter.Route.AskAi)
++        assertEquals("giải thích cầu vồng", (a as MimiProVoiceRouter.Route.AskAi).question)
++        assertTrue(MimiProVoiceRouter.route("Mimi hỏi AI kể chuyện", "Mimi", false, false) is MimiProVoiceRouter.Route.AskAi)
++        assertTrue(MimiProVoiceRouter.route("hỏi ai", "Mimi", false, true) is MimiProVoiceRouter.Route.AskAi)
++    }
++    @Test fun musicSearchIsExplicitAndOptIn() {
++        val a = MimiProVoiceRouter.route("Tìm nhạc Trịnh Công Sơn", "Mimi", false, true)
++        assertEquals("Trịnh Công Sơn", (a as MimiProVoiceRouter.Route.SearchYouTube).query)
++        assertTrue(MimiProVoiceRouter.route("Tìm nhạc Trịnh Công Sơn", "Mimi", false, false) is MimiProVoiceRouter.Route.None)
++        assertTrue(MimiProVoiceRouter.route("Mimi tìm nhạc remix", "Mimi", false, false) is MimiProVoiceRouter.Route.SearchYouTube)
++        assertTrue(MimiProVoiceRouter.route("tìm video hướng dẫn Google Maps", "Mimi", false, true) is MimiProVoiceRouter.Route.None)
++    }
++    @Test fun homeAndUnsupportedSplitAreNotAccidentalCommands() {
++        assertTrue(MimiProVoiceRouter.route("Mimi về trang chủ", "Mimi", false, true) is MimiProVoiceRouter.Route.Home)
++        assertTrue(MimiProVoiceRouter.route("chia 3 màn hình", "Mimi", false, true) is MimiProVoiceRouter.Route.None)
++        assertTrue(MimiProVoiceRouter.route("Mimi chia 3 màn hình", "Mimi", false, true) is MimiProVoiceRouter.Route.SplitUnavailable)
++        assertTrue(MimiProVoiceRouter.route("phát video chia 3 màn hình", "Mimi", true, true) is MimiProVoiceRouter.Route.None)
++        assertTrue(MimiProVoiceRouter.route("Mimi mở YouTube", "Mimi", false, true) is MimiProVoiceRouter.Route.None)
++    }
++}
+--- a/tests/hey-mimi-pro-v15-pip-recovery.test.cjs
++++ b/tests/hey-mimi-pro-v15-pip-recovery.test.cjs
+@@ -102,7 +102,7 @@
+ });
+ test('source version changes and preserves existing routing, AI and PiP video host',()=>{
+   const gradle=fs.readFileSync('app/build.gradle.kts','utf8');
+-  assert.match(gradle,/versionCode = 316/);assert.match(gradle,/versionName = "1\.1\.18"/);
++  assert.match(gradle,/versionCode = 317/);assert.match(gradle,/versionName = "1\.1\.19"/);
+   assert.match(js,/pinMiniPlayerHost\(\)/);assert.match(js,/syncRecommendationPane\(pip\)/);
+   assert.doesNotMatch(section,/document\.createElement\('iframe'\)/);
+ });
+--- /dev/null
++++ b/tests/hey-mimi-pro-v16-upgrades.test.cjs
+@@ -0,0 +1,37 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++const dir = path.join(__dirname,'..','app','src','main','java','com','carhud','aaproxy');
++const read = name=>fs.readFileSync(path.join(dir,name),'utf8');
++const presentation = read('CarPresentation.kt');
++const config = read('AssistantConfig.kt');
++const settings = read('SettingsActivity.kt');
++const media = read('CarMediaManager.kt');
++test('explicit AI is handled before TikTok or browser fallback',()=>{
++ const ai = presentation.indexOf('MimiProVoiceRouter.Route.AskAi');
++ const tiktok = presentation.indexOf('if (currentActiveAppId == "tiktok" && !isDashboardShowing && !explicitMedia)');
++ assert.ok(ai > 0 && ai < tiktok);
++ assert.match(presentation,/mimiSmartAssistant\.tryHandle\(addressedQuestion, true\)/);
++});
++test('YouTube search does not auto-play without consent',()=>{
++ assert.match(config,/PREF_VOICE_AUTOPLAY, false/);
++ assert.match(presentation,/pendingVoiceYoutubeQuery = if \(voiceAutoplay\) mediaQuery else null/);
++ assert.match(presentation,/autoPlayFirst = voiceAutoplay/);
++ assert.match(settings,/Tự phát kết quả YouTube đầu tiên/);
++});
++test('Mimi double Prev key can be enabled without changing single Prev default',()=>{
++ assert.match(settings,/KEY_STEERING_DOUBLE_PREV_MIMI/);
++ assert.match(media,/handleSteeringPrevious\(context: Context/);
++ assert.match(media,/KEY_STEERING_DOUBLE_PREV_MIMI, false/);
++ assert.match(read('CarMediaBrowserService.kt'),/handleSteeringPrevious\(this@CarMediaBrowserService/);
++});
++test('assistant bubble size and fast reply have real implementation',()=>{
++ assert.match(read('MimiAssistantPanel.kt'),/applyBubbleSize\(\)/);
++ assert.match(read('MimiSmartAssistant.kt'),/if \(AssistantConfig.fastReply\(context\)\) 190 else 340/);
++ assert.match(settings,/KÍCH THƯỚC BONG BÓNG MIMI/);
++});
++test('unsupported split-screen is not faked as an AI action',()=>{
++ assert.match(presentation,/T-Tube chưa hỗ trợ chia nhiều màn hình/);
++ assert.match(read('MimiProVoiceRouter.kt'),/SplitUnavailable/);
++});

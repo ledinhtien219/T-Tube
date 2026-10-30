@@ -1,0 +1,238 @@
+--- a/app/src/main/java/com/carhud/aaproxy/AssistantNavigator.kt
++++ b/app/src/main/java/com/carhud/aaproxy/AssistantNavigator.kt
+@@ -1,13 +1,10 @@
+ package com.carhud.aaproxy
+ 
+-import android.app.ActivityOptions
+-import android.app.PendingIntent
+ import android.content.Context
+ import android.content.ContextWrapper
+ import androidx.car.app.CarContext
+ import android.content.Intent
+ import android.net.Uri
+-import android.os.Build
+ import java.net.URLEncoder
+ 
+ /** Mở app dẫn đường (Waze / Google Maps) với đích đến bằng tên hoặc toạ độ. */
+@@ -15,8 +12,12 @@
+     private val wazePackages = listOf("com.waze.mod", "com.waze")
+     private const val GMAPS = "com.google.android.apps.maps"
+ 
+-    private fun installed(c: Context, pkg: String) =
+-        try { c.packageManager.getLaunchIntentForPackage(pkg) != null } catch (_: Throwable) { false }
++    private fun installed(c: Context, pkg: String): Boolean = try {
++        // Some navigation apps have no CATEGORY_LAUNCHER activity or hide one on
++        // newer phones; a null launchIntent does NOT mean the package is absent.
++        @Suppress("DEPRECATION")
++        c.packageManager.getPackageInfo(pkg, 0) != null
++    } catch (_: Exception) { false }
+ 
+     private fun wazePkg(c: Context) = wazePackages.firstOrNull { installed(c, it) }
+ 
+@@ -46,11 +47,20 @@
+         }
+     }
+ 
+-    /** A bare "Open Maps" cannot be sent via ACTION_NAVIGATE without inventing a destination. */
++    /**
++     * "Open Google Maps" has no destination, therefore ACTION_NAVIGATE cannot
++     * be used without inventing a route. Try native Maps launcher first, then
++     * the documented geo: URI handler. Neither can forcibly change Android
++     * Auto's foreground app from T-Tube's legacy projection service.
++     */
+     fun openMaps(context: Context): Result {
+-        val launchIntent = try { context.packageManager.getLaunchIntentForPackage(GMAPS) } catch (_: Exception) { null }
+-            ?: return Result.UNAVAILABLE
+-        return if (launch(context, launchIntent)) Result.PHONE_APP else Result.UNAVAILABLE
++        if (!installed(context, GMAPS)) return Result.UNAVAILABLE
++        val main = try { context.packageManager.getLaunchIntentForPackage(GMAPS) } catch (_: Exception) { null }
++        if (main != null && launch(context, main)) return Result.PHONE_APP
++        val geo = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0"))
++            .setPackage(GMAPS)
++            .addCategory(Intent.CATEGORY_DEFAULT)
++        return if (launch(context, geo)) Result.PHONE_APP else Result.UNAVAILABLE
+     }
+ 
+     fun navigateDetailed(c: Context, destination: String? = null, lat: Double? = null, lon: Double? = null, walking: Boolean = false): Result {
+@@ -72,11 +82,7 @@
+         val pref = AssistantConfig.navApp(c)
+         val waze = wazePkg(c)
+         val gmaps = installed(c, GMAPS)
+-        val order = when (pref) {
+-            "waze" -> listOf("waze", "gmaps")
+-            "gmaps" -> listOf("gmaps", "waze")
+-            else -> if (walking) listOf("gmaps", "waze") else listOf("waze", "gmaps") // Waze không có chế độ đi bộ
+-        }
++        val order = MimiNavigationPriority.preferredApps(pref, walking)
+         for (which in order) {
+             val intent = when {
+                 which == "waze" && waze != null -> wazeIntent(waze, destination, lat, lon)
+@@ -103,23 +109,13 @@
+ 
+     private fun launch(c: Context, intent: Intent): Boolean {
+         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++        // A successful Activity launch means Android accepted the phone intent,
++        // NOT that the car screen has switched to Maps. Never report CAR_HOST.
+         return try {
+-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+-                val opts = ActivityOptions.makeBasic().apply {
+-                    setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+-                }
+-                c.startActivity(intent, opts.toBundle())
+-            } else {
+-                c.startActivity(intent)
+-            }
++            c.startActivity(intent)
+             true
+-        } catch (_: Throwable) {
+-            try {
+-                PendingIntent.getActivity(c, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE).send()
+-                true
+-            } catch (_: Throwable) {
+-                false
+-            }
++        } catch (_: Exception) {
++            false
+         }
+     }
+ }
+--- a/app/src/main/java/com/carhud/aaproxy/MimiNavigationPriority.kt
++++ b/app/src/main/java/com/carhud/aaproxy/MimiNavigationPriority.kt
+@@ -0,0 +1,11 @@
++package com.carhud.aaproxy
++
++/** Predictable navigation preference; a voice route is not a media search. */
++internal object MimiNavigationPriority {
++    /** Google Maps is the default, Waze only wins when explicitly selected. */
++    fun preferredApps(preference: String, walking: Boolean): List<String> = when {
++        walking -> listOf("gmaps", "waze")
++        preference == "waze" -> listOf("waze", "gmaps")
++        else -> listOf("gmaps", "waze")
++    }
++}
+--- a/app/src/main/java/com/carhud/aaproxy/MimiMapsCommandRouter.kt
++++ b/app/src/main/java/com/carhud/aaproxy/MimiMapsCommandRouter.kt
+@@ -6,6 +6,21 @@
+     private val action = Regex("""^(?:mo|bat|vao|chuyen sang|chuyen qua|chuyen den|doi sang|goi|open|launch|xem)\s+(?:(?:ung dung|app)\s+)?(.+)$""")
+     private val tail = Regex("""(?:\s+(?:di|nhe|voi|nao|len|ngay|luon|giup toi|giup minh|cho toi|cho minh|duoc khong))+$""")
+     private val aliases = setOf("google maps", "google map", "gugol map", "gu gon map", "maps", "map", "ban do", "ban do google")
++    private val carScreenSuffix = Regex("""\s+(?:tren|o)\s+(?:android auto|man hinh xe|man hinh oto|xe oto)$""")
++    private val directRoute = Regex("""^(?:mo|bat|vao|chuyen sang|chuyen qua)\s+(?:(?:ung dung|app)\s+)?(?:google maps|google map|maps|map|ban do|ban do google)\s+(?:(?:roi|va)\s+)?(?:dan duong|chi duong|tim duong|navigate to|di den|den)\s+(?:(?:toi|den)\s+)?(.+)$""")
++
++    /** One utterance can open Maps AND provide a destination. Preserve Vietnamese accents. */
++    fun mapsDestination(query: String, assistantName: String): String? {
++        val source = AssistantIntentParser.stripWake(query, assistantName).trim()
++        val normalized = AssistantIntentParser.fold1to1(source)
++            .replace(Regex("""\s+"""), " ").trim()
++        val m = directRoute.matchEntire(normalized) ?: return null
++        // fold1to1 preserves NFC character positions; avoid index drift from
++        // whitespace compression by extracting from original source when possible.
++        val raw = source.replace(Regex("""\s+"""), " ").trim()
++        val place = raw.substring(m.groups[1]!!.range.first).trim().trimEnd('.', '!', '?', ',').trim()
++        return place.takeIf { it.isNotBlank() }
++    }
+ 
+     fun wantsMaps(query: String, assistantName: String, afterWake: Boolean = false): Boolean {
+         val addressed = afterWake || AssistantIntentParser.hasWake(query, assistantName)
+@@ -15,6 +30,6 @@
+             .replace(Regex("""\s+"""), " ").trim().replace(lead, "")
+         val target = action.matchEntire(norm)?.groupValues?.get(1)
+             ?: if (addressed) norm else return false
+-        return target.replace(tail, "").trim() in aliases
++        return target.replace(tail, "").replace(carScreenSuffix, "").trim() in aliases
+     }
+ }
+--- a/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
++++ b/app/src/main/java/com/carhud/aaproxy/CarPresentation.kt
+@@ -2387,6 +2387,22 @@
+         }
+         val proMusicSearch = (proRoute as? MimiProVoiceRouter.Route.SearchYouTube)?.query
+ 
++        // "Mimi mở Google Maps dẫn đường đến ..." must keep the destination.
++        // A bare app launch is never equivalent to starting navigation.
++        if (AssistantConfig.isEnabled(context)) {
++            val mapsPlace = MimiMapsCommandRouter.mapsDestination(query, AssistantConfig.name(context))
++            if (mapsPlace != null) {
++                cancelHeyMimiFollowUp()
++                hideSearchOverlay()
++                when (AssistantNavigator.navigateDetailed(context, destination = mapsPlace)) {
++                    AssistantNavigator.Result.CAR_HOST -> showAssistantBanner("Đã chuyển điểm đến $mapsPlace cho ứng dụng dẫn đường Android Auto.")
++                    AssistantNavigator.Result.PHONE_APP -> showAssistantBanner("Đã gửi $mapsPlace đến Maps trên điện thoại. Để xem trên màn xe, mở Maps trong Android Auto.")
++                    AssistantNavigator.Result.UNAVAILABLE -> showAssistantBanner("Không mở được ứng dụng bản đồ. Hãy kiểm tra Google Maps trên điện thoại.")
++                }
++                return
++            }
++        }
++
+         // Maps is a native navigation app, NOT a WebAppItem. Handle the explicit
+         // command before any TikTok/browser search or generic web app routing.
+         if (AssistantConfig.isEnabled(context) && MimiMapsCommandRouter.wantsMaps(
+@@ -2395,7 +2411,7 @@
+             hideSearchOverlay()
+             when (AssistantNavigator.openMaps(context)) {
+                 AssistantNavigator.Result.PHONE_APP ->
+-                    showAssistantBanner("Đã gửi yêu cầu mở Google Maps trên điện thoại. Nếu Maps chưa hiện trên màn xe, hãy chọn Maps trong Android Auto.")
++                    showAssistantBanner("Đã yêu cầu mở Google Maps trên điện thoại. Trong Android Auto, chọn biểu tượng Maps để chuyển màn hình xe.")
+                 else -> showAssistantBanner("Không tìm thấy Google Maps. Hãy cài hoặc bật Google Maps trên điện thoại.")
+             }
+             return
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -12,8 +12,8 @@
+         applicationId = "com.ledinhtien.ttube"
+         minSdk = 29
+         targetSdk = 36
+-        versionCode = 317
+-        versionName = "1.1.19"
++        versionCode = 318
++        versionName = "1.1.20"
+ 
+         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+     }
+--- a/app/src/test/java/com/carhud/aaproxy/MimiNavigationPriorityTest.kt
++++ b/app/src/test/java/com/carhud/aaproxy/MimiNavigationPriorityTest.kt
+@@ -0,0 +1,31 @@
++package com.carhud.aaproxy
++
++import org.junit.Assert.*
++import org.junit.Test
++
++class MimiNavigationPriorityTest {
++    @Test fun googleMapsIsDefaultAndWazePreferenceIsRespected() {
++        assertEquals(listOf("gmaps", "waze"), MimiNavigationPriority.preferredApps("auto", false))
++        assertEquals(listOf("gmaps", "waze"), MimiNavigationPriority.preferredApps("gmaps", false))
++        assertEquals(listOf("waze", "gmaps"), MimiNavigationPriority.preferredApps("waze", false))
++        assertEquals(listOf("gmaps", "waze"), MimiNavigationPriority.preferredApps("waze", true))
++    }
++    @Test fun directMapsRouteRetainsAccentedDestination() {
++        val cases = mapOf(
++            "Mimi mở Google Maps dẫn đường đến sân bay Nội Bài" to "sân bay Nội Bài",
++            "Hey Mimi, mở maps đến Hồ Gươm" to "Hồ Gươm",
++            "Mimi mở google maps rồi chỉ đường tới Bến xe Mỹ Đình" to "Bến xe Mỹ Đình",
++            "Mimi mở maps tìm đường đến Aeon Tân Phú" to "Aeon Tân Phú",
++            "Mimi tìm video hướng dẫn Maps" to null,
++            "Mimi mở YouTube" to null
++        )
++        for ((spoken, expected) in cases) {
++            assertEquals(spoken, expected, MimiMapsCommandRouter.mapsDestination(spoken, "Mimi"))
++        }
++    }
++    @Test fun mapsOnCarScreenIntentIsRecognizedWithoutHijackingVideo() {
++        assertTrue(MimiMapsCommandRouter.wantsMaps("Mimi mở Google Maps trên màn hình xe", "Mimi"))
++        assertTrue(MimiMapsCommandRouter.wantsMaps("Mimi mở Maps trên Android Auto", "Mimi"))
++        assertFalse(MimiMapsCommandRouter.wantsMaps("Mimi mở video Maps trên Android Auto", "Mimi"))
++    }
++}
+--- a/HEY_MIMI_PRO_V17_MAPS_FIX.md
++++ b/HEY_MIMI_PRO_V17_MAPS_FIX.md
+@@ -0,0 +1,10 @@
++# Hey Mimi Pro v17 — Google Maps / navigation repair (build 318)
++
++- Keeps Pro v16 media/AI/PiP commands.
++- Uses Maps before Waze in Auto navigation preference. Explicit Waze preference remains respected.
++- Handles compound `Mimi mở Google Maps dẫn đường đến ...` without losing destination.
++- Detects `mở Maps trên màn hình xe` and avoids routing it to TikTok or YouTube search.
++- Uses Maps launcher or geo intent as fallback, and checks installed package independently of launcher activity.
++- **Android Auto limitation**: T-Tube's active projection uses `CarActivityService`, **not** an AndroidX `CarContext` session. It cannot force another app to foreground on the car. Only `CarContext.startCarApp(ACTION_NAVIGATE)` can request car-side nav when a legitimate active `CarContext` is available. A phone intent is not confirmation of car-side screen switching.
++- For direct Maps display on car, user may need to select Maps on the Android Auto launcher while T-Tube submits location on the phone.
++- Test with car parked; keep navigation controls available in standard AA launcher.
