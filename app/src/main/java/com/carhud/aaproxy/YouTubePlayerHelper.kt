@@ -2488,6 +2488,16 @@ object YouTubePlayerHelper {
         } catch (_: Exception) {}
     }
 
+    /** Keep playback alive while showing the recommendation grid full-screen. */
+    fun hideMiniPlayer(view: WebView?) {
+        try {
+            view?.evaluateJavascript(
+                "(function(){if(window.__carhudHidePip)window.__carhudHidePip();})();",
+                null
+            )
+        } catch (_: Exception) {}
+    }
+
     fun setBrowseMode(view: WebView?, enabled: Boolean) {
         val js = if (enabled) "true" else "false"
         try {
