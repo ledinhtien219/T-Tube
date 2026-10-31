@@ -65,3 +65,15 @@ test('Fermata-style YouTube lifecycle reattaches per navigation without busy pol
   assert.match(adblock, /clickable = btn\.matches/);
   assert.doesNotMatch(adblock, /v\.playbackRate\s*=/);
 });
+
+test('Only known third-party ad hosts are intercepted; media and first-party player stay untouched', () => {
+  const src = read('YouTubeAdBlocker.kt');
+  assert.match(src, /if \(request\.isForMainFrame\) return null/);
+  assert.match(src, /if \(!request\.method\.equals\("GET"/);
+  assert.match(src, /if \(!isDedicatedAdHost\(host\)\) return null/);
+  assert.match(src, /host\.endsWith\("\.doubleclick\.net"\)/);
+  assert.match(src, /host\.endsWith\("\.googlesyndication\.com"\)/);
+  assert.match(src, /host\.endsWith\("\.googleadservices\.com"\)/);
+  assert.match(src, /return createEmptyResponse\(\)/);
+  assert.doesNotMatch(src, /fun shouldIntercept[\s\S]*?return isAdUrl\(uri\)/);
+});
