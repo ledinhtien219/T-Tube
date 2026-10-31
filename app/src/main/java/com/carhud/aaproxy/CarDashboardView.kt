@@ -757,8 +757,15 @@ class CarDashboardView(
             val file = customPath?.let(::File)
             "$type|$customPath|$revision|${file?.lastModified()}|${file?.length()}"
         } else type
-        // Returning home must not decode the same image or restart its layers.
-        if (isStatic && staticWallpaperSignature == signature) return
+        // A custom image is decoded asynchronously. After a reverse-camera
+        // transition its job may have been cancelled before a drawable appeared.
+        // Do not treat a matching preference signature as proof that it rendered.
+        val customImage = type == WALLPAPER_CUSTOM && customKind == WALLPAPER_KIND_IMAGE
+        val customImageVisible = dashboardBackground.drawable != null &&
+            dashboardBackground.visibility == View.VISIBLE
+        val customImageLoading = wallpaperImageJob?.isActive == true
+        if (isStatic && staticWallpaperSignature == signature &&
+            (!customImage || customImageVisible || customImageLoading)) return
         staticWallpaperSignature = if (isStatic) signature else null
         stopDynamicWallpaper()
         forceWallpaperLayersFullscreen()
@@ -835,6 +842,9 @@ class CarDashboardView(
                     return@withContext
                 }
                 if (bitmap == null) {
+                    // Keep the selected custom path for a later retry. A failed
+                    // decode must not lock the wallpaper cache to a blank frame.
+                    staticWallpaperSignature = null
                     applyBugattiDefault()
                     return@withContext
                 }
