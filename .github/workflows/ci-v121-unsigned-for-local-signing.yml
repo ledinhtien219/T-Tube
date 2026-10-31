@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ttube-mimi-pro-v17-${{ github.ref }}
+  group: ttube-v121-unsigned-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
