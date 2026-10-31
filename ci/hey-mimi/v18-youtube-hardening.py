@@ -134,6 +134,79 @@ once(
         function handleWatchPage() {""",
     "grid-selection-reopens-player",
 )
+
+# Match the actual direct-card parent, including YouTube mobile wrappers.
+once(
+    "                syncRecommendationPane(pip || hiddenPip);",
+    "                syncRecommendationPane(pip || hiddenPip);\n"
+    "                syncCarhudFourByFour(hiddenPip);",
+    "refresh-native-4x4",
+)
+once(
+    "        // In some car touch stacks the native WebView scroll lands on the",
+    """        // Use the existing native card nodes: keep their YouTube click handlers.
+        var carhudGridList = null;
+        function syncCarhudFourByFour(enabled) {
+            if (carhudGridList) {
+                carhudGridList.removeAttribute('data-carhud-grid-list');
+                carhudGridList = null;
+            }
+            if (!enabled || !carhudRecommendationRoot) return;
+            var root = carhudRecommendationRoot;
+            var cards = root.querySelectorAll(
+                'ytd-compact-video-renderer,ytm-compact-video-renderer,' +
+                'ytm-video-with-context-renderer,ytd-rich-item-renderer,' +
+                'ytm-rich-item-renderer,.compact-media-item,.yt-lockup-view-model'
+            );
+            var parents = new Map();
+            for (var i = 0; i < cards.length; i++) {
+                var parent = cards[i].parentElement;
+                if (!parent || !root.contains(parent)) continue;
+                parents.set(parent, (parents.get(parent) || 0) + 1);
+            }
+            var chosen = null, max = 1;
+            parents.forEach(function(count, parent) {
+                if (count > max) { chosen = parent; max = count; }
+            });
+            if (!chosen) return;
+            chosen.setAttribute('data-carhud-grid-list', '1');
+            carhudGridList = chosen;
+        }
+
+        // In some car touch stacks the native WebView scroll lands on the""",
+    "native-4x4-parent",
+)
+grid_css = (
+    "        // Four columns and four visible rows, with additional rows swipable.\n"
+    "        'html.carhud-youtube-pip-hidden [data-carhud-grid-list=\"1\"] { display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;grid-auto-rows:minmax(98px,calc((100dvh - 58px)/4))!important;gap:6px!important;width:100%!important;max-width:100%!important;min-width:0!important;overflow:visible!important; } ' +\n"
+    "        'html.carhud-youtube-pip-hidden [data-carhud-grid-list=\"1\"] > * { display:flex!important;flex-direction:column!important;min-width:0!important;max-width:100%!important;height:100%!important;max-height:100%!important;margin:0!important;padding:0!important;overflow:hidden!important; } ' +\n"
+    "        'html.carhud-youtube-pip-hidden [data-carhud-grid-list=\"1\"] > * img { max-width:100%!important;object-fit:cover!important; } ' +\n"
+    "        'html.carhud-youtube-pip-hidden [data-carhud-rec-scroll=\"1\"] { overflow-y:auto!important;overflow-x:hidden!important;touch-action:pan-y!important;overscroll-behavior-y:contain!important; } ' +\n"
+)
+marker = "        'html.carhud-youtube-pip [data-carhud-rec-scroll=\"1\"]::-webkit-scrollbar { width:7px!important; } ' +"
+once(marker, grid_css + marker, "native-4x4-css")
+once(
+    "            if (!window.__carhudPipMode || !pane || !e.touches ||",
+    "            if (!(window.__carhudPipMode || window.__carhudPipHidden) || !pane || !e.touches ||",
+    "hidden-pip-gesture",
+)
+once(
+    "            if (!target || pane.contains(target) ||",
+    "            if (!target || (!window.__carhudPipHidden && pane.contains(target)) ||",
+    "allow-swipes-over-cards",
+)
+once(
+    "                e.touches.length !== 1 || !window.__carhudPipMode) return;",
+    "                e.touches.length !== 1 || !(window.__carhudPipMode || window.__carhudPipHidden)) return;",
+    "hidden-pip-swipe-move",
+)
+# Avoid compositing every element into GPU layers on budget car head units.
+once(
+    "        'lazy-list, ytm-rich-grid-renderer, .page-container, ytm-app, body { transform: translateZ(0) !important; -webkit-transform: translateZ(0) !important; backface-visibility: hidden !important; } ' +",
+    "        // Do not force global GPU layers for the entire YouTube document.",
+    "global-gpu-heat",
+)
+
 assert "video.playbackRate = 16.0" not in s
 assert "__carhudHidePip" in s
 assert "grid-auto-rows:minmax(102px" in s
