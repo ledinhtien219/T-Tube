@@ -220,4 +220,13 @@ assert "video.playbackRate = 16.0" not in s
 assert "__carhudHidePip" in s
 assert "grid-auto-rows:minmax(102px" in s
 p.write_text(s, encoding="utf-8")
+# Off-screen WebView preraster can allocate GPU tiles while the phone is
+# already decoding YouTube video and projecting a second display. Keep normal
+# on-screen rendering; only avoid prerasterizing off-screen WebViews.
+car_p = Path("app/src/main/java/com/carhud/aaproxy/CarPresentation.kt")
+car_s = car_p.read_text(encoding="utf-8")
+assert car_s.count("offscreenPreRaster = true") == 1, "WebView preraster anchor changed"
+car_s = car_s.replace("offscreenPreRaster = true", "offscreenPreRaster = false", 1)
+car_p.write_text(car_s, encoding="utf-8")
+
 print("v18 YouTube hardening applied after v17 patch chain")
