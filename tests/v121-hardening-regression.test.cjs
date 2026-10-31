@@ -11,6 +11,9 @@ test('YouTube never forces 16x speed or rewrites playback rate every second', ()
   assert.doesNotMatch(source, /video\.playbackRate\s*=\s*16/);
   assert.doesNotMatch(source, /v\.playbackRate\s*=\s*1\.0/);
   assert.match(source, /function killYouTubeAds\(/);
+  const adblock = read('YouTubeAdBlocker.kt');
+  assert.doesNotMatch(adblock, /v\.currentTime\s*=\s*d\s*;/);
+  assert.doesNotMatch(adblock, /v\.playbackRate\s*=/);
 });
 
 test('hidden PiP uses original WebView player with viewport-sized four-row scroll grid', () => {
