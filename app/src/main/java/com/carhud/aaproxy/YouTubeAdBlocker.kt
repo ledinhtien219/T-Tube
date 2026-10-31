@@ -349,14 +349,8 @@ object YouTubeAdBlocker {
             'ytm-ad-slot-renderer',
             'ytm-statement-banner-renderer',
             'ytm-compact-promoted-item-renderer',
-            '.ytp-ad-module',
-            '.ytp-ad-overlay-container',
             '.ytp-ad-image-overlay',
-            '.ytp-ad-overlay-slot',
-            '.ytp-ad-message-container',
-            '.video-ads',
             '.ytp-ad-player-overlay-instream-info',
-            '.ytp-ad-preview-container',
             '.ytp-ad-preview-text',
             '.ytp-ad-text',
             '.ytp-ad-text-overlay',
@@ -507,7 +501,7 @@ object YouTubeAdBlocker {
 
         function skipAd() {
             try {
-                if (!isShowingAd()) {
+                if (!isShowingAd() && !document.querySelector('.ytp-ad-skip-button,.ytp-ad-skip-button-modern,.ytp-skip-ad-button,.videoAdUiSkipButton')) {
                     suppressAdChrome(false);
                     restoreVideoState();
                     return;
@@ -531,6 +525,10 @@ object YouTubeAdBlocker {
                     '.ytp-skip-ad-button',
                     'button.ytp-ad-skip-button',
                     '.videoAdUiSkipButton',
+                    'button.ytp-skip-ad-button',
+                    '.ytp-ad-skip-button-container button',
+                    '.ytp-skip-ad-button__button',
+                    '.ytp-ad-skip-button-modern button',
                     '[class*="ytp-ad-skip"]'
                 ];
 
