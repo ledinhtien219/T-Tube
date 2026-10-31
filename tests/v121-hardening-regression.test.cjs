@@ -44,3 +44,14 @@ test('Maps ignores unrelated notification removals and does not falsely claim ro
   assert.match(source, /notification\.category == Notification\.CATEGORY_NAVIGATION/);
   assert.match(source, /processGoogleMapsNotification\(candidate\)/);
 });
+
+test('YouTube skip buttons are preserved rather than hidden by their ad parents', () => {
+  const adblock = read('YouTubeAdBlocker.kt');
+  assert.doesNotMatch(adblock, /'\.video-ads',/);
+  assert.doesNotMatch(adblock, /'\.ytp-ad-module',/);
+  assert.match(adblock, /ytp-skip-ad-button__button/);
+  assert.match(adblock, /ytp-ad-skip-button-container button/);
+  const postpatch = fs.readFileSync('ci/hey-mimi/v18-youtube-hardening.py', 'utf8');
+  assert.match(postpatch, /preserve-native-skip-parent-containers/);
+  assert.match(postpatch, /modern-skip-button-variants/);
+});
