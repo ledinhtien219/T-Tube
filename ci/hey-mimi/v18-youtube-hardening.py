@@ -147,11 +147,15 @@ once(
     """        // Use the existing native card nodes: keep their YouTube click handlers.
         var carhudGridList = null;
         function syncCarhudFourByFour(enabled) {
-            if (carhudGridList) {
-                carhudGridList.removeAttribute('data-carhud-grid-list');
+            if (!enabled || !carhudRecommendationRoot) {
+                if (carhudGridList) carhudGridList.removeAttribute('data-carhud-grid-list');
                 carhudGridList = null;
+                return;
             }
-            if (!enabled || !carhudRecommendationRoot) return;
+            if (carhudGridList && carhudGridList.isConnected &&
+                carhudRecommendationRoot.contains(carhudGridList)) return;
+            if (carhudGridList) carhudGridList.removeAttribute('data-carhud-grid-list');
+            carhudGridList = null;
             var root = carhudRecommendationRoot;
             var cards = root.querySelectorAll(
                 'ytd-compact-video-renderer,ytm-compact-video-renderer,' +
@@ -194,6 +198,11 @@ once(
     "            if (!target || pane.contains(target) ||",
     "            if (!target || (!window.__carhudPipHidden && pane.contains(target)) ||",
     "allow-swipes-over-cards",
+)
+once(
+    "                (target.closest && target.closest(\n                    'input,textarea,button,a,[role=\"slider\"],[contenteditable=\"true\"]'\n                ))) return;",
+    "                (target.closest && target.closest(\n                    window.__carhudPipHidden\n                    ? 'input,textarea,button,[role=\"slider\"],[contenteditable=\"true\"]'\n                    : 'input,textarea,button,a,[role=\"slider\"],[contenteditable=\"true\"]'\n                ))) return;",
+    "touch-swipes-on-video-card-links",
 )
 once(
     "                e.touches.length !== 1 || !window.__carhudPipMode) return;",
