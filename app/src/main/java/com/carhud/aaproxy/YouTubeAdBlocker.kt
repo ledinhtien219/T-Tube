@@ -298,7 +298,7 @@ object YouTubeAdBlocker {
 (function() {
     try {
         var existing = window.__carhudAdBlock;
-        if (existing && existing.version === 5) {
+        if (existing && existing.version === 6) {
             existing.sponsorEnabled = __ENABLE_SPONSOR_BLOCK__;
             if (typeof existing.tick === 'function') existing.tick();
             return;
@@ -317,7 +317,7 @@ object YouTubeAdBlocker {
         }
 
         var state = {
-            version: 5,
+            version: 6,
             sponsorEnabled: __ENABLE_SPONSOR_BLOCK__,
             timer: null,
             playerObserver: null,
@@ -534,8 +534,12 @@ object YouTubeAdBlocker {
 
                 for (var i = 0; i < skipSelectors.length; i++) {
                     var btn = document.querySelector(skipSelectors[i]);
-                    if (visible(btn)) {
-                        clickElement(btn);
+                    if (!visible(btn)) continue;
+                    // Target real controls, not an outer ad module/wrapper.
+                    var clickable = btn.matches && btn.matches('button,[role="button"],a')
+                        ? btn : btn.querySelector('button,[role="button"],a') || btn;
+                    if (visible(clickable)) {
+                        clickElement(clickable);
                         break;
                     }
                 }
@@ -809,10 +813,15 @@ object YouTubeAdBlocker {
 
         // Main watchdog is only a recovery path; MutationObserver + playing/timeupdate
         // handle normal transitions immediately.
-        state.timer = setInterval(tick, 1800);
+        state.timer = setInterval(tick, 2500);
 
         window.addEventListener('yt-navigate-finish', tick);
         window.addEventListener('yt-page-data-updated', tick);
+        window.addEventListener('yt-navigate-start', function() {
+            // Fermata-style page lifecycle: drop the old card/video identity,
+            // then attach to the new player's real video on navigation finish.
+            state.lastVideoId = '';
+        });
         window.addEventListener('popstate', tick);
 
         tick();
