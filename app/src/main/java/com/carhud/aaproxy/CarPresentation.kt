@@ -1749,6 +1749,15 @@ class CarPresentation(
             ) { toggleYouTubeBrowseMode() }
             browseToggle.contentDescription =
                 if (browseEnabled) "Phóng to video YouTube" else "Thu nhỏ video YouTube"
+            // Long press minimizes the PiP completely and fills the screen with
+            // scrollable native YouTube recommendations; normal tap still toggles.
+            browseToggle.setOnLongClickListener {
+                if (currentActiveAppId == "youtube" && isYouTubeVideoPage()) {
+                    YouTubePlayerHelper.hideMiniPlayer(web)
+                    hideYouTubeSeekOverlayImmediately()
+                    true
+                } else false
+            }
             browseToggle.isFocusable = true
             youtubeBrowseButton = browseToggle
             youtubeBrowseIcon = browseToggle.getChildAt(0) as? ImageView
