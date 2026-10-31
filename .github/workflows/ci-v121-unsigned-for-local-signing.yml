@@ -1,0 +1,278 @@
+name: CI Build 319 UNSIGNED for local upload-key signing
+on:
+  push:
+    branches:
+      - "release/hey-mimi-pro-v121-build319"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ttube-mimi-pro-v17-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  aab:
+    name: Validate and build Play release AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Preserve fix diff then restore original sources for patch-chain compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=104e2e9232fd8b93ea707f4ac0c434b19d5f5dd1
+          FILES=(app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt app/src/main/java/com/carhud/aaproxy/CarPresentation.kt app/src/main/java/com/carhud/aaproxy/VietmapNotificationListenerService.kt)
+          git diff --binary "$BASE" HEAD -- "${FILES[@]}" > /tmp/ttube-hardening.patch
+          test -s /tmp/ttube-hardening.patch
+          git restore --source="$BASE" -- "${FILES[@]}"
+          git restore --source="$BASE" -- app/src/main/java/com/carhud/aaproxy/YouTubePlayerHelper.kt
+      - name: Apply Hey Mimi v3, v4 and v5
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch --batch --forward -p1 < ci/hey-mimi/TTube_assistant_mimi.patch
+          patch --batch --forward -p1 < ci/hey-mimi/TTube_HeyMimi_v2.patch
+          patch --batch --forward -p1 < ci/hey-mimi/migrate-name.patch
+          base64 --decode ci/hey-mimi/v4/MimiAssistantPanel.kt.gz.b64 | gzip -dc > app/src/main/java/com/carhud/aaproxy/MimiAssistantPanel.kt
+          base64 --decode ci/hey-mimi/v4/CarPresentation.patch.gz.b64 | gzip -dc | patch --batch --forward -p1
+          base64 --decode ci/hey-mimi/v4/panel-ui.test.cjs.gz.b64 | gzip -dc > tests/hey-mimi-panel-ui.test.cjs
+          patch --batch --forward -p1 < ci/hey-mimi/v5-visible-avatar.patch
+      - name: Apply Hey Mimi v6 AI and driving foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch --batch --forward -p1 < ci/hey-mimi/v6-ai-driving.patch
+          test -s app/src/main/java/com/carhud/aaproxy/MimiSmartAssistant.kt
+          test -s app/src/main/java/com/carhud/aaproxy/MimiHotwordEngine.kt
+          test -s backend/mimi-proxy.mjs
+          grep -q 'versionCode = 307' app/build.gradle.kts
+          grep -q 'versionName = "1.1.9"' app/build.gradle.kts
+          grep -q 'assistant_ai_enabled' app/src/main/java/com/carhud/aaproxy/AssistantConfig.kt
+      - name: Apply v7 voice and panel stability fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/hey-mimi/v7-stability.py
+          node --test tests/hey-mimi-v7-stability.test.cjs
+      - name: Apply Pro voice commands and AI opt-in context
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch --batch --forward -p1 < ci/hey-mimi/v8-pro.patch
+          grep -q 'versionCode = 309' app/build.gradle.kts
+          grep -q 'versionName = "1.1.11"' app/build.gradle.kts
+          node --test tests/hey-mimi-pro-regression.test.cjs backend/mimi-proxy-policy.test.mjs
+          node --check backend/mimi-proxy.mjs
+      - name: Apply v9 PiP chooser
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch --batch --forward -p1 < ci/hey-mimi/v9-pip.patch
+          node --test tests/youtube-pip-chooser-pro-regression.test.cjs
+      - name: Apply v10 YouTube app switch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/hey-mimi/v10-router/apply_v10.py
+          node --test tests/hey-mimi-pro-v10-app-routing.test.cjs
+      - name: Apply v11 natural language commands, direct Mimi tap and AI fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch --batch --forward -p1 < ci/hey-mimi/v11-expanded-commands.patch
+          python3 ci/hey-mimi/v11-postpatch.py
+          grep -q 'versionCode = 312' app/build.gradle.kts
+          grep -q 'versionName = "1.1.14"' app/build.gradle.kts
+          node --test tests/hey-mimi-pro-v11-conversation-regression.test.cjs
+      - name: Apply v12 strict Maps commands and navigation
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode ci/hey-mimi/v12-maps.patch.gz.b64 | gzip -dc > /tmp/maps-v12.patch
+          # In CI v11's postpatch, the surrounding voice-route comments are
+          # different from the exported v11 source ZIP. Extract the exact new
+          # block and insert it at the stable afterWake anchor instead.
+          python3 - <<'PY'
+          from pathlib import Path
+          patch = Path('/tmp/maps-v12.patch')
+          text = patch.read_text()
+          start = text.index('@@ -2356,6 +2357,32 @@')
+          end = text.index('--- a/app/build.gradle.kts', start)
+          hunk = text[start:end]
+          inserted = '\n'.join(row[1:] for row in hunk.splitlines()
+                               if row.startswith('+') and not row.startswith('+++')) + '\n'
+          assert 'MimiMapsCommandRouter.wantsMaps' in inserted
+          Path('/tmp/maps-v12-voice-route.txt').write_text(inserted)
+          patch.write_text(text[:start] + text[end:])
+          PY
+          patch --batch --forward -p1 < /tmp/maps-v12.patch
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/com/carhud/aaproxy/CarPresentation.kt')
+          s = p.read_text()
+          anchor = '        val afterWake = heyMimiConversation.consume(now) || mimiTapSession.also { mimiTapSession = false }\n'
+          assert s.count(anchor) == 1, 'v11 route marker not found exactly once'
+          inserted = Path('/tmp/maps-v12-voice-route.txt').read_text()
+          assert 'MimiMapsCommandRouter.wantsMaps' not in s
+          p.write_text(s.replace(anchor, anchor + '\n' + inserted, 1))
+          PY
+          grep -q 'versionCode = 313' app/build.gradle.kts
+          grep -q 'versionName = "1.1.15"' app/build.gradle.kts
+          test -s app/src/main/java/com/carhud/aaproxy/MimiMapsCommandRouter.kt
+      - name: Apply v13 AI connection diagnostics and saved settings badge fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode ci/hey-mimi/v13-ai-connection.patch.gz.b64 | gzip -dc | patch --batch --forward -p1
+          grep -q 'versionCode = 314' app/build.gradle.kts
+          grep -q 'versionName = "1.1.16"' app/build.gradle.kts
+          test -s app/src/main/java/com/carhud/aaproxy/MimiAiConnectionPolicy.kt
+      - name: Restore native YouTube scrollable video list (v14)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/hey-mimi/v14-native-list.py
+          node --test tests/hey-mimi-pro-v14-native-list.test.cjs tests/youtube-mini-pip-scroll.test.cjs
+          grep -q 'versionCode = 315' app/build.gradle.kts
+      - name: Apply v15 native PiP fallback recovery and test
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode ci/hey-mimi/v15-pip-recovery.tar.gz.b64 | tar -xz -C .
+          python3 ci/hey-mimi/v15-apply.py
+          node --test tests/hey-mimi-pro-v15-pip-recovery.test.cjs
+          grep -q 'versionCode = 316' app/build.gradle.kts
+      - name: Apply v16 Pro natural-language and voice UX upgrades
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch --batch --forward -p1 < ci/hey-mimi/v16-cavi-upgrades.patch
+          node --test tests/hey-mimi-pro-v16-upgrades.test.cjs
+          grep -q 'versionCode = 317' app/build.gradle.kts
+      - name: Apply v17 maps launch and destination routing fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch --batch --forward -p1 < ci/hey-mimi/v17-maps-launch.patch
+          grep -q 'versionCode = 318' app/build.gradle.kts
+          grep -q 'versionName = "1.1.20"' app/build.gradle.kts
+          test -s app/src/main/java/com/carhud/aaproxy/MimiNavigationPriority.kt
+          test -s app/src/test/java/com/carhud/aaproxy/MimiNavigationPriorityTest.kt
+      - name: Merge regression fixes into the fully patched v17 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git apply --3way --index /tmp/ttube-hardening.patch
+          ! git diff --name-only --diff-filter=U | grep .
+          python3 ci/hey-mimi/v18-youtube-hardening.py
+          grep -q 'fun hideMiniPlayer' app/src/main/java/com/carhud/aaproxy/YouTubePlayerHelper.kt
+          grep -q 'activeGoogleMapsNavigationKeys' app/src/main/java/com/carhud/aaproxy/VietmapNotificationListenerService.kt
+          grep -q 'customImageVisible' app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt
+      - name: Set final version 1.1.21 Build 319
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          f = Path('app/build.gradle.kts')
+          s = f.read_text()
+          assert s.count('versionCode = 318') == 1
+          assert s.count('versionName = "1.1.20"') == 1
+          s = s.replace('versionCode = 318', 'versionCode = 319', 1)
+          s = s.replace('versionName = "1.1.20"', 'versionName = "1.1.21"', 1)
+          f.write_text(s)
+          PY
+          grep -q 'versionCode = 319' app/build.gradle.kts
+          grep -q 'versionName = "1.1.21"' app/build.gradle.kts
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Android 16 SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools" -type f -name sdkmanager | head -1)"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Prepare temporary debug certificate for unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 365 -dname 'CN=Android Debug,O=Android,C=US'
+          fi
+      - name: Verify panel and startup regressions
+        run: |
+          node --test tests/hey-mimi-panel-ui.test.cjs
+          node --test tests/hey-mimi-visible-avatar.test.cjs
+          node --test tests/hey-mimi-phone-startup.test.cjs
+          node --check backend/mimi-proxy.mjs
+      - name: Kotlin assistant, AI and hotword gate unit tests
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest --tests '*AssistantIntentParserTest' --tests '*HeyMimiConversationTest' --tests '*MimiAiPolicyTest' --tests '*MimiHotwordGateTest' --tests '*MimiProPolicyTest' --tests '*MimiAppSwitchRouterTest' --tests '*MimiExtendedLanguageTest' --tests '*MimiMapsCommandRouterTest' --tests '*MimiAiConnectionPolicyTest' --tests '*MimiProVoiceRouterTest' --tests '*MimiNavigationPriorityTest' --stacktrace --no-daemon
+      - name: Verify v1.1.20 fixes in assembled source
+        run: node --test tests/v121-hardening-regression.test.cjs
+      - name: Release lint
+        run: ./gradlew lintRelease --stacktrace --no-daemon
+      - name: Build 1.1.21 unsigned AAB for offline signing
+        run: ./gradlew bundleRelease --stacktrace --no-daemon
+      - name: Build debug APK and verify boot
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+      - name: Android 15 phone startup crash smoke
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
+          script: bash ci/hey-mimi/phone-startup-smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TTube-1.1.21-build319-Android15-smoke
+          path: smoke-artifacts/**
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Verify CI artifacts and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'versionCode = 319' app/build.gradle.kts
+          grep -q 'versionName = "1.1.21"' app/build.gradle.kts
+          aab="$(find app/build/outputs/bundle/release -name '*.aab' | head -1)"
+          test -s "$aab"
+          unzip -tq "$aab"
+          mkdir -p build-output
+          cp "$aab" build-output/TTube-v1.1.21-build319-UNSIGNED.aab
+          cp app/build/outputs/apk/debug/*.apk build-output/
+          sha256sum build-output/* | tee build-output/SHA256SUMS.txt
+          printf "UNSIGNED__REQUIRES_LOCAL_SIGNING_WITH_PROVIDED_UPLOAD_KEY\\nversionName=1.1.21\\nversionCode=319\\n" > build-output/SIGNING_STATUS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TTube-v1.1.21-build319-UNSIGNED-CI-local-signing
+          path: build-output/*
+          if-no-files-found: error
+          retention-days: 14
