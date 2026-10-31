@@ -406,6 +406,12 @@ object YouTubePlayerHelper {
         'html.carhud-youtube-pip [data-carhud-rec-scroll="1"] h3, html.carhud-youtube-pip [data-carhud-rec-scroll="1"] .video-title { font-size:13px!important;line-height:1.35!important;max-height:2.8em!important;overflow:hidden!important;margin:5px 6px 2px!important; } ' +
         'html.carhud-youtube-pip [data-carhud-rec-scroll="1"] { background:#0c1018!important;padding:14px 14px 86px max(94px,8vw)!important; } ' +
 
+        // Hidden PiP: full-width native recommendations, no reserved video corner.
+        // Four visible rows on a landscape dashboard; additional rows scroll.
+        'html.carhud-youtube-pip-hidden [data-carhud-pip-host="1"] { visibility:hidden!important;pointer-events:none!important; } ' +
+        'html.carhud-youtube-pip-hidden [data-carhud-rec-scroll="1"] { padding:8px 12px 28px!important; } ' +
+        'html.carhud-youtube-pip-hidden [data-carhud-rec-scroll="1"] ytd-watch-next-secondary-results-renderer #items, html.carhud-youtube-pip-hidden [data-carhud-rec-scroll="1"] #related #items, html.carhud-youtube-pip-hidden [data-carhud-rec-scroll="1"] ytm-item-section-renderer lazy-list { grid-template-columns:repeat(4,minmax(0,1fr))!important;grid-auto-rows:minmax(0,auto)!important;gap:8px!important; } ' +
+        'html.carhud-youtube-pip-hidden [data-carhud-rec-scroll="1"] h3 { font-size:11px!important; } ' +
         'html.carhud-youtube-pip [data-carhud-rec-scroll="1"]::-webkit-scrollbar { width:7px!important; } ' +
         'html.carhud-youtube-pip [data-carhud-rec-scroll="1"]::-webkit-scrollbar-thumb { background:#607086!important;border-radius:8px!important; } ' +
         '.video-ads, .ytp-ad-module, .ytp-ad-player-overlay-layout, .ytp-ad-image-overlay, .ytp-ad-text-overlay, ytm-promoted-sparkles-web-renderer, ytm-companion-ad-renderer, ytm-promoted-video-renderer, ytd-banner-promo-renderer, ytd-in-feed-ad-layout-renderer { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; } ' +
@@ -579,12 +585,10 @@ object YouTubePlayerHelper {
                     }
                 }
 
-                // 4. For video ads: accelerate at 16x speed and mute during ad playback
-                var video = getMainVideo();
-                if (video && isAd) {
-                    video.muted = true;
-                    video.playbackRate = 16.0;
-                }
+                // Keep the native YouTube ad timeline and audio pipeline intact.
+                // Forcing 16x playback/mute can stall transitions and leave the
+                // actual video silent or stuttering on Android WebView.
+                // User-visible skip controls remain owned by YouTube.
 
                 // 5. Global touch listener to show toolbars on touch
                 if (!window.__carhudTouchObs) {
@@ -1113,7 +1117,8 @@ object YouTubePlayerHelper {
             try {
                 var watch = window.location.pathname.indexOf('/watch') === 0;
                 var pip = watch && !!window.__carhudPipMode;
-                var browsing = watch && (!!window.__carhudBrowseMode || pip);
+                var hiddenPip = watch && !!window.__carhudPipHidden;
+                var browsing = watch && (!!window.__carhudBrowseMode || pip || hiddenPip);
                 var html = document.documentElement, body = document.body;
                 var wasBrowsing = html.classList.contains('carhud-youtube-browse');
                 var wasPip = html.classList.contains('carhud-youtube-pip');
@@ -1137,12 +1142,16 @@ object YouTubePlayerHelper {
 
                 html.classList.toggle('carhud-youtube-browse', browsing);
                 if (body) body.classList.toggle('carhud-youtube-browse', browsing);
-                html.classList.toggle('carhud-youtube-pip', pip);
-                if (body) body.classList.toggle('carhud-youtube-pip', pip);
-                if (pip) pinMiniPlayerHost();
+                html.classList.toggle('carhud-youtube-pip', pip || hiddenPip);
+                html.classList.toggle('carhud-youtube-pip-hidden', hiddenPip);
+                if (body) {
+                    body.classList.toggle('carhud-youtube-pip', pip || hiddenPip);
+                    body.classList.toggle('carhud-youtube-pip-hidden', hiddenPip);
+                }
+                if (pip || hiddenPip) pinMiniPlayerHost();
                 // Native suggestion content owns the scroll; leave the
                 // original YouTube card links and click handlers untouched.
-                syncRecommendationPane(pip);
+                syncRecommendationPane(pip || hiddenPip);
             } catch(e) {}
         }
 
@@ -1174,6 +1183,15 @@ object YouTubePlayerHelper {
             }, 3500);
         }
 
+        // Hide floating PiP without destroying playback; expose a separate
+        // action for the native panel button or gestures.
+        window.__carhudHidePip = function() {
+            if (location.pathname.indexOf('/watch') !== 0) return;
+            window.__carhudPipHidden = true;
+            window.__carhudPipMode = false;
+            window.__carhudBrowseMode = true;
+            updateWatchLayout();
+        };
         window.__carhudSetPipMode = function(enabled) {
             // A YouTube watch page is required; don't create a floating video
             // on search/home or any other web app.
@@ -1181,7 +1199,8 @@ object YouTubePlayerHelper {
             var newMode = !!enabled;
             var changed = newMode !== !!window.__carhudPipMode;
             window.__carhudPipMode = newMode;
-            window.__carhudBrowseMode = newMode;
+            if (newMode) window.__carhudPipHidden = false;
+            window.__carhudBrowseMode = newMode || window.__carhudPipHidden;
             try {
                 window.sessionStorage.setItem('carhud_youtube_pip_mode', newMode ? '1' : '0');
                 window.sessionStorage.setItem('carhud_youtube_browse_mode', newMode ? '1' : '0');
