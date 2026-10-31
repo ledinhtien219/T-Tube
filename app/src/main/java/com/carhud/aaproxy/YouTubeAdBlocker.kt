@@ -495,9 +495,8 @@ object YouTubeAdBlocker {
                     if (state.adPrevMuted !== null) v.muted = state.adPrevMuted;
                 } catch(e) {}
                 try {
-                    v.playbackRate =
-                        (state.adPrevRate && isFinite(state.adPrevRate))
-                            ? state.adPrevRate : 1.0;
+                    // The blocker never changes playbackRate. Preserve user
+                    // and native YouTube settings instead of resetting audio.
                 } catch(e) {}
             }
 
@@ -556,21 +555,9 @@ object YouTubeAdBlocker {
                     if (visible(closeBtn)) clickElement(closeBtn);
                 }
 
-                // 4) Fermata-style video-ad fallback: keep the same YouTube
-                // HTML5 player/session and seek the ad directly to its end.
-                // Never change playbackRate or mute state here; those properties can
-                // leak into the real video when YouTube switches ad/content state.
-                if (v) {
-                    try {
-                        var d = Number(v.duration);
-                        var c = Number(v.currentTime);
-                        if (isFinite(d) && d > 0 &&
-                            isFinite(c) && c >= 0 &&
-                            d - c > 0.20) {
-                            v.currentTime = d;
-                        }
-                    } catch(e) {}
-                }
+                // Do not seek required ads to video.duration: YouTube may
+                // reject that seek, loop preroll, or stall the shared player.
+                // Native skip affordances above are the only skip requests.
             } catch(e) {}
         }
 
