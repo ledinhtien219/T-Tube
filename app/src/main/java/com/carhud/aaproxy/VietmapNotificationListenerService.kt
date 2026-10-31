@@ -244,6 +244,10 @@ class VietmapNotificationListenerService : NotificationListenerService() {
         return false
     }
 
+    // Maps may post several notifications (route, traffic, location) at once.
+    // Removing a non-navigation notification must never erase the active route.
+    private val activeGoogleMapsNavigationKeys = mutableSetOf<String>()
+
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         sbn ?: return
         val pkg = sbn.packageName ?: return
@@ -261,8 +265,19 @@ class VietmapNotificationListenerService : NotificationListenerService() {
             Log.d(TAG, "Waze notification removed from: $pkg key=${sbn.key}")
             mainHandler.post { updateWazeAlertNotificationKey(sbn.key, false) }
         } else if (isGoogleMapsPackage(pkg, sbn.notification)) {
-            Log.d(TAG, "Google Maps notification removed from: $pkg")
-            GoogleMapsStateRepository.clearNavigation()
+            mainHandler.post {
+                // Ignore unrelated Maps notifications; a route can have more than one key.
+                if (!activeGoogleMapsNavigationKeys.remove(sbn.key)) return@post
+                if (activeGoogleMapsNavigationKeys.isNotEmpty()) return@post
+                // On notification replacement, the new route may already be active.
+                val current = try { activeNotifications?.toList().orEmpty() } catch (_: Exception) { emptyList() }
+                val replacements = current.filter { isGoogleMapsPackage(it.packageName, it.notification) }
+                for (candidate in replacements) processGoogleMapsNotification(candidate)
+                if (activeGoogleMapsNavigationKeys.isEmpty()) {
+                    Log.d(TAG, "Last Maps navigation notification removed")
+                    GoogleMapsStateRepository.clearNavigation()
+                }
+            }
         }
     }
 
@@ -294,6 +309,14 @@ class VietmapNotificationListenerService : NotificationListenerService() {
 
         val combined = "$title | $text | $subText | $bigText | $linesJoined"
         Log.d(TAG, "Google Maps Notification: $combined")
+
+        // A Maps status / location notification is not necessarily an active
+        // turn-by-turn route. Do not replace the current guidance with its text.
+        val routeCategory = notification.category == Notification.CATEGORY_NAVIGATION
+        val hasTurnDistance = DISTANCE_REGEX.containsMatchIn(combined)
+        val hasManeuver = Regex("""(?:rẽ|quẹo|turn|exit|lối ra|tiếp tục|continue|đi thẳng|merge|head)""", RegexOption.IGNORE_CASE)
+            .containsMatchIn(combined)
+        if (!routeCategory && !(hasTurnDistance && hasManeuver)) return
 
         // Parse Distance
         var distanceStr = ""
@@ -370,6 +393,7 @@ class VietmapNotificationListenerService : NotificationListenerService() {
         val fullSummary = summaryParts.joinToString(" \u2022 ")
 
         mainHandler.post {
+            activeGoogleMapsNavigationKeys.add(sbn.key)
             val navData = GoogleMapsNavData(
                 isConnected = true,
                 isNavigating = true,
