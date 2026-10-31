@@ -308,10 +308,12 @@ jobs:
             echo "::error::Signed AAB verification failed"; tail -35 /tmp/aab-verify.txt; exit 1;
           }
           grep -q 'jar verified\.' /tmp/aab-verify.txt
-          jarsigner -verify -strict -verbose -certs "$apk" > /tmp/apk-verify.txt 2>&1 || {
+          APK_SIGNER="$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools" -path '*/apksigner' -type f | sort -V | tail -1)"
+          test -x "$APK_SIGNER"
+          "$APK_SIGNER" verify --verbose --print-certs "$apk" > /tmp/apk-verify.txt 2>&1 || {
             echo "::error::Signed release APK verification failed"; tail -35 /tmp/apk-verify.txt; exit 1;
           }
-          grep -q 'jar verified\.' /tmp/apk-verify.txt
+          grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' /tmp/apk-verify.txt
           mkdir -p build-output
           cp "$aab" build-output/TTube-HeyMimi-Pro-1.1.21-build319-SIGNED-Play.aab
           cp "$apk" build-output/TTube-HeyMimi-Pro-1.1.21-build319-SIGNED-upload-key.apk
