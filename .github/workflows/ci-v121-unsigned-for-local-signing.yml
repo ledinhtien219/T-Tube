@@ -2,7 +2,7 @@ name: CI Build 320 UNSIGNED for local upload-key signing
 on:
   push:
     branches:
-      - "release/hey-mimi-pro-v121-build320"
+      - "release/hey-mimi-pro-v121-build319"
   workflow_dispatch:
 
 permissions:
