@@ -75,5 +75,5 @@ test('Only known third-party ad hosts are intercepted; media and first-party pla
   assert.match(src, /host\.endsWith\("\.googlesyndication\.com"\)/);
   assert.match(src, /host\.endsWith\("\.googleadservices\.com"\)/);
   assert.match(src, /return createEmptyResponse\(\)/);
-  assert.doesNotMatch(src, /fun shouldIntercept[\s\S]*?return isAdUrl\(uri\)/);
+  assert.doesNotMatch(src.match(/fun shouldIntercept[\\s\\S]*?\\n    }/)[0], /isAdUrl/);
 });
