@@ -114,12 +114,26 @@ object YouTubeAdBlocker {
      *   YouTubeAdBlocker.shouldIntercept(request)?.let { return it }
      */
     fun shouldIntercept(request: WebResourceRequest?): WebResourceResponse? {
-        // Keep YouTube's network graph intact. The player API, ad state and media
-        // requests are tightly coupled and blocking "ad-looking" requests can cause
-        // buffering, black frames or broken SPA transitions. We intentionally do
-        // player-level skipping instead, matching Fermata's smoother approach.
+        // Only cancel known dedicated third-party ad-host resources. YouTube
+        // embeds some mandatory ads in its own player/media responses: NEVER
+        // cancel googlevideo, youtubei, googleapis or first-party media traffic.
+        // Those are left to native Skip Ad handling, to preserve audio/video.
         request ?: return null
-        return null
+        if (request.isForMainFrame) return null
+        if (!request.method.equals("GET", ignoreCase = true)) return null
+        val uri = request.url ?: return null
+        val host = uri.host?.lowercase().orEmpty()
+        if (!isDedicatedAdHost(host)) return null
+        return createEmptyResponse()
+    }
+
+    private fun isDedicatedAdHost(host: String): Boolean {
+        return host == "doubleclick.net" ||
+            host.endsWith(".doubleclick.net") ||
+            host == "googlesyndication.com" ||
+            host.endsWith(".googlesyndication.com") ||
+            host == "googleadservices.com" ||
+            host.endsWith(".googleadservices.com")
     }
 
     /**
