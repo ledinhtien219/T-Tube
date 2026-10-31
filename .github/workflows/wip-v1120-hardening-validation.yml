@@ -215,6 +215,8 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew testDebugUnitTest --tests '*AssistantIntentParserTest' --tests '*HeyMimiConversationTest' --tests '*MimiAiPolicyTest' --tests '*MimiHotwordGateTest' --tests '*MimiProPolicyTest' --tests '*MimiAppSwitchRouterTest' --tests '*MimiExtendedLanguageTest' --tests '*MimiMapsCommandRouterTest' --tests '*MimiAiConnectionPolicyTest' --tests '*MimiProVoiceRouterTest' --tests '*MimiNavigationPriorityTest' --stacktrace --no-daemon
+      - name: Verify v1.1.20 fixes in assembled source
+        run: node --test tests/v121-hardening-regression.test.cjs
       - name: Release lint
         run: ./gradlew lintRelease --stacktrace --no-daemon
       - name: Build Play release AAB (unsigned CI intermediate; sign locally)
