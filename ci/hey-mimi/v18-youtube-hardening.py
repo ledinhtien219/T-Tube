@@ -216,6 +216,25 @@ once(
     "global-gpu-heat",
 )
 
+
+# Keep YouTube's actual Skip Ad control visible and accessible. Hiding parent
+# ad containers makes their descendants unclickable even if the button has a
+# high z-index. Only decorative ad chrome may be hidden.
+once(
+    "        '.video-ads, .ytp-ad-module, .ytp-ad-player-overlay-layout, .ytp-ad-image-overlay, .ytp-ad-text-overlay,",
+    "        '.ytp-ad-image-overlay, .ytp-ad-text-overlay,",
+    "preserve-native-skip-parent-containers",
+)
+once(
+    "                    '.videoAdUiSkipButton',\n                    '.ytp-ad-skip-button-text'",
+    "                    '.videoAdUiSkipButton',\n"
+    "                    '.ytp-skip-ad-button__button',\n"
+    "                    '.ytp-ad-skip-button-container button',\n"
+    "                    '.ytp-ad-skip-button-modern button',\n"
+    "                    '.ytp-ad-skip-button-text'",
+    "modern-skip-button-variants",
+)
+
 assert "video.playbackRate = 16.0" not in s
 assert "__carhudHidePip" in s
 assert "grid-auto-rows:minmax(102px" in s
