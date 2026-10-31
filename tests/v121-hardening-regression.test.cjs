@@ -55,3 +55,13 @@ test('YouTube skip buttons are preserved rather than hidden by their ad parents'
   assert.match(postpatch, /preserve-native-skip-parent-containers/);
   assert.match(postpatch, /modern-skip-button-variants/);
 });
+
+test('Fermata-style YouTube lifecycle reattaches per navigation without busy polling', () => {
+  const adblock = read('YouTubeAdBlocker.kt');
+  assert.match(adblock, /existing\.version === 6/);
+  assert.match(adblock, /window\.addEventListener\('yt-navigate-start'/);
+  assert.match(adblock, /window\.addEventListener\('yt-navigate-finish', tick\)/);
+  assert.match(adblock, /state\.timer = setInterval\(tick, 2500\)/);
+  assert.match(adblock, /clickable = btn\.matches/);
+  assert.doesNotMatch(adblock, /v\.playbackRate\s*=/);
+});
