@@ -184,6 +184,7 @@ jobs:
           test "$BUILD_CODE" -gt 320
           PATCH=$((BUILD_CODE - 298))
           BUILD_VERSION="1.1.$PATCH"
+          export BUILD_CODE BUILD_VERSION
           echo "BUILD_CODE=$BUILD_CODE" >> "$GITHUB_ENV"
           echo "BUILD_VERSION=$BUILD_VERSION" >> "$GITHUB_ENV"
           python3 - <<'PY'
@@ -270,7 +271,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -q "versionCode = $BUILD_CODE" app/build.gradle.kts
-          grep -q "versionName = \\"$BUILD_VERSION\\"" app/build.gradle.kts
+          grep -Fq "versionName = \"$BUILD_VERSION\"" app/build.gradle.kts
           aab="$(find app/build/outputs/bundle/release -name '*.aab' | head -1)"
           test -s "$aab"
           unzip -tq "$aab"
