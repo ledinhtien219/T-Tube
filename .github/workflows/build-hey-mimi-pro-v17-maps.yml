@@ -15,7 +15,7 @@ concurrency:
 jobs:
   aab:
     name: Validate and build Play release AAB
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 70
     env:
       PLAY_UPLOAD_KEYSTORE_BASE64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
@@ -25,7 +25,7 @@ jobs:
       PLAY_UPLOAD_KEYSTORE_PATH: ${{ github.workspace }}/.play/ttube-play-upload.jks
       PLAY_UPLOAD_CERT_SHA256: ${{ secrets.PLAY_UPLOAD_CERT_SHA256 }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Apply Hey Mimi v3, v4 and v5
         shell: bash
         run: |
@@ -158,13 +158,13 @@ jobs:
           grep -q 'versionName = "1.1.20"' app/build.gradle.kts
           test -s app/src/main/java/com/carhud/aaproxy/MimiNavigationPriority.kt
           test -s app/src/test/java/com/carhud/aaproxy/MimiNavigationPriorityTest.kt
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Install Android 16 SDK
         shell: bash
         run: |
@@ -173,7 +173,7 @@ jobs:
           test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
       - name: Prepare temporary debug certificate for unit tests
         shell: bash
         run: |
@@ -215,7 +215,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
           script: bash ci/hey-mimi/phone-startup-smoke.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: HeyMimi-Pro-v17-build318-phone-smoke-evidence
@@ -234,7 +234,7 @@ jobs:
           cp app/build/outputs/apk/debug/*.apk build-output/
           sha256sum build-output/* | tee build-output/SHA256SUMS.txt
           echo "UNSIGNED_CI_INTERMEDIATE__MUST_SIGN_WITH_REGISTERED_UPLOAD_KEY" > build-output/SIGNING_STATUS.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: TTube-HeyMimi-PRO-v17-build318-unsigned-ci-and-debug
           path: build-output/*
