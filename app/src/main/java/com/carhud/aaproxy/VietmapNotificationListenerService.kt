@@ -273,9 +273,13 @@ class VietmapNotificationListenerService : NotificationListenerService() {
                 val current = try { activeNotifications?.toList().orEmpty() } catch (_: Exception) { emptyList() }
                 val replacements = current.filter { isGoogleMapsPackage(it.packageName, it.notification) }
                 for (candidate in replacements) processGoogleMapsNotification(candidate)
-                if (activeGoogleMapsNavigationKeys.isEmpty()) {
-                    Log.d(TAG, "Last Maps navigation notification removed")
-                    GoogleMapsStateRepository.clearNavigation()
+                // Parsing replacements queues their updates on this same handler.
+                // Defer the final check so a replacement is registered first.
+                mainHandler.post {
+                    if (activeGoogleMapsNavigationKeys.isEmpty()) {
+                        Log.d(TAG, "Last Maps navigation notification removed")
+                        GoogleMapsStateRepository.clearNavigation()
+                    }
                 }
             }
         }
