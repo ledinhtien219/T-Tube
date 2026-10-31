@@ -33,10 +33,11 @@ jobs:
         run: |
           set -euo pipefail
           BASE=104e2e9232fd8b93ea707f4ac0c434b19d5f5dd1
-          FILES=(app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt app/src/main/java/com/carhud/aaproxy/CarPresentation.kt app/src/main/java/com/carhud/aaproxy/VietmapNotificationListenerService.kt app/src/main/java/com/carhud/aaproxy/YouTubePlayerHelper.kt)
+          FILES=(app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt app/src/main/java/com/carhud/aaproxy/CarPresentation.kt app/src/main/java/com/carhud/aaproxy/VietmapNotificationListenerService.kt)
           git diff --binary "$BASE" HEAD -- "${FILES[@]}" > /tmp/ttube-hardening.patch
           test -s /tmp/ttube-hardening.patch
           git restore --source="$BASE" -- "${FILES[@]}"
+          git restore --source="$BASE" -- app/src/main/java/com/carhud/aaproxy/YouTubePlayerHelper.kt
       - name: Apply Hey Mimi v3, v4 and v5
         shell: bash
         run: |
@@ -176,6 +177,7 @@ jobs:
           git add -A
           git apply --3way --index /tmp/ttube-hardening.patch
           ! git diff --name-only --diff-filter=U | grep .
+          python3 ci/hey-mimi/v18-youtube-hardening.py
           grep -q 'fun hideMiniPlayer' app/src/main/java/com/carhud/aaproxy/YouTubePlayerHelper.kt
           grep -q 'activeGoogleMapsNavigationKeys' app/src/main/java/com/carhud/aaproxy/VietmapNotificationListenerService.kt
           grep -q 'customImageVisible' app/src/main/java/com/carhud/aaproxy/CarDashboardView.kt
