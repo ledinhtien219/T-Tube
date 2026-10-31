@@ -1123,8 +1123,9 @@ object YouTubePlayerHelper {
                 var wasBrowsing = html.classList.contains('carhud-youtube-browse');
                 var wasPip = html.classList.contains('carhud-youtube-pip');
 
-                // Remove marker before the former host is painted fullscreen.
-                if (!pip && window.__carhudMiniPlayerHost) unpinMiniPlayerHost();
+                // Preserve the original player host while hidden so YouTube
+                // continues playback without rebuilding the video surface.
+                if (!pip && !hiddenPip && window.__carhudMiniPlayerHost) unpinMiniPlayerHost();
                 if (browsing || !watch) {
                     html.classList.remove('carhud-force-fullscreen');
                     if (body) body.classList.remove('carhud-force-fullscreen');
