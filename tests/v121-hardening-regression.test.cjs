@@ -83,3 +83,14 @@ test('legacy substring blocker cannot intercept YouTube player traffic', () => {
   assert.doesNotMatch(presentation, /YouTubePlayerHelper\.isAdUrl\(url\)/);
   assert.match(presentation, /YouTubeAdBlocker\.shouldIntercept\(request\)/);
 });
+
+test('Brave-inspired document-start skip enhancement avoids page-wide busy polling', () => {
+  const adblock = read('YouTubeAdBlocker.kt');
+  const presentation = read('CarPresentation.kt');
+  assert.match(adblock, /DOCUMENT_START_SCRIPT/);
+  assert.match(adblock, /WebViewCompat\.addDocumentStartJavaScript/);
+  assert.match(adblock, /window\.__ttubeEarlySkip/);
+  assert.match(adblock, /observer\.observe\(player/);
+  assert.match(presentation, /YouTubeAdBlocker\.installEarlySkip\(web\)/);
+  assert.doesNotMatch(adblock, /observer\.observe\(document\.body, \{childList:true,subtree:true\}\)/);
+});
