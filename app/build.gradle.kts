@@ -136,6 +136,8 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.14.1")
     implementation("androidx.media:media:1.7.0")
     implementation("androidx.webkit:webkit:1.17.1")
+    // Experimental native Brave adblock-rust engine (MPL-2.0, Java 21 bytecode).
+    implementation("io.github.mlm-games:adblock:0.1.3")
     // Official Google Play flexible in-app update API (phone UI only).
     implementation("com.google.android.play:app-update:2.1.0")
     implementation(files("libs/aauto.aar"))
