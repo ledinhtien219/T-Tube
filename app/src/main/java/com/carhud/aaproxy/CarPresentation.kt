@@ -642,6 +642,7 @@ class CarPresentation(
 
         // Document-start hook must be registered before navigation loads YouTube.
         YouTubeAdBlocker.installEarlySkip(web)
+        BraveYouTubeShields.start(context, web)
 
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
