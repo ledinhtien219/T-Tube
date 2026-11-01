@@ -640,6 +640,9 @@ class CarPresentation(
 
         IptvManager.getChannels(context) {}
 
+        // Document-start hook must be registered before navigation loads YouTube.
+        YouTubeAdBlocker.installEarlySkip(web)
+
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val target = request?.url?.toString() ?: return false
@@ -670,11 +673,10 @@ class CarPresentation(
 
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                 YouTubeAdBlocker.shouldIntercept(request)?.let { return it }
-                val url = request?.url?.toString()
-                if (url != null && YouTubePlayerHelper.isAdUrl(url)) {
-                    val origin = request.requestHeaders?.get("Origin") ?: request.requestHeaders?.get("origin")
-                    return YouTubePlayerHelper.createEmptyResponse(origin)
-                }
+                // No legacy URL-substring interception: it could block first-party
+                // YouTube requests based on query text and corrupt playback.
+                // The scoped network rules above intentionally leave media and
+                // player APIs alone, as a fail-open compatibility policy.
                 return super.shouldInterceptRequest(view, request)
             }
 
@@ -1749,6 +1751,15 @@ class CarPresentation(
             ) { toggleYouTubeBrowseMode() }
             browseToggle.contentDescription =
                 if (browseEnabled) "Phóng to video YouTube" else "Thu nhỏ video YouTube"
+            // Long press minimizes the PiP completely and fills the screen with
+            // scrollable native YouTube recommendations; normal tap still toggles.
+            browseToggle.setOnLongClickListener {
+                if (currentActiveAppId == "youtube" && isYouTubeVideoPage()) {
+                    YouTubePlayerHelper.hideMiniPlayer(web)
+                    hideYouTubeSeekOverlayImmediately()
+                    true
+                } else false
+            }
             browseToggle.isFocusable = true
             youtubeBrowseButton = browseToggle
             youtubeBrowseIcon = browseToggle.getChildAt(0) as? ImageView

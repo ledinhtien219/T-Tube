@@ -27,6 +27,94 @@ object YouTubeAdBlocker {
 
     private const val BRIDGE_NAME = "CarHudAdBridge"
 
+    // Runs before the YouTube document scripts when WebView supports it.
+    // Keep lightweight: observe only the genuine skip control, never touch
+    // playbackRate, currentTime, media fetch, or player internals.
+    private val EARLY_SKIP_SCRIPT = """
+        (function() {
+            if (window.__ttubeEarlySkip) return;
+            window.__ttubeEarlySkip = true;
+            var scheduled = false;
+            function scan() {
+                scheduled = false;
+                var player = document.getElementById('movie_player');
+                if (!player || !player.classList ||
+                    (!player.classList.contains('ad-showing') &&
+                     !player.classList.contains('ad-interrupting'))) return;
+                var controls = document.querySelectorAll(
+                    '.ytp-ad-skip-button,.ytp-ad-skip-button-modern,' +
+                    '.ytp-skip-ad-button,.videoAdUiSkipButton,' +
+                    '.ytp-skip-ad-button__button,' +
+                    '.ytp-ad-skip-button-container button'
+                );
+                for (var i=0; i<controls.length; i++) {
+                    var item = controls[i];
+                    var button = item.matches('button,[role="button"]')
+                        ? item : item.querySelector('button,[role="button"]') || item;
+                    if (!button.disabled && button.getClientRects().length &&
+                        getComputedStyle(button).visibility !== 'hidden') {
+                        try { button.click(); } catch(e) {}
+                        return;
+                    }
+                }
+            }
+            function schedule() {
+                if (scheduled) return;
+                scheduled = true;
+                setTimeout(scan, 300);
+            }
+            function mount() {
+                if (!document.body) return;
+                var target = null;
+                var observer = new MutationObserver(function() {
+                    var player = document.getElementById('movie_player');
+                    if (player && target !== player) {
+                        observer.disconnect();
+                        target = player;
+                        observer.observe(player, {attributes:true,attributeFilter:['class'],
+                            childList:true,subtree:true});
+                    }
+                    schedule();
+                });
+                var player = document.getElementById('movie_player');
+                if (player) {
+                    target = player;
+                    observer.observe(player, {attributes:true,attributeFilter:['class'],
+                        childList:true,subtree:true});
+                } else {
+                    // Observe the wide page only briefly, until the player is mounted.
+                    observer.observe(document.body, {childList:true,subtree:false});
+                }
+                window.addEventListener('yt-navigate-finish', schedule);
+                schedule();
+            }
+            if (document.readyState === 'loading')
+                document.addEventListener('DOMContentLoaded', mount, {once:true});
+            else mount();
+        })();
+    """.trimIndent()
+
+    private val earlySkipInstalls = Collections.newSetFromMap(WeakHashMap<WebView, Boolean>())
+
+    /** Install a document-start skip hook before page navigation. */
+    fun installEarlySkip(view: WebView) {
+        synchronized(earlySkipInstalls) {
+            if (!earlySkipInstalls.add(view)) return
+        }
+        try {
+            if (androidx.webkit.WebViewFeature.isFeatureSupported(
+                    androidx.webkit.WebViewFeature.DOCUMENT_START_SCRIPT)) {
+                androidx.webkit.WebViewCompat.addDocumentStartJavaScript(
+                    view, EARLY_SKIP_SCRIPT,
+                    setOf("https://www.youtube.com", "https://m.youtube.com", "https://music.youtube.com")
+                )
+            }
+        } catch (_: Throwable) {
+            // Retain the proven page-finish ad hook as a fallback.
+        }
+    }
+
+
     private data class BridgeHolder(
         val bridge: SponsorBridge,
         val sponsorBlockEnabled: Boolean
@@ -114,12 +202,26 @@ object YouTubeAdBlocker {
      *   YouTubeAdBlocker.shouldIntercept(request)?.let { return it }
      */
     fun shouldIntercept(request: WebResourceRequest?): WebResourceResponse? {
-        // Keep YouTube's network graph intact. The player API, ad state and media
-        // requests are tightly coupled and blocking "ad-looking" requests can cause
-        // buffering, black frames or broken SPA transitions. We intentionally do
-        // player-level skipping instead, matching Fermata's smoother approach.
+        // Only cancel known dedicated third-party ad-host resources. YouTube
+        // embeds some mandatory ads in its own player/media responses: NEVER
+        // cancel googlevideo, youtubei, googleapis or first-party media traffic.
+        // Those are left to native Skip Ad handling, to preserve audio/video.
         request ?: return null
-        return null
+        if (request.isForMainFrame) return null
+        if (!request.method.equals("GET", ignoreCase = true)) return null
+        val uri = request.url ?: return null
+        val host = uri.host?.lowercase().orEmpty()
+        if (!isDedicatedAdHost(host)) return null
+        return createEmptyResponse()
+    }
+
+    private fun isDedicatedAdHost(host: String): Boolean {
+        return host == "doubleclick.net" ||
+            host.endsWith(".doubleclick.net") ||
+            host == "googlesyndication.com" ||
+            host.endsWith(".googlesyndication.com") ||
+            host == "googleadservices.com" ||
+            host.endsWith(".googleadservices.com")
     }
 
     /**
@@ -298,7 +400,7 @@ object YouTubeAdBlocker {
 (function() {
     try {
         var existing = window.__carhudAdBlock;
-        if (existing && existing.version === 5) {
+        if (existing && existing.version === 6) {
             existing.sponsorEnabled = __ENABLE_SPONSOR_BLOCK__;
             if (typeof existing.tick === 'function') existing.tick();
             return;
@@ -317,7 +419,7 @@ object YouTubeAdBlocker {
         }
 
         var state = {
-            version: 5,
+            version: 6,
             sponsorEnabled: __ENABLE_SPONSOR_BLOCK__,
             timer: null,
             playerObserver: null,
@@ -349,14 +451,8 @@ object YouTubeAdBlocker {
             'ytm-ad-slot-renderer',
             'ytm-statement-banner-renderer',
             'ytm-compact-promoted-item-renderer',
-            '.ytp-ad-module',
-            '.ytp-ad-overlay-container',
             '.ytp-ad-image-overlay',
-            '.ytp-ad-overlay-slot',
-            '.ytp-ad-message-container',
-            '.video-ads',
             '.ytp-ad-player-overlay-instream-info',
-            '.ytp-ad-preview-container',
             '.ytp-ad-preview-text',
             '.ytp-ad-text',
             '.ytp-ad-text-overlay',
@@ -495,9 +591,8 @@ object YouTubeAdBlocker {
                     if (state.adPrevMuted !== null) v.muted = state.adPrevMuted;
                 } catch(e) {}
                 try {
-                    v.playbackRate =
-                        (state.adPrevRate && isFinite(state.adPrevRate))
-                            ? state.adPrevRate : 1.0;
+                    // The blocker never changes playbackRate. Preserve user
+                    // and native YouTube settings instead of resetting audio.
                 } catch(e) {}
             }
 
@@ -508,7 +603,7 @@ object YouTubeAdBlocker {
 
         function skipAd() {
             try {
-                if (!isShowingAd()) {
+                if (!isShowingAd() && !document.querySelector('.ytp-ad-skip-button,.ytp-ad-skip-button-modern,.ytp-skip-ad-button,.videoAdUiSkipButton')) {
                     suppressAdChrome(false);
                     restoreVideoState();
                     return;
@@ -532,13 +627,21 @@ object YouTubeAdBlocker {
                     '.ytp-skip-ad-button',
                     'button.ytp-ad-skip-button',
                     '.videoAdUiSkipButton',
+                    'button.ytp-skip-ad-button',
+                    '.ytp-ad-skip-button-container button',
+                    '.ytp-skip-ad-button__button',
+                    '.ytp-ad-skip-button-modern button',
                     '[class*="ytp-ad-skip"]'
                 ];
 
                 for (var i = 0; i < skipSelectors.length; i++) {
                     var btn = document.querySelector(skipSelectors[i]);
-                    if (visible(btn)) {
-                        clickElement(btn);
+                    if (!visible(btn)) continue;
+                    // Target real controls, not an outer ad module/wrapper.
+                    var clickable = btn.matches && btn.matches('button,[role="button"],a')
+                        ? btn : btn.querySelector('button,[role="button"],a') || btn;
+                    if (visible(clickable)) {
+                        clickElement(clickable);
                         break;
                     }
                 }
@@ -556,21 +659,9 @@ object YouTubeAdBlocker {
                     if (visible(closeBtn)) clickElement(closeBtn);
                 }
 
-                // 4) Fermata-style video-ad fallback: keep the same YouTube
-                // HTML5 player/session and seek the ad directly to its end.
-                // Never change playbackRate or mute state here; those properties can
-                // leak into the real video when YouTube switches ad/content state.
-                if (v) {
-                    try {
-                        var d = Number(v.duration);
-                        var c = Number(v.currentTime);
-                        if (isFinite(d) && d > 0 &&
-                            isFinite(c) && c >= 0 &&
-                            d - c > 0.20) {
-                            v.currentTime = d;
-                        }
-                    } catch(e) {}
-                }
+                // Do not seek required ads to video.duration: YouTube may
+                // reject that seek, loop preroll, or stall the shared player.
+                // Native skip affordances above are the only skip requests.
             } catch(e) {}
         }
 
@@ -824,10 +915,15 @@ object YouTubeAdBlocker {
 
         // Main watchdog is only a recovery path; MutationObserver + playing/timeupdate
         // handle normal transitions immediately.
-        state.timer = setInterval(tick, 1800);
+        state.timer = setInterval(tick, 2500);
 
         window.addEventListener('yt-navigate-finish', tick);
         window.addEventListener('yt-page-data-updated', tick);
+        window.addEventListener('yt-navigate-start', function() {
+            // Fermata-style page lifecycle: drop the old card/video identity,
+            // then attach to the new player's real video on navigation finish.
+            state.lastVideoId = '';
+        });
         window.addEventListener('popstate', tick);
 
         tick();
