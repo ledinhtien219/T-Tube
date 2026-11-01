@@ -175,14 +175,15 @@ object BraveYouTubeShields {
     private fun replaceEngine(context: Context, rules: String): Boolean {
         var candidate: AdblockEngine? = null
         return try {
-            candidate = AdblockEngine.create()
-            if (!candidate.loadFilterList(rules)) return false
+            val ready = AdblockEngine.create()
+            candidate = ready
+            if (!ready.loadFilterList(rules)) return false
             // Packaged by the JNI library; enables trusted Brave scriptlet definitions.
             val resources = context.assets.open("adblock/resources.json")
                 .bufferedReader().use { it.readText() }
-            if (!candidate.loadResources(resources)) return false
+            if (!ready.loadResources(resources)) return false
             val cosmetic = try {
-                candidate.cosmeticResources("https://www.youtube.com/watch?v=ttube")
+                ready.cosmeticResources("https://www.youtube.com/watch?v=ttube")
             } catch (_: Throwable) { null }
             val newScriptlets = cosmetic?.js.orEmpty().takeIf { it.length <= MAX_START_JS }.orEmpty()
             val newCss = cosmetic?.selectors.orEmpty()
@@ -197,7 +198,7 @@ object BraveYouTubeShields {
                 .take(24_000)
             synchronized(gate) {
                 val previous = engine
-                engine = candidate
+                engine = ready
                 scriptlets = newScriptlets
                 cosmeticCss = newCss
                 rulesGeneration++
