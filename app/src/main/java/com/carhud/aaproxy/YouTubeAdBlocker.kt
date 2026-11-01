@@ -27,6 +27,76 @@ object YouTubeAdBlocker {
 
     private const val BRIDGE_NAME = "CarHudAdBridge"
 
+    // Runs before the YouTube document scripts when WebView supports it.
+    // Keep lightweight: observe only the genuine skip control, never touch
+    // playbackRate, currentTime, media fetch, or player internals.
+    private val EARLY_SKIP_SCRIPT = """
+        (function() {
+            if (window.__ttubeEarlySkip) return;
+            window.__ttubeEarlySkip = true;
+            var scheduled = false;
+            function scan() {
+                scheduled = false;
+                var player = document.getElementById('movie_player');
+                if (!player || !player.classList ||
+                    (!player.classList.contains('ad-showing') &&
+                     !player.classList.contains('ad-interrupting'))) return;
+                var controls = document.querySelectorAll(
+                    '.ytp-ad-skip-button,.ytp-ad-skip-button-modern,' +
+                    '.ytp-skip-ad-button,.videoAdUiSkipButton,' +
+                    '.ytp-skip-ad-button__button,' +
+                    '.ytp-ad-skip-button-container button'
+                );
+                for (var i=0; i<controls.length; i++) {
+                    var item = controls[i];
+                    var button = item.matches('button,[role="button"]')
+                        ? item : item.querySelector('button,[role="button"]') || item;
+                    if (!button.disabled && button.getClientRects().length &&
+                        getComputedStyle(button).visibility !== 'hidden') {
+                        try { button.click(); } catch(e) {}
+                        return;
+                    }
+                }
+            }
+            function schedule() {
+                if (scheduled) return;
+                scheduled = true;
+                setTimeout(scan, 300);
+            }
+            function mount() {
+                if (!document.body) return;
+                var observer = new MutationObserver(schedule);
+                observer.observe(document.body, {childList:true,subtree:true});
+                window.addEventListener('yt-navigate-finish', schedule);
+                schedule();
+            }
+            if (document.readyState === 'loading')
+                document.addEventListener('DOMContentLoaded', mount, {once:true});
+            else mount();
+        })();
+    """.trimIndent()
+
+    private val earlySkipInstalls = Collections.newSetFromMap(WeakHashMap<WebView, Boolean>())
+
+    /** Install a document-start skip hook before page navigation. */
+    fun installEarlySkip(view: WebView) {
+        synchronized(earlySkipInstalls) {
+            if (!earlySkipInstalls.add(view)) return
+        }
+        try {
+            if (androidx.webkit.WebViewFeature.isFeatureSupported(
+                    androidx.webkit.WebViewFeature.DOCUMENT_START_SCRIPT)) {
+                androidx.webkit.WebViewCompat.addDocumentStartJavaScript(
+                    view, EARLY_SKIP_SCRIPT,
+                    setOf("https://www.youtube.com", "https://m.youtube.com", "https://music.youtube.com")
+                )
+            }
+        } catch (_: Throwable) {
+            // Retain the proven page-finish ad hook as a fallback.
+        }
+    }
+
+
     private data class BridgeHolder(
         val bridge: SponsorBridge,
         val sponsorBlockEnabled: Boolean
