@@ -246,7 +246,9 @@ object BraveYouTubeShields {
                 val conn = URL(url).openConnection() as HttpsURLConnection
                 conn.connectTimeout = 5000
                 conn.readTimeout = 7000
-                conn.instanceFollowRedirects = false
+                // EasyList's official endpoint may redirect to its HTTPS CDN.
+                // HttpsURLConnection does not follow HTTPS -> HTTP downgrades.
+                conn.instanceFollowRedirects = true
                 try {
                     if (conn.responseCode != 200 || conn.contentLengthLong > MAX_LIST_BYTES) return null
                     val bytes = conn.inputStream.use { stream ->
