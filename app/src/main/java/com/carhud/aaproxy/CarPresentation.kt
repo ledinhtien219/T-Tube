@@ -642,6 +642,7 @@ class CarPresentation(
 
         // Document-start hook must be registered before navigation loads YouTube.
         YouTubeAdBlocker.installEarlySkip(web)
+        YouTubeFeedPipEnhancer.install(web)
         BraveYouTubeShields.start(context, web)
 
         web.webViewClient = object : WebViewClient() {
@@ -700,6 +701,7 @@ class CarPresentation(
                 if (view !== web || !isCurrentAppPage(url)) return
                 updateBrowserToolbar(url)
                 if (view != null) {
+                    if (currentActiveAppId == "youtube") YouTubeFeedPipEnhancer.inject(view)
                     BraveYouTubeShields.applyPageCosmetics(view, url)
                     applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
                     TikTokWebPolicy.fitLayout(view, url)
@@ -757,6 +759,7 @@ class CarPresentation(
                 if (isYouTube) {
                     YouTubePlayerHelper.inject(view, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
                     YouTubePlayerHelper.setMiniPlayerMode(view, prefs.getBoolean(youtubeBrowsePref, false))
+                    YouTubeFeedPipEnhancer.inject(view)
                     YouTubePlayerHelper.applyCarSearchHome(view)
                     updateYouTubeHomeObstacles()
 
@@ -1284,6 +1287,7 @@ class CarPresentation(
             else if (isDayMode()) Color.parseColor("#0F172A") else Color.WHITE
         )
         if (enabled) hideYouTubeSeekOverlayImmediately()
+        if (currentActiveAppId == "youtube") YouTubeFeedPipEnhancer.inject(web)
         if (!enabled && currentActiveAppId == "youtube" && isYouTubeVideoPage()) {
             // Reapply the selected fullscreen fit (including 4:3 and 21:9)
             // after a swipe/tap or toolbar-initiated expansion.
