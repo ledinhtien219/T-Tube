@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "com.carhud.app"
-    compileSdk = 36
+    // Required by experimental Brave Rust JNI AAR; Play targetSdk stays at 36.
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.ledinhtien.ttube"
