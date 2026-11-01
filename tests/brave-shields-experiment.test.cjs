@@ -37,5 +37,5 @@ test('filter compilation is off UI/request thread, bounded and fail-open', () =>
   assert.match(shields, /catch \(_: Throwable\) \{ false \}/);
   assert.match(shields, /engine\?\.checkNetworkRequest/);
   assert.match(shields, /synchronized\(gate\)/);
-  assert.doesNotMatch(shields, /readNBytes/);
+  assert.match(shields, /java\.io\.ByteArrayOutputStream/);
 });
