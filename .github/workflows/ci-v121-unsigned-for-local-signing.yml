@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - "release/hey-mimi-pro-v121-build319"
+      - "experiment/brave-shields-youtube-rust"
   workflow_dispatch:
 
 permissions:
@@ -203,7 +204,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
