@@ -65,8 +65,26 @@ object YouTubeAdBlocker {
             }
             function mount() {
                 if (!document.body) return;
-                var observer = new MutationObserver(schedule);
-                observer.observe(document.body, {childList:true,subtree:true});
+                var target = null;
+                var observer = new MutationObserver(function() {
+                    var player = document.getElementById('movie_player');
+                    if (player && target !== player) {
+                        observer.disconnect();
+                        target = player;
+                        observer.observe(player, {attributes:true,attributeFilter:['class'],
+                            childList:true,subtree:true});
+                    }
+                    schedule();
+                });
+                var player = document.getElementById('movie_player');
+                if (player) {
+                    target = player;
+                    observer.observe(player, {attributes:true,attributeFilter:['class'],
+                        childList:true,subtree:true});
+                } else {
+                    // Observe the wide page only briefly, until the player is mounted.
+                    observer.observe(document.body, {childList:true,subtree:false});
+                }
                 window.addEventListener('yt-navigate-finish', schedule);
                 schedule();
             }
