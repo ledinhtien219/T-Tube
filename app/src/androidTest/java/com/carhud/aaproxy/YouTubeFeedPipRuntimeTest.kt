@@ -2,6 +2,8 @@ package com.carhud.aaproxy
 
 import android.annotation.SuppressLint
 import android.webkit.WebView
+import android.widget.FrameLayout
+import androidx.test.core.app.ActivityScenario
 import android.webkit.WebViewClient
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -26,14 +28,21 @@ class YouTubeFeedPipRuntimeTest {
             .bufferedReader().use { it.readText() }
         val latch = CountDownLatch(1)
         val passed = AtomicBoolean(false)
+        val phase = java.util.concurrent.atomic.AtomicReference("created")
         var view: WebView? = null
-        inst.runOnMainSync {
-            view = WebView(inst.targetContext)
+        val scenario = ActivityScenario.launch(ActivationActivity::class.java)
+        scenario.onActivity { activity ->
+            view = WebView(activity)
             val web = view!!
+            // An unattached WebView may not draw/execute JavaScript under
+            // Android 15 instrumentation. Mount the real renderer.
+            activity.addContentView(web, FrameLayout.LayoutParams(720, 400))
             web.settings.javaScriptEnabled = true
             web.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(v: WebView, url: String?) {
+                    phase.set("pageFinished")
                     v.evaluateJavascript(js) {
+                        phase.set("enhancerEvaluated")
                         // The enhancement intentionally debounces DOM work by
                         // 180ms to avoid scroll jank; test after that settle.
                         v.postDelayed({
@@ -51,6 +60,7 @@ class YouTubeFeedPipRuntimeTest {
                             })();
                             """.trimIndent()
                             ) { value ->
+                                phase.set("assertionEvaluated:" + value)
                                 passed.set(value == "true")
                                 latch.countDown()
                             }
@@ -81,10 +91,11 @@ class YouTubeFeedPipRuntimeTest {
             )
         }
         try {
-            assertTrue("WebView did not execute the enhancer", latch.await(20, TimeUnit.SECONDS))
+            assertTrue("WebView did not execute the enhancer: " + phase.get(), latch.await(20, TimeUnit.SECONDS))
             assertTrue("Four-column PiP or feed ad CSS not active", passed.get())
         } finally {
-            inst.runOnMainSync { view?.destroy() }
+            scenario.onActivity { view?.destroy() }
+            scenario.close()
         }
     }
 }
