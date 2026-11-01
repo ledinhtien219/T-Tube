@@ -40,3 +40,25 @@ test('filter compilation is off UI/request thread, bounded and fail-open', () =>
   assert.match(shields, /synchronized\(gate\)/);
   assert.match(shields, /java\.io\.ByteArrayOutputStream/);
 });
+
+test('feed ads are hidden without removing real video cards', () => {
+  const feed = fs.readFileSync('app/src/main/assets/youtube_feed_pip_enhancer.js', 'utf8');
+  assert.match(feed, /ytd-ad-slot-renderer/);
+  assert.match(feed, /ytd-in-feed-ad-layout-renderer/);
+  assert.match(feed, /ytm-promoted-sparkles-web-renderer/);
+  assert.match(feed, /data-ttube-sponsored/);
+  assert.match(feed, /markAdOnlySlots/);
+  assert.doesNotMatch(feed, /\.remove\(\)|removeChild\(/);
+});
+
+test('native YouTube related cards stay clickable in a four-column scrollable PiP grid', () => {
+  const feed = fs.readFileSync('app/src/main/assets/youtube_feed_pip_enhancer.js', 'utf8');
+  assert.match(feed, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(feed, /data-carhud-rec-scroll/);
+  assert.match(feed, /data-ttube-four-col/);
+  assert.match(feed, /touch-action:pan-y/);
+  assert.match(feed, /ytd-watch-next-secondary-results-renderer/);
+  assert.match(feed, /ytm-item-section-renderer/);
+  assert.match(presentation, /YouTubeFeedPipEnhancer\.install\(web\)/);
+  assert.match(presentation, /YouTubeFeedPipEnhancer\.inject\(view\)/);
+});
