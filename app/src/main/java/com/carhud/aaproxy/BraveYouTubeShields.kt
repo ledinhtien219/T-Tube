@@ -163,15 +163,15 @@ object BraveYouTubeShields {
 
     private fun installScriptlets(view: WebView) {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return
-        synchronized(injected) { if (!injected.add(view)) return }
         try {
-            // Scriptlets only on YouTube origins. Re-injection on a navigation
-            // picks up the filter set compiled while the first page was loading.
+            // Scriptlets only on YouTube origins, and only once rules are
+            // available; do not mark the WebView injected on an empty cache.
             val cosmetic = synchronized(gate) {
                 engine?.cosmeticResources("https://www.youtube.com/watch?v=ttube")
             } ?: return
             val js = cosmetic.js
             if (js.isBlank() || js.length > MAX_START_JS) return
+            synchronized(injected) { if (!injected.add(view)) return }
             WebViewCompat.addDocumentStartJavaScript(
                 view,
                 "(function(){try{\n" + js + "\n}catch(e){}})();",
@@ -193,9 +193,19 @@ object BraveYouTubeShields {
                 try {
                     if (conn.responseCode != 200 || conn.contentLengthLong > MAX_LIST_BYTES) return null
                     val bytes = conn.inputStream.use { stream ->
-                        val data = stream.readNBytes(MAX_LIST_BYTES + 1)
-                        if (data.size > MAX_LIST_BYTES) return null
-                        data
+                        // Android 10 InputStream compatibility: no Java 9
+                        // readNBytes() call that may be absent on older ART.
+                        val out = java.io.ByteArrayOutputStream()
+                        val buf = ByteArray(16 * 1024)
+                        var count = 0
+                        while (true) {
+                            val read = stream.read(buf)
+                            if (read < 0) break
+                            count += read
+                            if (count > MAX_LIST_BYTES) return null
+                            out.write(buf, 0, read)
+                        }
+                        out.toByteArray()
                     }
                     combined.append(String(bytes, Charsets.UTF_8)).append('\n')
                     if (combined.length > MAX_RULE_BYTES) return null
