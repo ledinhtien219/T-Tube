@@ -6,12 +6,12 @@
 (function() {
   'use strict';
   if (!/(^|\.)youtube\.com$/i.test(location.hostname)) return;
-  if (window.__ttubeFeedPipV2) {
-    window.__ttubeFeedPipV2.refresh();
+  if (window.__ttubeFeedPipV3) {
+    window.__ttubeFeedPipV3.refresh();
     return;
   }
 
-  var STYLE_ID = 'ttube-feed-pip-v2';
+  var STYLE_ID = 'ttube-feed-pip-v3';
   var AD_RENDERERS = [
     'ytd-ad-slot-renderer',
     'ytd-in-feed-ad-layout-renderer',
@@ -23,6 +23,12 @@
     'ytd-banner-promo-renderer',
     'ytd-masthead-ad-v3-renderer',
     'ytd-search-pyv-renderer',
+    'ytd-promoted-video-renderer',
+    'ytd-promoted-sparkles-text-search-renderer',
+    'ytd-compact-promoted-item-renderer',
+    'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-ads"]',
+    'ytd-brand-video-singleton-renderer',
+    'ytm-promoted-sparkles-text-search-renderer',
     'ytd-promoted-sparkles-text-search-renderer',
     'ytm-ad-slot-renderer',
     'ytm-promoted-sparkles-web-renderer',
@@ -32,6 +38,16 @@
     'ytm-companion-ad-renderer'
   ];
   var AD_QUERY = AD_RENDERERS.join(',');
+  // Ads may arrive as ordinary-looking feed cards. Only use verified ad
+  // labels or ad-only nested renderers; NEVER classify by video title.
+  var AD_BADGES = [
+    'a[href*="googleadservices.com/pagead/"]',
+    'a[href*="doubleclick.net/"]',
+    '[data-ad-preview="true"]',
+    '.ytd-in-feed-ad-layout-renderer',
+    'ytm-promoted-sparkles-web-renderer',
+    'ytd-ad-slot-renderer'
+  ].join(',');
   var CARD_QUERY = [
     'ytd-compact-video-renderer',
     'ytd-video-renderer',
@@ -40,6 +56,10 @@
     'ytm-video-with-context-renderer',
     'ytm-rich-item-renderer',
     'yt-lockup-view-model',
+    'ytd-grid-video-renderer',
+    'ytd-rich-grid-media',
+    'ytm-rich-grid-media',
+    'ytm-video-with-context-renderer',
     'a[href*="/watch?v="]'
   ].join(',');
   var GRID_CANDIDATES = [
@@ -50,7 +70,14 @@
     'ytm-item-section-renderer lazy-list',
     'ytm-section-list-renderer > lazy-list',
     'ytd-item-section-renderer #contents',
-    '.rich-grid-renderer-contents'
+    '.rich-grid-renderer-contents',
+    'ytd-rich-grid-renderer #contents',
+    'ytd-rich-grid-renderer #items',
+    'ytd-rich-shelf-renderer #contents',
+    'ytd-section-list-renderer #contents',
+    'ytd-two-column-browse-results-renderer #primary #contents',
+    'ytm-rich-grid-renderer #contents',
+    'ytm-browse lazy-list'
   ];
   var styleText = [
     // Dedicated advertising renderers, not generic video containers.
@@ -66,6 +93,11 @@
     'ytm-rich-item-renderer:has(ytm-ad-slot-renderer)' +
       '{display:none!important;}',
     '[data-ttube-sponsored="1"]{display:none!important;}',
+    'ytd-rich-item-renderer:has(ytd-promoted-video-renderer),' +
+    'ytd-rich-item-renderer:has(ytd-promoted-sparkles-web-renderer),' +
+    'ytd-rich-item-renderer:has(ytd-in-feed-ad-layout-renderer),' +
+    'ytm-video-with-context-renderer:has(ytm-promoted-sparkles-web-renderer)' +
+      '{display:none!important;}',
     // The original YouTube related-video list, never cloned into a second
     // WebView, becomes the scrollable FOUR-column PiP browser on the car.
     // Override the legacy YouTubePlayerHelper #items selector by matching its
@@ -81,6 +113,7 @@
       'box-sizing:border-box!important;overflow:visible!important;' +
       'padding:4px 4px 96px!important;}',
     'html.carhud-youtube-pip [data-ttube-four-col="1"] > * {' +
+
       'min-width:0!important;width:100%!important;max-width:100%!important;' +
       'box-sizing:border-box!important;grid-column:auto!important;' +
       'overflow:hidden!important;pointer-events:auto!important;}',
@@ -131,7 +164,7 @@
 
   function markAdOnlySlots(container) {
     if (!container || !container.querySelectorAll) return;
-    var ads = container.querySelectorAll(AD_QUERY);
+    var ads = container.querySelectorAll(AD_QUERY + ',' + AD_BADGES);
     // Bound work per frame. CSS still hides every ad renderer instantly.
     var cap = Math.min(ads.length, 80);
     for (var i = 0; i < cap; i++) {
@@ -166,8 +199,9 @@
     for (var k = 0; k < GRID_CANDIDATES.length; k++) {
       var candidates = pane.querySelectorAll(GRID_CANDIDATES[k]);
       for (var j = 0; j < candidates.length; j++) {
-        if (candidates[j].querySelector(CARD_QUERY)) {
-          chosen = candidates[j];
+        var candidate = candidates[j];
+        if (candidate.querySelector(CARD_QUERY)) {
+          chosen = candidate;
           break;
         }
       }
@@ -184,6 +218,9 @@
       if (previous[m] !== chosen) previous[m].removeAttribute('data-ttube-four-col');
     if (chosen && !chosen.hasAttribute('data-ttube-four-col'))
       chosen.setAttribute('data-ttube-four-col', '1');
+    // Keep full-screen pane scrollable after grid layout. Cards remain native
+    // YouTube anchors so selection/keyboard/touch listeners are untouched.
+    if (chosen) pane.style.setProperty('overflow-y', 'auto', 'important');
   }
 
   var timer = 0;
@@ -194,6 +231,8 @@
     // Prefer the active native feed/related pane: avoid rescanning the
     // entire YouTube document during frequent recommendation updates.
     markAdOnlySlots(target || document);
+    // Page may switch from feed to watch inside the same document.
+    watchFeed();
   }
   function schedule() {
     if (timer) return;
@@ -226,7 +265,7 @@
     watchFeed();
     schedule();
   }
-  window.__ttubeFeedPipV2 = {refresh:sync};
+  window.__ttubeFeedPipV3 = {refresh:sync};
   window.addEventListener('yt-navigate-finish', sync, {passive:true});
   window.addEventListener('yt-page-data-updated', sync, {passive:true});
   window.addEventListener('popstate', sync, {passive:true});
