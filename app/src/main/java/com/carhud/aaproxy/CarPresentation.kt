@@ -642,6 +642,8 @@ class CarPresentation(
 
         // Document-start hook must be registered before navigation loads YouTube.
         YouTubeAdBlocker.installEarlySkip(web)
+        YouTubeFeedPipEnhancer.install(web)
+        BraveYouTubeShields.start(context, web)
 
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -672,6 +674,7 @@ class CarPresentation(
             }
 
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+                BraveYouTubeShields.intercept(request)?.let { return it }
                 YouTubeAdBlocker.shouldIntercept(request)?.let { return it }
                 // No legacy URL-substring interception: it could block first-party
                 // YouTube requests based on query text and corrupt playback.
@@ -682,6 +685,7 @@ class CarPresentation(
 
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                if (view === web) BraveYouTubeShields.pageStarted(view, url)
                 if (view !== web || !isCurrentAppPage(url)) return
                 TikTokWebPolicy.applyRenderingPolicy(view, url)
                 // Starting navigation does not mean the new document is visible.
@@ -697,6 +701,8 @@ class CarPresentation(
                 if (view !== web || !isCurrentAppPage(url)) return
                 updateBrowserToolbar(url)
                 if (view != null) {
+                    if (currentActiveAppId == "youtube") YouTubeFeedPipEnhancer.inject(view)
+                    BraveYouTubeShields.applyPageCosmetics(view, url)
                     applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
                     TikTokWebPolicy.fitLayout(view, url)
                 }
@@ -743,6 +749,7 @@ class CarPresentation(
                 updateBrowserToolbar(view.url ?: url)
                 CarMediaManager.currentLoadingUrl = null
                 YouTubeAdBlocker.onPageFinished(view, url)
+                BraveYouTubeShields.applyPageCosmetics(view, url)
                 applyWebScaleForUrl(url)
                 val isDay = isDayMode()
                 applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
@@ -752,6 +759,7 @@ class CarPresentation(
                 if (isYouTube) {
                     YouTubePlayerHelper.inject(view, isUltrawide, isPortrait, carWidth, carHeight, carDpi, phoneDpi.toInt(), aspectRatio)
                     YouTubePlayerHelper.setMiniPlayerMode(view, prefs.getBoolean(youtubeBrowsePref, false))
+                    YouTubeFeedPipEnhancer.inject(view)
                     YouTubePlayerHelper.applyCarSearchHome(view)
                     updateYouTubeHomeObstacles()
 
@@ -1279,6 +1287,7 @@ class CarPresentation(
             else if (isDayMode()) Color.parseColor("#0F172A") else Color.WHITE
         )
         if (enabled) hideYouTubeSeekOverlayImmediately()
+        if (currentActiveAppId == "youtube") YouTubeFeedPipEnhancer.inject(web)
         if (!enabled && currentActiveAppId == "youtube" && isYouTubeVideoPage()) {
             // Reapply the selected fullscreen fit (including 4:3 and 21:9)
             // after a swipe/tap or toolbar-initiated expansion.

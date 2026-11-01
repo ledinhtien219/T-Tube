@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - "release/hey-mimi-pro-v121-build319"
+      - "experiment/brave-shields-youtube-rust"
   workflow_dispatch:
 
 permissions:
@@ -182,8 +183,9 @@ jobs:
           # higher versionCode, including fixes on this same branch.
           BUILD_CODE=$((308 + GITHUB_RUN_NUMBER))
           test "$BUILD_CODE" -gt 320
-          PATCH=$((BUILD_CODE - 298))
-          BUILD_VERSION="1.1.$PATCH"
+          # Human-readable release version changes only for an intentional
+          # release, never on every CI attempt. Play versionCode stays unique.
+          BUILD_VERSION="1.1.30"
           export BUILD_CODE BUILD_VERSION
           echo "BUILD_CODE=$BUILD_CODE" >> "$GITHUB_ENV"
           echo "BUILD_VERSION=$BUILD_VERSION" >> "$GITHUB_ENV"
@@ -203,11 +205,11 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Install Android 16 SDK
+      - name: Install Android 17 SDK for Brave Rust JNI
         shell: bash
         run: |
           set -euo pipefail
@@ -215,6 +217,14 @@ jobs:
           test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+          # API 37 uses the 37.0 platform package on SDK manager canary.
+          "$SDKMANAGER" --channel=3 "platforms;android-37.0" "build-tools;37.0.0"
+          # AGP 8.13 expects this canonical directory when compileSdk=37.
+          PLATFORM_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}/platforms"
+          if [ -d "$PLATFORM_ROOT/android-37.0" ] && [ ! -e "$PLATFORM_ROOT/android-37" ]; then
+            ln -s android-37.0 "$PLATFORM_ROOT/android-37"
+          fi
+          test -s "$PLATFORM_ROOT/android-37/android.jar"
       - uses: gradle/actions/setup-gradle@v4
       - name: Prepare temporary debug certificate for unit tests
         shell: bash
@@ -235,13 +245,15 @@ jobs:
           chmod +x gradlew
           ./gradlew testDebugUnitTest --tests '*AssistantIntentParserTest' --tests '*HeyMimiConversationTest' --tests '*MimiAiPolicyTest' --tests '*MimiHotwordGateTest' --tests '*MimiProPolicyTest' --tests '*MimiAppSwitchRouterTest' --tests '*MimiExtendedLanguageTest' --tests '*MimiMapsCommandRouterTest' --tests '*MimiAiConnectionPolicyTest' --tests '*MimiProVoiceRouterTest' --tests '*MimiNavigationPriorityTest' --stacktrace --no-daemon
       - name: Verify v1.1.20 fixes in assembled source
-        run: node --test tests/v121-hardening-regression.test.cjs
+        run: |
+          node --check app/src/main/assets/youtube_feed_pip_enhancer.js
+          node --test tests/v121-hardening-regression.test.cjs tests/brave-shields-experiment.test.cjs tests/youtube-feed-pip-v2.test.cjs
       - name: Release lint
         run: ./gradlew lintRelease --stacktrace --no-daemon
       - name: Build auto-versioned unsigned AAB for offline signing
         run: ./gradlew bundleRelease --stacktrace --no-daemon
-      - name: Build debug APK and verify boot
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Build debug APK and Brave native instrumentation APK
+        run: ./gradlew assembleDebug assembleDebugAndroidTest --no-daemon --stacktrace
       - name: Enable KVM
         shell: bash
         run: |
@@ -258,7 +270,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
-          script: bash ci/hey-mimi/phone-startup-smoke.sh
+          script: bash ci/hey-mimi/brave-native-jni-smoke.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:

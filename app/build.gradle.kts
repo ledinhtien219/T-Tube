@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "com.carhud.app"
-    compileSdk = 36
+    // Required by experimental Brave Rust JNI AAR; Play targetSdk stays at 36.
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.ledinhtien.ttube"
@@ -112,18 +113,20 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-        freeCompilerArgs += listOf(
-            "-opt-in=kotlin.RequiresOptIn",
-            "-opt-in=androidx.compose.material.ExperimentalMaterialApi"
-        )
-    }
-
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        freeCompilerArgs.addAll(
+            "-opt-in=kotlin.RequiresOptIn",
+            "-opt-in=androidx.compose.material.ExperimentalMaterialApi"
+        )
     }
 }
 
@@ -136,6 +139,8 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.14.1")
     implementation("androidx.media:media:1.7.0")
     implementation("androidx.webkit:webkit:1.17.1")
+    // Experimental native Brave adblock-rust engine (MPL-2.0, Java 21 bytecode).
+    implementation("io.github.mlm-games:adblock:0.1.3")
     // Official Google Play flexible in-app update API (phone UI only).
     implementation("com.google.android.play:app-update:2.1.0")
     implementation(files("libs/aauto.aar"))
