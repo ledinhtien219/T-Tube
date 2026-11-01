@@ -670,11 +670,10 @@ class CarPresentation(
 
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                 YouTubeAdBlocker.shouldIntercept(request)?.let { return it }
-                val url = request?.url?.toString()
-                if (url != null && YouTubePlayerHelper.isAdUrl(url)) {
-                    val origin = request.requestHeaders?.get("Origin") ?: request.requestHeaders?.get("origin")
-                    return YouTubePlayerHelper.createEmptyResponse(origin)
-                }
+                // No legacy URL-substring interception: it could block first-party
+                // YouTube requests based on query text and corrupt playback.
+                // The scoped network rules above intentionally leave media and
+                // player APIs alone, as a fail-open compatibility policy.
                 return super.shouldInterceptRequest(view, request)
             }
 
