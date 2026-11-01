@@ -52,7 +52,7 @@ class YouTubeFeedPipRuntimeTest {
                                 var grid=document.querySelector('[data-ttube-four-col="1"]');
                                 var ad=document.querySelector('ytd-ad-slot-renderer');
                                 var ordinary=document.querySelector('a[href*="/watch?v="]');
-                                var style=document.getElementById('ttube-feed-pip-v2');
+                                var style=document.getElementById('ttube-feed-pip-v3');
                                 return !!grid && !!ad && !!ordinary && !!style &&
                                   getComputedStyle(grid).display==='grid' &&
                                   getComputedStyle(ad).display==='none' &&
