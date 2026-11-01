@@ -62,6 +62,10 @@ object BraveYouTubeShields {
     private val injected = Collections.newSetFromMap(WeakHashMap<WebView, Boolean>())
     @Volatile private var engine: AdblockEngine? = null
     @Volatile private var youtubeActive = false
+    @Volatile private var scriptlets = ""
+    @Volatile private var cosmeticCss = ""
+    @Volatile private var rulesGeneration = 0
+    private val appliedPages = Collections.synchronizedMap(WeakHashMap<WebView, String>())
 
     fun start(context: Context, view: WebView) {
         synchronized(views) { views.add(view) }
@@ -89,6 +93,39 @@ object BraveYouTubeShields {
             } catch (_: Throwable) {
                 // Fail open: the existing native Skip and SponsorBlock still work.
             }
+        }
+    }
+
+    fun pageStarted(view: WebView, url: String?) {
+        synchronized(appliedPages) { appliedPages.remove(view) }
+        setYouTubePage(url)
+    }
+
+    /** Apply already compiled cosmetics to the current SPA/document once. */
+    fun applyPageCosmetics(view: WebView, pageUrl: String?) {
+        val host = try { Uri.parse(pageUrl ?: "").host?.lowercase() } catch (_: Exception) { null }
+        if (!isYouTubeHost(host)) return
+        val js = scriptlets
+        val css = cosmeticCss
+        if (js.isBlank() && css.isBlank()) return
+        val key = rulesGeneration.toString() + ":" + pageUrl
+        synchronized(appliedPages) {
+            if (appliedPages[view] == key) return
+            appliedPages[view] = key
+        }
+        val inject = "(function(){try{" +
+            "var st=document.getElementById('ttube-brave-cosmetics');" +
+            "if(!st){st=document.createElement('style');st.id='ttube-brave-cosmetics';" +
+            "(document.head||document.documentElement).appendChild(st);}" +
+            "st.textContent=" + org.json.JSONObject.quote(css) + ";" +
+            "}catch(e){};try{\n" + js + "\n}catch(e){}})();"
+        view.post {
+            try {
+                val current = view.url
+                if (isYouTubeHost(Uri.parse(current ?: "").host?.lowercase())) {
+                    view.evaluateJavascript(inject, null)
+                }
+            } catch (_: Throwable) {}
         }
     }
 
@@ -144,14 +181,36 @@ object BraveYouTubeShields {
             val resources = context.assets.open("adblock/resources.json")
                 .bufferedReader().use { it.readText() }
             if (!candidate.loadResources(resources)) return false
+            val cosmetic = try {
+                candidate.cosmeticResources("https://www.youtube.com/watch?v=ttube")
+            } catch (_: Throwable) { null }
+            val newScriptlets = cosmetic?.js.orEmpty().takeIf { it.length <= MAX_START_JS }.orEmpty()
+            val newCss = cosmetic?.selectors.orEmpty()
+                .filter { selector ->
+                    selector.length < 200 &&
+                        (selector.contains("promoted", true) ||
+                         selector.contains("ad-slot", true) ||
+                         selector.contains("player-ads", true) ||
+                         selector.contains("masthead-ad", true))
+                }.take(120)
+                .joinToString("\n") { selector -> "$selector { display:none!important; }" }
+                .take(24_000)
             synchronized(gate) {
                 val previous = engine
                 engine = candidate
+                scriptlets = newScriptlets
+                cosmeticCss = newCss
+                rulesGeneration++
                 candidate = null
                 previous?.close()
             }
             synchronized(views) {
-                views.toList().forEach { view -> main.post { installScriptlets(view) } }
+                views.toList().forEach { view ->
+                    main.post {
+                        installScriptlets(view)
+                        applyPageCosmetics(view, view.url)
+                    }
+                }
             }
             true
         } catch (_: Throwable) {
@@ -166,10 +225,7 @@ object BraveYouTubeShields {
         try {
             // Scriptlets only on YouTube origins, and only once rules are
             // available; do not mark the WebView injected on an empty cache.
-            val cosmetic = synchronized(gate) {
-                engine?.cosmeticResources("https://www.youtube.com/watch?v=ttube")
-            } ?: return
-            val js = cosmetic.js
+            val js = scriptlets
             if (js.isBlank() || js.length > MAX_START_JS) return
             synchronized(injected) { if (!injected.add(view)) return }
             WebViewCompat.addDocumentStartJavaScript(
