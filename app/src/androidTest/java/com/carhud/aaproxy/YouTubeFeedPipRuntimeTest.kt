@@ -34,7 +34,10 @@ class YouTubeFeedPipRuntimeTest {
             web.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(v: WebView, url: String?) {
                     v.evaluateJavascript(js) {
-                        v.evaluateJavascript(
+                        // The enhancement intentionally debounces DOM work by
+                        // 180ms to avoid scroll jank; test after that settle.
+                        v.postDelayed({
+                            v.evaluateJavascript(
                             """
                             (function(){
                                 var grid=document.querySelector('[data-ttube-four-col="1"]');
@@ -47,10 +50,11 @@ class YouTubeFeedPipRuntimeTest {
                                   style.textContent.includes('grid-template-columns:repeat(4,minmax(0,1fr))');
                             })();
                             """.trimIndent()
-                        ) { value ->
-                            passed.set(value == "true")
-                            latch.countDown()
-                        }
+                            ) { value ->
+                                passed.set(value == "true")
+                                latch.countDown()
+                            }
+                        }, 650L)
                     }
                 }
             }
