@@ -25,7 +25,8 @@ test('does not intercept non-YouTube or core media/player traffic', () => {
   assert.match(shields, /path\.contains\("\/videoplayback"\)/);
   assert.match(shields, /type == "media"/);
   assert.match(shields, /sourceHost != null && !isYouTubeHost/);
-  assert.match(presentation, /BraveYouTubeShields\.setYouTubePage\(url\)/);
+  assert.match(presentation, /BraveYouTubeShields\.pageStarted\(view, url\)/);
+  assert.match(presentation, /BraveYouTubeShields\.applyPageCosmetics\(view, url\)/);
   assert.match(presentation, /BraveYouTubeShields\.intercept\(request\)/);
 });
 
