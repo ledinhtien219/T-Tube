@@ -15,13 +15,13 @@ fi
 adb install -r -t "$test_apk"
 
 # Do not pipe through tee before checking test verdict. Android instrument
-# may exit zero even when tests fail, so assert an actual single test passed.
+# may exit zero even when tests fail, so assert both native + PiP WebView tests passed.
 result="$(adb shell am instrument -w -r \
-  -e class com.carhud.aaproxy.BraveShieldsNativeTest \
+  -e class com.carhud.aaproxy.BraveShieldsNativeTest,com.carhud.aaproxy.YouTubeFeedPipRuntimeTest \
   com.ledinhtien.ttube.test/androidx.test.runner.AndroidJUnitRunner)"
 printf '%s\n' "$result" | tee smoke-artifacts/brave-native-jni.txt
-grep -Eq 'OK \(1 test\)|OK \(1 tests\)' smoke-artifacts/brave-native-jni.txt
+grep -Eq 'OK \(2 tests\)|OK \(2 test\)' smoke-artifacts/brave-native-jni.txt
 if grep -Eq 'FAILURES|INSTRUMENTATION_FAILED|Process crashed' smoke-artifacts/brave-native-jni.txt; then
   exit 1
 fi
-echo "PASS: Brave native Rust adblock engine loaded and filtered a test ad request"
+echo "PASS: Brave Rust JNI and real Android WebView feed-ad / 4-column PiP grid"
