@@ -673,6 +673,7 @@ class CarPresentation(
             }
 
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+                BraveYouTubeShields.intercept(request)?.let { return it }
                 YouTubeAdBlocker.shouldIntercept(request)?.let { return it }
                 // No legacy URL-substring interception: it could block first-party
                 // YouTube requests based on query text and corrupt playback.
@@ -683,6 +684,7 @@ class CarPresentation(
 
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                if (view === web) BraveYouTubeShields.setYouTubePage(url)
                 if (view !== web || !isCurrentAppPage(url)) return
                 TikTokWebPolicy.applyRenderingPolicy(view, url)
                 // Starting navigation does not mean the new document is visible.
