@@ -77,3 +77,9 @@ test('Only known third-party ad hosts are intercepted; media and first-party pla
   assert.match(src, /return createEmptyResponse\(\)/);
   assert.doesNotMatch(src.match(/fun shouldIntercept[\s\S]*?\n    }/)[0], /isAdUrl/);
 });
+
+test('legacy substring blocker cannot intercept YouTube player traffic', () => {
+  const presentation = read('CarPresentation.kt');
+  assert.doesNotMatch(presentation, /YouTubePlayerHelper\.isAdUrl\(url\)/);
+  assert.match(presentation, /YouTubeAdBlocker\.shouldIntercept\(request\)/);
+});
