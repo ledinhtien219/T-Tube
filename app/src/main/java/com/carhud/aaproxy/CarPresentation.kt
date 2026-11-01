@@ -640,6 +640,9 @@ class CarPresentation(
 
         IptvManager.getChannels(context) {}
 
+        // Document-start hook must be registered before navigation loads YouTube.
+        YouTubeAdBlocker.installEarlySkip(web)
+
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val target = request?.url?.toString() ?: return false
