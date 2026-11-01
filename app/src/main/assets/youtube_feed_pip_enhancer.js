@@ -68,6 +68,11 @@
     '[data-ttube-sponsored="1"]{display:none!important;}',
     // The original YouTube related-video list, never cloned into a second
     // WebView, becomes the scrollable FOUR-column PiP browser on the car.
+    // Override the legacy YouTubePlayerHelper #items selector by matching its
+    // ID specificity plus one extra PiP state attribute. Otherwise the old
+    // auto-fill/minmax(205px) rule keeps rendering 2-3 columns.
+    'html.carhud-youtube-pip [data-carhud-rec-scroll="1"] #items[data-ttube-four-col="1"],' +
+    'html.carhud-youtube-pip [data-carhud-rec-scroll="1"] lazy-list[data-ttube-four-col="1"],' +
     'html.carhud-youtube-pip [data-ttube-four-col="1"] {' +
       'display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;' +
       'grid-auto-flow:row!important;grid-auto-rows:auto!important;' +
