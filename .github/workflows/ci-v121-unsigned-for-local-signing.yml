@@ -249,8 +249,8 @@ jobs:
         run: ./gradlew lintRelease --stacktrace --no-daemon
       - name: Build auto-versioned unsigned AAB for offline signing
         run: ./gradlew bundleRelease --stacktrace --no-daemon
-      - name: Build debug APK and verify boot
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Build debug APK and Brave native instrumentation APK
+        run: ./gradlew assembleDebug assembleDebugAndroidTest --no-daemon --stacktrace
       - name: Enable KVM
         shell: bash
         run: |
@@ -267,7 +267,14 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
-          script: bash ci/hey-mimi/phone-startup-smoke.sh
+          script: |
+            bash ci/hey-mimi/phone-startup-smoke.sh
+            test_apk="$(find app/build/outputs/apk/androidTest -type f -name '*.apk' | head -1)"
+            test -s "$test_apk"
+            adb install -r "$test_apk"
+            result="$(adb shell am instrument -w -r -e class com.carhud.aaproxy.BraveShieldsNativeTest com.ledinhtien.ttube.test/androidx.test.runner.AndroidJUnitRunner)"
+            printf '%s\n' "$result" | tee smoke-artifacts/brave-native-jni.txt
+            grep -q 'OK (1 test)' smoke-artifacts/brave-native-jni.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
