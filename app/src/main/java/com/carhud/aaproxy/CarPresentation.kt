@@ -684,7 +684,7 @@ class CarPresentation(
 
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
-                if (view === web) BraveYouTubeShields.setYouTubePage(url)
+                if (view === web) BraveYouTubeShields.pageStarted(view, url)
                 if (view !== web || !isCurrentAppPage(url)) return
                 TikTokWebPolicy.applyRenderingPolicy(view, url)
                 // Starting navigation does not mean the new document is visible.
@@ -700,6 +700,7 @@ class CarPresentation(
                 if (view !== web || !isCurrentAppPage(url)) return
                 updateBrowserToolbar(url)
                 if (view != null) {
+                    BraveYouTubeShields.applyPageCosmetics(view, url)
                     applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
                     TikTokWebPolicy.fitLayout(view, url)
                 }
@@ -746,6 +747,7 @@ class CarPresentation(
                 updateBrowserToolbar(view.url ?: url)
                 CarMediaManager.currentLoadingUrl = null
                 YouTubeAdBlocker.onPageFinished(view, url)
+                BraveYouTubeShields.applyPageCosmetics(view, url)
                 applyWebScaleForUrl(url)
                 val isDay = isDayMode()
                 applyUniversalWebTheme(view, effectiveWebThemeIsDay(url))
