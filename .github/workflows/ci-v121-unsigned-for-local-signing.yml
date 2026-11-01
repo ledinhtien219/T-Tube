@@ -185,7 +185,7 @@ jobs:
           test "$BUILD_CODE" -gt 320
           # Human-readable release version changes only for an intentional
           # release, never on every CI attempt. Play versionCode stays unique.
-          BUILD_VERSION="1.1.29"
+          BUILD_VERSION="1.1.30"
           export BUILD_CODE BUILD_VERSION
           echo "BUILD_CODE=$BUILD_CODE" >> "$GITHUB_ENV"
           echo "BUILD_VERSION=$BUILD_VERSION" >> "$GITHUB_ENV"
