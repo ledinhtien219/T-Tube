@@ -186,7 +186,9 @@
     timer = 0;
     mountStyle();
     updateGrid();
-    markAdOnlySlots(document);
+    // Prefer the active native feed/related pane: avoid rescanning the
+    // entire YouTube document during frequent recommendation updates.
+    markAdOnlySlots(target || document);
   }
   function schedule() {
     if (timer) return;
@@ -198,7 +200,7 @@
     var root = document.querySelector(
       'ytd-rich-grid-renderer #contents, ytd-watch-flexy #secondary, ' +
       'ytm-section-list-renderer, ytm-watch .watch-below-the-fold, ' +
-      'ytd-search #contents, ytd-app, ytm-app'
+      'ytd-search #contents'
     );
     if (root === target) return;
     if (observer) observer.disconnect();
